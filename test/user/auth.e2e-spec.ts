@@ -327,6 +327,35 @@ describe('Auth Module', () => {
         .expect(200);
     });
 
+    it('should invalidate access token after logout: /api/v1/auth/logout (POST)', async () => {
+      // Login and get access token
+      const loginResponse = await request(app)
+        .post('/api/v1/auth/email/login')
+        .send({ email: newUserEmail, password: newUserPassword })
+        .expect(200);
+
+      const accessToken = loginResponse.body.token;
+      expect(accessToken).toBeDefined();
+
+      // Verify token works before logout
+      await request(app)
+        .get('/api/v1/auth/me')
+        .auth(accessToken, { type: 'bearer' })
+        .expect(200);
+
+      // Logout
+      await request(app)
+        .post('/api/v1/auth/logout')
+        .auth(accessToken, { type: 'bearer' })
+        .expect(204);
+
+      // CRITICAL: Token should NOT work after logout
+      await request(app)
+        .get('/api/v1/auth/me')
+        .auth(accessToken, { type: 'bearer' })
+        .expect(401);
+    });
+
     it('should delete profile successfully: /api/v1/auth/me (DELETE)', async () => {
       const newUserApiToken = await request(app)
         .post('/api/v1/auth/email/login')

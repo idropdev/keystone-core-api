@@ -11,6 +11,7 @@ import { AuthService } from '../auth/auth.service';
 import { AuthGoogleService } from './auth-google.service';
 import { AuthGoogleLoginDto } from './dto/auth-google-login.dto';
 import { LoginResponseDto } from '../auth/dto/login-response.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @Controller({
@@ -31,6 +32,8 @@ export class AuthGoogleController {
   })
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  // HIPAA Security: Rate limiting on Google OAuth login (5 requests per 60 seconds)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async login(@Body() loginDto: AuthGoogleLoginDto): Promise<LoginResponseDto> {
     const socialData = await this.authGoogleService.getProfileByToken(loginDto);
 

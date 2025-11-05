@@ -24,6 +24,7 @@ import { LoginResponseDto } from './dto/login-response.dto';
 import { NullableType } from '../utils/types/nullable.type';
 import { User } from '../users/domain/user';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @Controller({
@@ -41,12 +42,17 @@ export class AuthController {
     type: LoginResponseDto,
   })
   @HttpCode(HttpStatus.OK)
+  // HIPAA Security: Strict rate limiting on login endpoint (5 requests per 60 seconds)
+  // TODO: Consider implementing progressive delays after failed attempts
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   public login(@Body() loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
     return this.service.validateLogin(loginDto);
   }
 
   @Post('email/register')
   @HttpCode(HttpStatus.NO_CONTENT)
+  // HIPAA Security: Rate limiting on registration (5 requests per 60 seconds)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async register(@Body() createUserDto: AuthRegisterLoginDto): Promise<void> {
     return this.service.register(createUserDto);
   }
@@ -69,6 +75,8 @@ export class AuthController {
 
   @Post('forgot/password')
   @HttpCode(HttpStatus.NO_CONTENT)
+  // HIPAA Security: Rate limiting on password reset (3 requests per 60 seconds)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async forgotPassword(
     @Body() forgotPasswordDto: AuthForgotPasswordDto,
   ): Promise<void> {
@@ -108,6 +116,8 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(AuthGuard('jwt-refresh'))
   @HttpCode(HttpStatus.OK)
+  // HIPAA Security: Rate limiting on token refresh (10 requests per 60 seconds)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   public refresh(@Request() request): Promise<RefreshResponseDto> {
     return this.service.refreshToken({
       sessionId: request.user.sessionId,

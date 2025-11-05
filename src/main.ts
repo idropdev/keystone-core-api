@@ -12,11 +12,38 @@ import { AppModule } from './app.module';
 import validationOptions from './utils/validation-options';
 import { AllConfigType } from './config/config.type';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
   const configService = app.get(ConfigService<AllConfigType>);
+
+  // HIPAA Security: Add security headers using Helmet
+  // TODO: Fine-tune CSP (Content Security Policy) for production
+  // TODO: Ensure HSTS (HTTP Strict Transport Security) is configured at load balancer level
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
+      },
+      hsts: {
+        maxAge: 31536000, // 1 year in seconds
+        includeSubDomains: true,
+        preload: true,
+      },
+      frameguard: {
+        action: 'deny', // Prevent clickjacking
+      },
+      noSniff: true, // Prevent MIME type sniffing
+      xssFilter: true, // Enable XSS filter
+    }),
+  );
 
   app.enableShutdownHooks();
   app.setGlobalPrefix(

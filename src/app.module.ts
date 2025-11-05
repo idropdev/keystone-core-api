@@ -10,6 +10,7 @@ import fileConfig from './files/config/file.config';
 import facebookConfig from './auth-facebook/config/facebook.config';
 import googleConfig from './auth-google/config/google.config';
 import appleConfig from './auth-apple/config/apple.config';
+import throttlerConfig from './config/throttler.config';
 import path from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -27,6 +28,9 @@ import { MailerModule } from './mailer/mailer.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MongooseConfigService } from './database/mongoose-config.service';
 import { DatabaseConfig } from './database/config/database-config.type';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // <database-block>
 const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
@@ -55,9 +59,26 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
         facebookConfig,
         googleConfig,
         appleConfig,
+        throttlerConfig,
       ],
       envFilePath: ['.env'],
     }),
+    // HIPAA Security: Rate limiting to prevent brute force attacks
+    // TODO: Consider using Redis storage for distributed rate limiting in production
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService<AllConfigType>) => ({
+        throttlers: [
+          {
+            ttl: configService.getOrThrow('throttler.ttl', { infer: true }),
+            limit: configService.getOrThrow('throttler.limit', { infer: true }),
+          },
+        ],
+      }),
+    }),
+    // HIPAA Compliance: Enable scheduled tasks for session cleanup
+    ScheduleModule.forRoot(),
     infrastructureDatabaseModule,
     I18nModule.forRootAsync({
       useFactory: (configService: ConfigService<AllConfigType>) => ({
@@ -92,6 +113,14 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     MailModule,
     MailerModule,
     HomeModule,
+  ],
+  providers: [
+    // Apply rate limiting globally
+    // TODO: Fine-tune limits for specific endpoints using @SkipThrottle() and @Throttle() decorators
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

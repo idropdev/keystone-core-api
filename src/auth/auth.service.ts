@@ -28,6 +28,7 @@ import { Session } from '../session/domain/session';
 import { SessionService } from '../session/session.service';
 import { StatusEnum } from '../statuses/statuses.enum';
 import { User } from '../users/domain/user';
+import { AuditService, AuthEventType } from '../audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -37,12 +38,22 @@ export class AuthService {
     private sessionService: SessionService,
     private mailService: MailService,
     private configService: ConfigService<AllConfigType>,
+    private auditService: AuditService,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
     const user = await this.usersService.findByEmail(loginDto.email);
 
     if (!user) {
+      // HIPAA Audit: Log failed login attempt (email not found)
+      this.auditService.logAuthEvent({
+        userId: 'unknown',
+        provider: AuthProvidersEnum.email,
+        event: AuthEventType.LOGIN_FAILED,
+        success: false,
+        errorMessage: 'User not found',
+      });
+
       throw new UnprocessableEntityException({
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
@@ -52,6 +63,15 @@ export class AuthService {
     }
 
     if (user.provider !== AuthProvidersEnum.email) {
+      // HIPAA Audit: Log failed login attempt (wrong provider)
+      this.auditService.logAuthEvent({
+        userId: user.id,
+        provider: user.provider,
+        event: AuthEventType.LOGIN_FAILED,
+        success: false,
+        errorMessage: 'Wrong authentication provider',
+      });
+
       throw new UnprocessableEntityException({
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
@@ -61,6 +81,15 @@ export class AuthService {
     }
 
     if (!user.password) {
+      // HIPAA Audit: Log failed login attempt (no password set)
+      this.auditService.logAuthEvent({
+        userId: user.id,
+        provider: AuthProvidersEnum.email,
+        event: AuthEventType.LOGIN_FAILED,
+        success: false,
+        errorMessage: 'No password set',
+      });
+
       throw new UnprocessableEntityException({
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
@@ -75,6 +104,15 @@ export class AuthService {
     );
 
     if (!isValidPassword) {
+      // HIPAA Audit: Log failed login attempt (incorrect password)
+      this.auditService.logAuthEvent({
+        userId: user.id,
+        provider: AuthProvidersEnum.email,
+        event: AuthEventType.LOGIN_FAILED,
+        success: false,
+        errorMessage: 'Incorrect password',
+      });
+
       throw new UnprocessableEntityException({
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
@@ -100,6 +138,15 @@ export class AuthService {
       hash,
     });
 
+    // HIPAA Audit: Log successful login
+    this.auditService.logAuthEvent({
+      userId: user.id,
+      provider: AuthProvidersEnum.email,
+      event: AuthEventType.LOGIN_SUCCESS,
+      sessionId: session.id,
+      success: true,
+    });
+
     return {
       refreshToken,
       token,
@@ -115,6 +162,7 @@ export class AuthService {
     let user: NullableType<User> = null;
     const socialEmail = socialData.email?.toLowerCase();
     let userByEmail: NullableType<User> = null;
+    let isNewUser = false;
 
     if (socialEmail) {
       userByEmail = await this.usersService.findByEmail(socialEmail);
@@ -153,9 +201,19 @@ export class AuthService {
       });
 
       user = await this.usersService.findById(user.id);
+      isNewUser = true;
     }
 
     if (!user) {
+      // HIPAA Audit: Log failed social login
+      this.auditService.logAuthEvent({
+        userId: 'unknown',
+        provider: authProvider,
+        event: AuthEventType.LOGIN_FAILED,
+        success: false,
+        errorMessage: 'User not found or could not be created',
+      });
+
       throw new UnprocessableEntityException({
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
@@ -163,6 +221,9 @@ export class AuthService {
         },
       });
     }
+
+    // TODO: MFA Check - if user.mfaEnabled === true, require second factor before issuing tokens
+    // For now, we proceed directly to session creation
 
     const hash = crypto
       .createHash('sha256')
@@ -183,6 +244,17 @@ export class AuthService {
       role: user.role,
       sessionId: session.id,
       hash,
+    });
+
+    // HIPAA Audit: Log successful social login (or new account creation)
+    this.auditService.logAuthEvent({
+      userId: user.id,
+      provider: authProvider,
+      event: isNewUser
+        ? AuthEventType.ACCOUNT_CREATED
+        : AuthEventType.LOGIN_SUCCESS,
+      sessionId: session.id,
+      success: true,
     });
 
     return {
@@ -498,10 +570,30 @@ export class AuthService {
     const session = await this.sessionService.findById(data.sessionId);
 
     if (!session) {
+      // HIPAA Audit: Log failed refresh (session not found)
+      this.auditService.logAuthEvent({
+        userId: 'unknown',
+        provider: 'system',
+        event: AuthEventType.REFRESH_TOKEN_FAILED,
+        sessionId: data.sessionId,
+        success: false,
+        errorMessage: 'Session not found',
+      });
+
       throw new UnauthorizedException();
     }
 
     if (session.hash !== data.hash) {
+      // HIPAA Audit: Log failed refresh (hash mismatch - potential security issue)
+      this.auditService.logAuthEvent({
+        userId: session.user.id,
+        provider: 'system',
+        event: AuthEventType.REFRESH_TOKEN_FAILED,
+        sessionId: data.sessionId,
+        success: false,
+        errorMessage: 'Hash mismatch - potential token reuse',
+      });
+
       throw new UnauthorizedException();
     }
 
@@ -513,6 +605,16 @@ export class AuthService {
     const user = await this.usersService.findById(session.user.id);
 
     if (!user?.role) {
+      // HIPAA Audit: Log failed refresh (user not found or no role)
+      this.auditService.logAuthEvent({
+        userId: session.user.id,
+        provider: 'system',
+        event: AuthEventType.REFRESH_TOKEN_FAILED,
+        sessionId: data.sessionId,
+        success: false,
+        errorMessage: 'User not found or missing role',
+      });
+
       throw new UnauthorizedException();
     }
 
@@ -529,6 +631,15 @@ export class AuthService {
       hash,
     });
 
+    // HIPAA Audit: Log successful token refresh
+    this.auditService.logAuthEvent({
+      userId: session.user.id,
+      provider: 'system',
+      event: AuthEventType.REFRESH_TOKEN_SUCCESS,
+      sessionId: session.id,
+      success: true,
+    });
+
     return {
       token,
       refreshToken,
@@ -541,6 +652,19 @@ export class AuthService {
   }
 
   async logout(data: Pick<JwtRefreshPayloadType, 'sessionId'>) {
+    const session = await this.sessionService.findById(data.sessionId);
+
+    if (session) {
+      // HIPAA Audit: Log logout event
+      this.auditService.logAuthEvent({
+        userId: session.user.id,
+        provider: 'system',
+        event: AuthEventType.LOGOUT,
+        sessionId: data.sessionId,
+        success: true,
+      });
+    }
+
     return this.sessionService.deleteById(data.sessionId);
   }
 

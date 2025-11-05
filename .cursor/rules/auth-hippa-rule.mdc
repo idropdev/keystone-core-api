@@ -1,0 +1,273 @@
+---
+alwaysApply: false
+---
+# Keystone Core API - Auth & HIPAA Architecture
+
+You are working on the Keystone Core API for HealthAtlas.
+Tech stack: NestJS monolith derived from Brocoders’ nestjs-boilerplate, deployed on GCP.
+This service must meet HIPAA-aligned constraints.
+Your job: extend and harden the existing auth stack.
+Do NOT rewrite the architecture into a redirect-based Passport OAuth flow. The current architecture is intentional and must be preserved.
+READ AND OBEY EVERYTHING BELOW.
+────────────────────────────────
+HIGH-LEVEL AUTH ARCHITECTURE
+────────────────────────────────
+We are using a mobile-first OAuth flow, not server-driven browser redirects.
+Flow:
+Flutter app (client) does Google Sign-In / Sign in with Apple natively using platform SDKs.
+Flutter receives an ID token from the provider.
+Flutter sends that ID token to Keystone Core API in a POST request.
+Keystone Core API verifies the token server-side using the provider’s public keys/libraries.
+Keystone Core API finds or creates the user, creates a session, and returns:
+short-lived access token (JWT),
+long-lived refresh token,
+token expiration timestamp,
+sanitized user object.
+This is already implemented for Google and Apple and MUST remain the standard pattern.
+Absolutely DO NOT introduce browser redirects, OAuth callbacks, Passport OAuth guards, or “GET /auth/google/callback”-style flows. Those are explicitly rejected.
+The public contract for mobile is:
+POST /v1/auth/google/login with { idToken }
+POST /v1/auth/apple/login with { idToken, firstName?, lastName? }
+Response: { token, refreshToken, tokenExpires, user }
+We also have:
+GET /v1/auth/me (Bearer access token)
+POST /v1/auth/refresh (Bearer refresh token)
+POST /v1/auth/logout
+All future providers (Microsoft, etc.) MUST follow this same POST {idToken} → verify → issue session → return JWT pattern.
+──────────────────────────────
+2. MODULE / DIRECTORY BOUNDARIES
+──────────────────────────────
+Respect and extend this structure:
+src/auth/
+Holds core auth logic that is provider-agnostic.
+Files like:
+auth.module.ts
+auth.controller.ts
+auth.service.ts
+auth-providers.enum.ts
+strategies/jwt.strategy.ts
+strategies/jwt-refresh.strategy.ts
+strategies/anonymous.strategy.ts
+DTOs like login-response.dto.ts
+Logic for:
+issuing tokens,
+creating/verifying sessions,
+validateSocialLogin(...),
+refresh, logout, me,
+email/password auth for non-social accounts.
+src/auth-google/
+Google-specific login endpoint and verification.
+Files like:
+auth-google.module.ts
+auth-google.controller.ts  // POST /v1/auth/google/login
+auth-google.service.ts     // verifies Google ID token via google-auth-library
+config/google.config.ts    // loads GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+DTOs like auth-google-login.dto.ts
+Uses google-auth-library’s OAuth2Client.verifyIdToken().
+src/auth-apple/
+Apple-specific login endpoint and verification.
+Files like:
+auth-apple.module.ts
+auth-apple.controller.ts   // POST /v1/auth/apple/login
+auth-apple.service.ts      // verifies Apple ID token via apple-signin-auth
+config/apple.config.ts     // loads APPLE_APP_AUDIENCE (JSON array)
+DTOs like auth-apple-login.dto.ts
+Apple specifics:
+Only first/last name on FIRST sign-in → client sends them.
+Email may be Apple private relay or null.
+Stable identifier is sub from Apple token.
+src/users/
+User entity/domain and persistence logic (supports Postgres OR Mongo depending on env).
+users.service.ts implements:
+findByEmail(email)
+findBySocialIdAndProvider({ socialId, provider })
+create(...)
+update(id, dto)
+etc.
+The User model includes:
+id
+email: string | null
+provider: 'email' | 'google' | 'apple' | 'facebook' ...
+socialId: string | null   // provider user ID (Google sub, Apple sub)
+firstName, lastName
+role
+status
+timestamps
+soft delete fields
+The User model is ALREADY set up to expose specific fields with class-transformer groups (e.g. @Expose({ groups: ['me'] })) and hide sensitive internals (e.g. password).
+src/session/
+Session entity + session.service.ts.
+Each login creates a session with a random hash.
+Refresh tokens tie to that session.
+Logout / password change invalidates sessions.
+Do NOT collapse these modules.
+Instead, extend them in-place using the same patterns (DTOs, services, config modules, versioned controllers, etc.).
+─────────────────────────
+3. SECURITY / HIPAA RULES
+─────────────────────────
+Hard requirements you must maintain in all code you generate:
+NO PHI in OAuth.
+We NEVER request health-related scopes.
+We NEVER send PHI to Google/Apple.
+We NEVER store PHI in the user table.
+NO PHI in JWT.
+Access token payload MUST contain ONLY:
+id (user id),
+role (RBAC role),
+sessionId,
+standard iat / exp.
+Do not add email, name, or anything health-related to the JWT.
+NO PHI in logs.
+When you log auth events, log only:
+userId,
+provider,
+event type,
+timestamp.
+DO NOT log raw tokens, ID tokens, refresh tokens, or emails.
+Identity table = identity ONLY.
+The users table/entity is for identity/account metadata, not clinical data.
+email, provider, socialId, firstName, lastName are OK.
+PHI (labs, vitals, diagnoses, etc.) lives somewhere else, never here.
+Secrets NEVER hardcoded.
+All provider IDs, secrets, JWT secrets, etc. MUST come from validated env config via ConfigService.
+Long term we will pull them from GCP Secret Manager.
+Put // TODO: move to GCP Secret Manager comments in code where secrets are accessed.
+HTTPS required in prod.
+Add // TODO: enforce HTTPS in production notes where relevant.
+All examples and docs should assume HTTPS in production.
+Session-based auth.
+Every login creates a session row with a random hash.
+Access token = short-lived (~15m).
+Refresh token = long-lived (~years) and tied to that session hash.
+Refresh rotation must be preserved. Do not downgrade to stateless-only auth.
+Audit logging.
+After successful login, emit a structured JSON log via console.info(JSON.stringify(...)).
+Include a TODO to forward these logs to GCP Cloud Logging / SIEM with retention for HIPAA audits.
+────────────────────────────
+4. ENDPOINT CONTRACTS (PUBLIC)
+────────────────────────────
+We MUST keep (and extend) this HTTP contract style. Everything is JSON, versioned under /v1/.
+POST /v1/auth/google/login
+Body: { "idToken": "..." }
+Flow:
+Verify Google ID token using google-auth-library.
+Upsert/find user. Try socialId+provider, then email, else create.
+Create session, create JWT + refresh token.
+Return { token, refreshToken, tokenExpires, user }.
+POST /v1/auth/apple/login
+Body: { "idToken": "...", "firstName"?: "...", "lastName"?: "..." }
+Flow:
+Verify with apple-signin-auth.
+Same user/session/token logic as Google.
+Apple email may be relay or null. This is fine.
+socialId = Apple sub.
+GET /v1/auth/me
+Requires Bearer access token.
+Return sanitized user object (respect class-transformer groups).
+No PHI.
+POST /v1/auth/refresh
+Requires Bearer refresh token.
+Validate session hash.
+Rotate refresh token.
+Return same shape as login { token, refreshToken, tokenExpires }.
+POST /v1/auth/logout
+Invalidate that session.
+We ALREADY HAVE most of this.
+When writing new code, do not invent HTML redirects or callback endpoints. Keep everything REST + JSON.
+────────────────────────────
+5. WHAT YOU SHOULD BE BUILDING NEXT
+────────────────────────────
+Your main job now is NOT to reinvent login. Your job is to harden it for production on GCP.
+When I ask you for new work under this prompt, assume I want one or more of the following:
+A. Rate limiting on auth endpoints
+Use @nestjs/throttler.
+Add per-endpoint throttling (ex: 5 req / 60s) especially on /login, /refresh.
+Centralize throttler config in a module like security or add to app.module.ts.
+Include TODO to tune limits per environment.
+B. Audit/event logging service
+Create something like src/audit/audit.service.ts.
+Method logAuthEvent({ userId, provider, event }: { ... }).
+Internally console.info(JSON.stringify(...)).
+Add TODO to forward to GCP Cloud Logging with retention.
+Call it from successful social login, refresh, logout.
+C. HTTPS enforcement + security headers
+Middleware/guard that, in production, rejects non-HTTPS.
+Add helmet-style headers if not already present.
+Add TODO to finalize for HIPAA.
+D. GCP Secret Manager integration (stub)
+Add helper in src/config/secret-manager.ts that documents how we’ll pull secrets from Secret Manager.
+For now, still read from ConfigService/env, but leave TODO comments and function signatures ready for future swap.
+E. Background session cleanup job
+Add a cron-like provider (NestJS Scheduler) to expire & soft-delete sessions older than N days (90d).
+Mark with TODO: “check HIPAA audit retention requirements before actually deleting”.
+F. MFA-ready hooks
+Add optional “MFA required” branch to the auth flow as TODO.
+Don’t implement full TOTP yet.
+Just leave extension points in auth.service.ts, e.g. after social login but before issuing tokens:
+// TODO: if user.mfaEnabled === true, require second factor before issuing tokens
+G. docs/authentication.md updates
+When generating docs, always:
+State clearly we are mobile-first OAuth (no redirect callbacks).
+State that PHI never flows through Google/Apple.
+List required env vars (GOOGLE_CLIENT_ID, APPLE_APP_AUDIENCE, AUTH_JWT_SECRET, etc.).
+Document production hardening steps: rate limiting, audit logs, HTTPS, Secret Manager.
+H. .env.example maintenance
+Keep all relevant vars:
+AUTH_JWT_SECRET
+AUTH_JWT_TOKEN_EXPIRES_IN
+AUTH_REFRESH_SECRET
+AUTH_REFRESH_TOKEN_EXPIRES_IN
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+APPLE_APP_AUDIENCE (JSON array of allowed client IDs)
+Add comments like:
+# TODO: these secrets must live in GCP Secret Manager in production.
+────────────────────────────
+6. STYLE / QUALITY RULES
+────────────────────────────
+Always assume NestJS best practices:
+DTOs use class-validator.
+Controllers return typed DTOs.
+Services contain business logic.
+Modules wire everything up.
+Never expose raw tokens or provider idTokens in logs or responses.
+When adding new files:
+Use clear names and the same folder boundaries we already have
+(auth/, auth-google/, auth-apple/, users/, session/, etc.).
+Include imports that match NestJS module patterns so the code compiles.
+When you generate docs:
+Write them for engineers onboarding later.
+Explicitly call out HIPAA constraints, session model, and “no PHI in OAuth”.
+Always mention GCP hardening TODOs.
+When you generate tests:
+Prefer e2e-style tests that POST an idToken and assert we get { token, refreshToken, tokenExpires, user }.
+Mock provider verification (Google/Apple) instead of calling external services.
+────────────────────────────
+7. ABSOLUTE DO-NOTs
+────────────────────────────
+❌ Do NOT reintroduce classic Passport redirect flows with /auth/google → redirect → /callback.
+❌ Do NOT put PHI in JWT, logs, DB tables in auth, or in any provider claim.
+❌ Do NOT hardcode secrets or private keys.
+❌ Do NOT remove session-based refresh tokens in favor of pure stateless JWT.
+❌ Do NOT log raw tokens.
+❌ Do NOT merge provider modules back into one giant auth controller. Keep them modular.
+────────────────────────────
+8. WHEN I ASK “IMPLEMENT X”, WHAT YOU SHOULD RETURN
+────────────────────────────
+When I (the human) ask for something like:
+“add rate limiting”
+“add audit logging”
+“make docs for onboarding”
+“add GCP secret manager stub”
+“generate e2e tests for google login”
+“update .env.example for prod”
+You should:
+Show me the new/updated code files in full.
+Show any new imports/wiring in existing modules.
+Show updates to docs and env example.
+Respect all constraints above.
+Do not try to “improve” the flow by switching to browser redirects or collapsing modules.
+The current design is intentional, more secure for mobile, closer to HIPAA, and already aligned with Brocoders conventions.
+────────────────────────────
+This is the source of truth.
+Follow this architecture and these constraints for all future changes to Keystone Core API auth (Google, Apple, sessions, JWT, HIPAA posture, and GCP hardening).
