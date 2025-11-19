@@ -110,7 +110,15 @@ Docker + CI setup also available.
 
 ## 📚 Full Documentation
 
-Refer to `/docs/readme.md` or the [Keystone Wiki](https://github.com/YOUR_TEAM/keystone-core-api/wiki) *(coming soon)*.
+Refer to [`/docs/readme.md`](/docs/readme.md) for complete documentation.
+
+### 🚀 Hosting Guides
+
+- **[MVP Hosting Guide](/docs/mvp-hosting-guide.md)** ⭐ - Quick start guide for MVP deployment ($0-15/month)
+- **[Production Hosting Guide](/docs/hosting-deployment.md)** - Complete 60+ page guide for production deployment
+- **[Hosting Executive Summary](/docs/hosting-executive-summary.md)** - Quick overview for stakeholders
+- **[HIPAA Authentication](/docs/hipaa-authentication.md)** - Security controls and compliance
+- **[Document Processing](/docs/document-processing.md)** - PHI handling and OCR
 
 ---
 
@@ -119,15 +127,7 @@ Refer to `/docs/readme.md` or the [Keystone Wiki](https://github.com/YOUR_TEAM/k
 This project is developed by the HealthAtlas Core Team:
 
 * Joel Martínez – Fullstack + Security
-* \[Name] – OCR & Document NLP
+* Joel Martínez – OCR & Document NLP
 * \[Name] – AI Assistant Integration + Flutter
 
 ---
-
-## 📬 Support
-
-For issues or contributions, open a GitHub issue or email the maintainers at `healthatlas-dev@yourdomain.com`.
-
----
-
-Let me know if you want this saved into a file (Markdown or `.md`), or also want individual `README.md` snippets generated for the other services (`keystone-doc-intel`, `keystone-anythingllm-service`, etc.).

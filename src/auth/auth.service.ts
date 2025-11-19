@@ -29,6 +29,10 @@ import { SessionService } from '../session/session.service';
 import { StatusEnum } from '../statuses/statuses.enum';
 import { User } from '../users/domain/user';
 import { AuditService, AuthEventType } from '../audit/audit.service';
+import {
+  TokenIntrospectDto,
+  TokenIntrospectResponseDto,
+} from './dto/token-introspect.dto';
 
 @Injectable()
 export class AuthService {
@@ -668,6 +672,229 @@ export class AuthService {
     return this.sessionService.deleteById(data.sessionId);
   }
 
+  /**
+   * Introspect a JWT token (RFC 7662: OAuth 2.0 Token Introspection)
+   *
+   * @param dto - Token introspection request
+   * @param clientService - Service identifier for audit logging
+   * @returns Token introspection response
+   *
+   * HIPAA Compliance:
+   * - No PHI in introspection requests/responses
+   * - Audit log all introspection events
+   * - Never log raw tokens
+   * - Sanitize error messages
+   */
+  async introspectToken(
+    dto: TokenIntrospectDto,
+    clientService: string = 'unknown',
+  ): Promise<TokenIntrospectResponseDto> {
+    const { token, includeUser = true } = dto;
+
+    try {
+      // Decode token to extract claims (no verification yet)
+      let decoded: any;
+      try {
+        decoded = this.jwtService.decode(token, { complete: false });
+      } catch {
+        // Invalid token structure
+        this.auditService.logAuthEvent({
+          userId: 'unknown',
+          provider: 'system',
+          event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
+          success: false,
+          errorMessage: 'Invalid token structure',
+          metadata: { clientService },
+        });
+
+        return {
+          active: false,
+          error_code: 'invalid_token',
+        };
+      }
+
+      if (!decoded) {
+        return {
+          active: false,
+          error_code: 'invalid_token',
+        };
+      }
+
+      // Validate algorithm (reject alg: "none" and unsupported algorithms)
+      const allowedAlgorithms = this.configService.getOrThrow(
+        'auth.jwtAllowedAlgorithms',
+        { infer: true },
+      );
+      const tokenHeader = this.jwtService.decode(token, {
+        complete: true,
+      })?.header;
+
+      if (
+        tokenHeader?.alg === 'none' ||
+        !allowedAlgorithms.includes(tokenHeader?.alg)
+      ) {
+        this.auditService.logAuthEvent({
+          userId: decoded.sub || decoded.id || 'unknown',
+          provider: 'system',
+          event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
+          success: false,
+          errorMessage: `Unsupported algorithm: ${tokenHeader?.alg}`,
+          metadata: { clientService },
+        });
+
+        return {
+          active: false,
+          error_code: 'invalid_token',
+        };
+      }
+
+      // Verify token signature and claims
+      let verified: any;
+      try {
+        const verifyOptions: any = {
+          secret: this.configService.getOrThrow('auth.secret', { infer: true }),
+          algorithms: allowedAlgorithms,
+        };
+
+        // Only add issuer/audience validation if configured (backward compatible)
+        const issuer = this.configService.get('auth.jwtIssuer', {
+          infer: true,
+        });
+        const audience = this.configService.get('auth.jwtAudience', {
+          infer: true,
+        });
+
+        if (issuer) {
+          verifyOptions.issuer = issuer;
+        }
+        if (audience) {
+          verifyOptions.audience = audience;
+        }
+
+        verified = await this.jwtService.verifyAsync(token, verifyOptions);
+      } catch (error: any) {
+        // Token verification failed (expired, invalid signature, etc.)
+        const userId = decoded.sub || decoded.id || 'unknown';
+        const reason =
+          error?.name === 'TokenExpiredError' ? 'expired' : 'invalid_token';
+
+        this.auditService.logAuthEvent({
+          userId,
+          provider: 'system',
+          event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
+          success: false,
+          errorMessage: `Token verification failed: ${error?.message || 'Unknown error'}`,
+          metadata: { clientService, reason },
+        });
+
+        return {
+          active: false,
+          error_code: reason,
+          exp: decoded.exp,
+          iat: decoded.iat,
+        };
+      }
+
+      // Extract user ID and session ID (handle both legacy and new formats)
+      const userId = verified.sub || verified.id;
+      const sessionId = verified.sid || verified.sessionId;
+
+      if (!userId) {
+        return {
+          active: false,
+          error_code: 'invalid_token',
+        };
+      }
+
+      // Check if session is still active (revocation check)
+      let session: NullableType<Session> = null;
+      if (sessionId) {
+        session = await this.sessionService.findById(sessionId);
+      }
+
+      if (!session) {
+        // Session has been revoked or doesn't exist
+        this.auditService.logAuthEvent({
+          userId,
+          provider: 'system',
+          event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
+          sessionId,
+          success: false,
+          errorMessage: 'Session revoked or not found',
+          metadata: { clientService },
+        });
+
+        return {
+          active: false,
+          revoked: true,
+          error_code: 'revoked',
+          sub: String(userId),
+          sid: sessionId ? String(sessionId) : undefined,
+          exp: verified.exp,
+          iat: verified.iat,
+        };
+      }
+
+      // Token is valid and active
+      const response: TokenIntrospectResponseDto = {
+        active: true,
+        sub: String(userId),
+        sid: sessionId ? String(sessionId) : undefined,
+        iss:
+          verified.iss ||
+          this.configService.get('auth.jwtIssuer', { infer: true }),
+        aud:
+          verified.aud ||
+          this.configService.get('auth.jwtAudience', { infer: true }),
+        scope: verified.scope,
+        exp: verified.exp,
+        iat: verified.iat,
+        nbf: verified.nbf,
+        revoked: false,
+        role: verified.role,
+        provider: verified.provider,
+      };
+
+      // Include user info if requested
+      if (includeUser) {
+        const user = await this.usersService.findById(userId);
+        if (user) {
+          // Only include email if user has permission (respects serialization groups)
+          // Email may be null (Apple private relay)
+          response.email = user.email;
+          response.provider = user.provider;
+        }
+      }
+
+      // Log successful introspection
+      this.auditService.logAuthEvent({
+        userId,
+        provider: 'system',
+        event: AuthEventType.TOKEN_INTROSPECTION_SUCCESS,
+        sessionId,
+        success: true,
+        metadata: { clientService },
+      });
+
+      return response;
+    } catch (error: any) {
+      // Unexpected error
+      this.auditService.logAuthEvent({
+        userId: 'unknown',
+        provider: 'system',
+        event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
+        success: false,
+        errorMessage: `Unexpected error: ${error?.message || 'Unknown error'}`,
+        metadata: { clientService },
+      });
+
+      return {
+        active: false,
+        error_code: 'server_error',
+      };
+    }
+  }
+
   private async getTokensData(data: {
     id: User['id'];
     role: User['role'];
@@ -679,19 +906,49 @@ export class AuthService {
     });
 
     const tokenExpires = Date.now() + ms(tokenExpiresIn);
+    const now = Math.floor(Date.now() / 1000);
+
+    // Get issuer and audience from config (optional, for RFC 7519/9068 compliance)
+    const issuer = this.configService.get('auth.jwtIssuer', { infer: true });
+    const audience = this.configService.get('auth.jwtAudience', {
+      infer: true,
+    });
+    const keyId = this.configService.get('auth.jwtKeyId', { infer: true });
+
+    // Build token payload with backward compatibility
+    // Support both legacy (id, sessionId) and new (sub, sid) formats
+    const tokenPayload: any = {
+      // Legacy format (backward compatible)
+      id: data.id,
+      sessionId: data.sessionId,
+      // RFC 7519 standard claims (if configured)
+      ...(issuer && { iss: issuer }),
+      ...(audience && { aud: audience }),
+      sub: String(data.id), // Subject (user ID) - RFC 7519
+      sid: String(data.sessionId), // Session ID (custom claim)
+      iat: now, // Issued at
+      exp: now + Math.floor(ms(tokenExpiresIn) / 1000), // Expiration
+      nbf: now - 60, // Not before (60s clock skew allowance)
+      // App-specific claims
+      role: data.role,
+      ...(audience && {
+        scope: `${audience}:read ${audience}:write`,
+      }), // OAuth2 scope
+    };
 
     const [token, refreshToken] = await Promise.all([
-      await this.jwtService.signAsync(
-        {
-          id: data.id,
-          role: data.role,
-          sessionId: data.sessionId,
-        },
-        {
-          secret: this.configService.getOrThrow('auth.secret', { infer: true }),
-          expiresIn: tokenExpiresIn,
-        },
-      ),
+      await this.jwtService.signAsync(tokenPayload, {
+        secret: this.configService.getOrThrow('auth.secret', { infer: true }),
+        expiresIn: tokenExpiresIn,
+        ...(keyId && {
+          header: {
+            alg: 'HS256', // Algorithm (required by JWT header type)
+            typ: 'at+jwt', // RFC 9068
+            kid: keyId, // Key ID for rotation
+          },
+        }),
+      }),
+      // Refresh token remains unchanged (internal use only)
       await this.jwtService.signAsync(
         {
           sessionId: data.sessionId,

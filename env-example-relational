@@ -99,6 +99,37 @@ AUTH_CONFIRM_EMAIL_SECRET=secret_for_confirm_email  # <SECRET_MANAGER> Email con
 AUTH_CONFIRM_EMAIL_TOKEN_EXPIRES_IN=1d
 
 # ----------------------------------------------------------------------------
+# TOKEN INTROSPECTION (Service-to-Service, RFC 7662)
+# ----------------------------------------------------------------------------
+# Service API key for introspection endpoint authentication
+# HIPAA Compliance: This key must be strong and rotated every 90 days
+# TODO: Move to GCP Secret Manager in production
+AUTH_INTROSPECTION_SERVICE_KEY=<GCP_SECRET_MANAGER:auth-introspection-service-key>
+
+# Rate limiting for introspection endpoint (requests per minute per service)
+AUTH_INTROSPECTION_RATE_LIMIT=100
+
+# ----------------------------------------------------------------------------
+# JWT STANDARDS CONFIGURATION (RFC 7519, RFC 9068)
+# ----------------------------------------------------------------------------
+# Issuer URL (for iss claim in JWT tokens)
+# Should match your production domain
+AUTH_JWT_ISSUER=https://keystone-core-api.production.example.com
+
+# Default audience (for aud claim in JWT tokens)
+# Used for token introspection and validation
+AUTH_JWT_AUDIENCE=anythingllm
+
+# Key ID for JWT header (kid claim)
+# Used for key rotation scenarios
+AUTH_JWT_KEY_ID=hmac-2025-01
+
+# Algorithm allow-list (enforce algorithm validation)
+# Comma-separated list of allowed algorithms (e.g., "HS256,RS256")
+# Prevents algorithm confusion attacks
+AUTH_JWT_ALLOWED_ALGORITHMS=HS256
+
+# ----------------------------------------------------------------------------
 # OAUTH PROVIDERS
 # ----------------------------------------------------------------------------
 # HIPAA Requirement: NEVER request health-related OAuth scopes
@@ -184,6 +215,87 @@ LOG_LEVEL=info  # Options: error, warn, info, debug, verbose
 # GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 # GCP_REGION=us-central1
 # GCP_CLOUD_RUN_SERVICE=keystone-core-api
+
+# ----------------------------------------------------------------------------
+# DOCUMENT PROCESSING (HIPAA-Compliant OCR with GCP Document AI)
+# ----------------------------------------------------------------------------
+# Documents contain PHI - full HIPAA controls required
+# ALL sensitive values MUST be in GCP Secret Manager in production
+
+# GCP Project Configuration
+DOC_PROCESSING_GCP_PROJECT_ID=your-gcp-project-id
+DOC_PROCESSING_GCP_LOCATION=us  # Options: us, eu, asia-northeast1
+
+# GCP Document AI
+DOC_PROCESSING_PROCESSOR_ID=your-processor-id
+# ^ Get from: https://console.cloud.google.com/ai/document-ai/processors
+# ^ Recommended: Enterprise Document OCR for medical documents
+# ^ Ensure processor is HIPAA-eligible (requires BAA with Google)
+
+DOC_PROCESSING_OUTPUT_BUCKET=healthatlas-docai-output-prod
+# ^ Bucket for batch processing outputs (separate from main storage)
+
+# GCP Cloud Storage
+DOC_PROCESSING_STORAGE_BUCKET=healthatlas-documents-prod
+# ^ Main bucket for raw uploads and processed files
+# ^ TODO: Configure with:
+# ^   - Server-side encryption (Google-managed keys or CMEK)
+# ^   - Uniform Bucket-Level Access (UBLA)
+# ^   - Lifecycle policy: delete after 8 years
+# ^   - Audit logging enabled (Data Access logs)
+# ^   - Regional location (no multi-region for PHI)
+
+DOC_PROCESSING_RAW_PREFIX=raw/
+DOC_PROCESSING_PROCESSED_PREFIX=processed/
+
+# Processing Configuration
+DOC_PROCESSING_MAX_FILE_SIZE_MB=10  # Maximum upload size
+DOC_PROCESSING_RETENTION_YEARS=8    # HIPAA: Minimum 6 years, using 8 for safety
+DOC_PROCESSING_SYNC_MAX_PAGES=15    # Documents with ≤15 pages use synchronous processing
+
+# ----------------------------------------------------------------------------
+# DOCUMENT PROCESSING - HIPAA COMPLIANCE CHECKLIST
+# ----------------------------------------------------------------------------
+# ⚠️  CRITICAL: Before using in production:
+#
+# 1. ✅ Sign Business Associate Agreement (BAA) with Google Cloud
+#      https://cloud.google.com/terms/hipaa-baa
+#
+# 2. ✅ Enable audit logging on:
+#      - Document AI API
+#      - Cloud Storage buckets (Data Access logs)
+#
+# 3. ✅ Configure IAM roles (least privilege):
+#      - roles/documentai.apiUser (for service account)
+#      - roles/storage.objectCreator (for uploads)
+#      - roles/storage.objectViewer (for downloads)
+#
+# 4. ✅ Set up bucket lifecycle policies:
+#      gsutil lifecycle set lifecycle.json gs://BUCKET_NAME
+#      (Delete objects after 8 years)
+#
+# 5. ✅ Enable server-side encryption:
+#      - Google-managed keys (default) OR
+#      - Customer-managed encryption keys (CMEK) for higher security
+#
+# 6. ✅ Configure Uniform Bucket-Level Access (UBLA):
+#      gsutil uniformbucketlevelaccess set on gs://BUCKET_NAME
+#
+# 7. ✅ Move all secrets to GCP Secret Manager:
+#      - DOC_PROCESSING_GCP_PROJECT_ID (can stay in env)
+#      - Service account key JSON (never in env vars)
+#
+# 8. ✅ Configure alerting for:
+#      - Processing failures
+#      - Unauthorized access attempts
+#      - Hard delete job failures
+#
+# 9. ✅ Review and approve data processing addendum (DPA)
+#
+# 10. ✅ Enable VPC Service Controls (optional, high security)
+#
+# See: docs/document-processing-hipaa-checklist.md for full checklist
+# ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------
 # WORKER / BACKGROUND JOBS

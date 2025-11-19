@@ -25,26 +25,41 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   // https://github.com/brocoders/nestjs-boilerplate/blob/main/docs/auth.md#about-jwt-strategy
   // However, we MUST check if the session is still active to properly invalidate tokens after logout.
   public async validate(
-    payload: JwtPayloadType,
+    payload: JwtPayloadType | any, // Allow any for backward compatibility
   ): Promise<OrNeverType<JwtPayloadType>> {
-    if (!payload.id) {
+    // Handle both legacy (id, sessionId) and new (sub, sid) formats
+    const userId = payload.sub || payload.id;
+    const sessionId = payload.sid || payload.sessionId;
+
+    if (!userId) {
       throw new UnauthorizedException();
     }
+
+    // Normalize to JwtPayloadType format
+    const normalizedPayload: JwtPayloadType = {
+      id: userId,
+      role: payload.role,
+      sessionId: sessionId,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
 
     // CRITICAL: Verify that the session is still active.
     // This ensures tokens are immediately invalidated after logout.
     // Without this check, access tokens would remain valid until expiry even after logout,
     // which is a security vulnerability and HIPAA compliance issue.
-    if (payload.sessionId) {
-      const session = await this.sessionService.findById(payload.sessionId);
+    if (normalizedPayload.sessionId) {
+      const session = await this.sessionService.findById(
+        normalizedPayload.sessionId,
+      );
       if (!session) {
         // HIPAA Audit: Log invalid session attempt (critical for security monitoring)
         // This catches attempts to use tokens after logout or session expiration
         this.auditService.logAuthEvent({
-          userId: payload.id,
+          userId: normalizedPayload.id,
           provider: 'system',
           event: AuthEventType.INVALID_SESSION,
-          sessionId: payload.sessionId,
+          sessionId: normalizedPayload.sessionId,
           success: false,
           errorMessage:
             'Session not found or has been invalidated (logged out)',
@@ -55,6 +70,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       }
     }
 
-    return payload;
+    return normalizedPayload;
   }
 }

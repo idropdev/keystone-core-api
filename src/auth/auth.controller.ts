@@ -25,6 +25,11 @@ import { NullableType } from '../utils/types/nullable.type';
 import { User } from '../users/domain/user';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 import { Throttle } from '@nestjs/throttler';
+import { ServiceApiKeyGuard } from './guards/service-api-key.guard';
+import {
+  TokenIntrospectDto,
+  TokenIntrospectResponseDto,
+} from './dto/token-introspect.dto';
 
 @ApiTags('Auth')
 @Controller({
@@ -158,5 +163,33 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   public async delete(@Request() request): Promise<void> {
     return this.service.softDelete(request.user);
+  }
+
+  /**
+   * Token introspection endpoint (RFC 7662: OAuth 2.0 Token Introspection)
+   *
+   * HIPAA Compliance:
+   * - Service-to-service authentication required (API key)
+   * - Rate limited to prevent abuse
+   * - All introspection events are audit logged
+   * - No PHI in requests/responses
+   */
+  @Post('introspect')
+  @UseGuards(ServiceApiKeyGuard)
+  @ApiBearerAuth()
+  @ApiOkResponse({
+    type: TokenIntrospectResponseDto,
+    description: 'RFC 7662 compliant token introspection response',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute
+  public async introspect(
+    @Body() dto: TokenIntrospectDto,
+    @Request() request,
+  ): Promise<TokenIntrospectResponseDto> {
+    // Extract client service identifier from request (optional, for audit logging)
+    const clientService = request.headers['x-client-service'] || 'unknown';
+
+    return this.service.introspectToken(dto, clientService);
   }
 }
