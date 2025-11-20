@@ -939,7 +939,8 @@ export class AuthService {
     const [token, refreshToken] = await Promise.all([
       await this.jwtService.signAsync(tokenPayload, {
         secret: this.configService.getOrThrow('auth.secret', { infer: true }),
-        expiresIn: tokenExpiresIn,
+        // Note: Do not use expiresIn here since we manually set 'exp' in the payload above
+        // This allows us to also set 'nbf' (not before) for RFC 7519 compliance
         ...(keyId && {
           header: {
             alg: 'HS256', // Algorithm (required by JWT header type)
