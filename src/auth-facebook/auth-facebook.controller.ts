@@ -6,7 +6,14 @@ import {
   Post,
   SerializeOptions,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiTags,
+  ApiOperation,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
+} from '@nestjs/swagger';
 import { AuthService } from '../auth/auth.service';
 import { AuthFacebookService } from './auth-facebook.service';
 import { AuthFacebookLoginDto } from './dto/auth-facebook-login.dto';
@@ -23,13 +30,30 @@ export class AuthFacebookController {
     private readonly authFacebookService: AuthFacebookService,
   ) {}
 
+  @Post('login')
+  @ApiOperation({
+    summary: 'Facebook Login',
+    description:
+      'Authenticate user with Facebook access token. Returns JWT access token, refresh token, and user information. ' +
+      "If user doesn't exist, a new account will be created.",
+  })
   @ApiOkResponse({
     type: LoginResponseDto,
+    description:
+      'Login successful. Returns access token, refresh token, and user data.',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid request body or missing access token',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired Facebook access token',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Failed to verify Facebook token or create user',
   })
   @SerializeOptions({
     groups: ['me'],
   })
-  @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: AuthFacebookLoginDto,

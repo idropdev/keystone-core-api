@@ -16,6 +16,10 @@ import {
   ApiCreatedResponse,
   ApiExcludeEndpoint,
   ApiTags,
+  ApiOperation,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { FilesLocalService } from './files.service';
@@ -29,12 +33,16 @@ import { FileResponseDto } from './dto/file-response.dto';
 export class FilesLocalController {
   constructor(private readonly filesService: FilesLocalService) {}
 
+  @Post('upload')
+  @ApiOperation({
+    summary: 'Upload File (Local Storage)',
+    description:
+      'Upload a file to local storage. Returns file metadata including path and URL.',
+  })
   @ApiCreatedResponse({
     type: FileResponseDto,
+    description: 'File uploaded successfully',
   })
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard('jwt'))
-  @Post('upload')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -43,10 +51,20 @@ export class FilesLocalController {
         file: {
           type: 'string',
           format: 'binary',
+          description: 'File to upload',
         },
       },
+      required: ['file'],
     },
   })
+  @ApiBadRequestResponse({
+    description: 'Invalid file or missing file in request',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -56,6 +74,11 @@ export class FilesLocalController {
 
   @Get(':path')
   @ApiExcludeEndpoint()
+  @ApiParam({
+    name: 'path',
+    type: String,
+    description: 'File path',
+  })
   download(@Param('path') path, @Response() response) {
     return response.sendFile(path, { root: './files' });
   }

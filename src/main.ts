@@ -27,9 +27,15 @@ async function bootstrap() {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://fonts.googleapis.com',
+          ],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI needs unsafe-eval
           imgSrc: ["'self'", 'data:', 'https:'],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+          connectSrc: ["'self'"],
         },
       },
       hsts: {
@@ -37,9 +43,7 @@ async function bootstrap() {
         includeSubDomains: true,
         preload: true,
       },
-      frameguard: {
-        action: 'deny', // Prevent clickjacking
-      },
+      frameguard: false, // Allow Swagger UI to be embedded (if needed)
       noSniff: true, // Prevent MIME type sniffing
       xssFilter: true, // Enable XSS filter
     }),
@@ -63,23 +67,37 @@ async function bootstrap() {
     new ClassSerializerInterceptor(app.get(Reflector)),
   );
 
-  const options = new DocumentBuilder()
-    .setTitle('API')
-    .setDescription('API docs')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addGlobalParameters({
-      in: 'header',
-      required: false,
-      name: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
-      schema: {
-        example: 'en',
-      },
-    })
-    .build();
+  // Swagger/OpenAPI documentation
+  // Enabled in development and production (can be disabled via environment variable)
+  const enableSwagger = process.env.SWAGGER_ENABLED !== 'false';
 
-  const document = SwaggerModule.createDocument(app, options);
-  SwaggerModule.setup('docs', app, document);
+  if (enableSwagger) {
+    const options = new DocumentBuilder()
+      .setTitle('Keystone Core API')
+      .setDescription('Keystone Core API Documentation - HealthAtlas')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addGlobalParameters({
+        in: 'header',
+        required: false,
+        name: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
+        schema: {
+          example: 'en',
+        },
+      })
+      .build();
+
+    const document = SwaggerModule.createDocument(app, options);
+    SwaggerModule.setup('docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+
+    console.log(
+      `📚 Swagger documentation available at http://localhost:${configService.get('app.port', { infer: true })}/docs`,
+    );
+  }
 
   await app.listen(configService.getOrThrow('app.port', { infer: true }));
 }

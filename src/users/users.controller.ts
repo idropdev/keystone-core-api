@@ -20,6 +20,14 @@ import {
   ApiOkResponse,
   ApiParam,
   ApiTags,
+  ApiOperation,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiUnprocessableEntityResponse,
+  ApiQuery,
+  ApiNoContentResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../roles/roles.decorator';
 import { RoleEnum } from '../roles/roles.enum';
@@ -47,25 +55,70 @@ import { infinityPagination } from '../utils/infinity-pagination';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Post()
+  @ApiOperation({
+    summary: 'Create User (Admin Only)',
+    description:
+      'Create a new user account. This endpoint is restricted to administrators only.',
+  })
   @ApiCreatedResponse({
     type: User,
+    description: 'User created successfully',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid request body or validation errors',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Email already exists or invalid data',
   })
   @SerializeOptions({
     groups: ['admin'],
   })
-  @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createProfileDto: CreateUserDto): Promise<User> {
     return this.usersService.create(createProfileDto);
   }
 
+  @Get()
+  @ApiOperation({
+    summary: 'List Users (Admin Only)',
+    description:
+      'Get a paginated list of all users with optional filtering and sorting. ' +
+      'Maximum 50 items per page. This endpoint is restricted to administrators only.',
+  })
   @ApiOkResponse({
     type: InfinityPaginationResponse(User),
+    description: 'Paginated list of users',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10, max: 50)',
+    example: 10,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
   })
   @SerializeOptions({
     groups: ['admin'],
   })
-  @Get()
   @HttpCode(HttpStatus.OK)
   async findAll(
     @Query() query: QueryUserDto,
@@ -89,36 +142,76 @@ export class UsersController {
     );
   }
 
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get User by ID (Admin Only)',
+    description:
+      'Get detailed information about a specific user by ID. This endpoint is restricted to administrators only.',
+  })
   @ApiOkResponse({
     type: User,
+    description: 'User information',
   })
-  @SerializeOptions({
-    groups: ['admin'],
-  })
-  @Get(':id')
-  @HttpCode(HttpStatus.OK)
   @ApiParam({
     name: 'id',
     type: String,
     required: true,
+    description: 'User ID',
+    example: '123',
   })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User not found',
+  })
+  @SerializeOptions({
+    groups: ['admin'],
+  })
+  @HttpCode(HttpStatus.OK)
   findOne(@Param('id') id: User['id']): Promise<NullableType<User>> {
     return this.usersService.findById(id);
   }
 
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update User (Admin Only)',
+    description:
+      'Update user information by ID. This endpoint is restricted to administrators only.',
+  })
   @ApiOkResponse({
     type: User,
+    description: 'Updated user information',
   })
-  @SerializeOptions({
-    groups: ['admin'],
-  })
-  @Patch(':id')
-  @HttpCode(HttpStatus.OK)
   @ApiParam({
     name: 'id',
     type: String,
     required: true,
+    description: 'User ID',
+    example: '123',
   })
+  @ApiBadRequestResponse({
+    description: 'Invalid request body or validation errors',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User not found',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Email already exists or invalid data',
+  })
+  @SerializeOptions({
+    groups: ['admin'],
+  })
+  @HttpCode(HttpStatus.OK)
   update(
     @Param('id') id: User['id'],
     @Body() updateProfileDto: UpdateUserDto,
@@ -127,10 +220,29 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @ApiOperation({
+    summary: 'Delete User (Admin Only)',
+    description:
+      'Delete a user account by ID. This endpoint is restricted to administrators only.',
+  })
+  @ApiNoContentResponse({
+    description: 'User deleted successfully',
+  })
   @ApiParam({
     name: 'id',
     type: String,
     required: true,
+    description: 'User ID',
+    example: '123',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User not found',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: User['id']): Promise<void> {

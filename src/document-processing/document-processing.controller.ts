@@ -22,9 +22,15 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
+  ApiOkResponse,
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiParam,
+  ApiQuery,
+  ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
+  ApiNoContentResponse,
 } from '@nestjs/swagger';
 import { DocumentProcessingService } from './document-processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
@@ -154,13 +160,28 @@ export class DocumentProcessingController {
   }
 
   @Get(':documentId/status')
-  @ApiOperation({ summary: 'Get document processing status' })
-  @ApiResponse({
-    status: 200,
-    description: 'Status retrieved',
+  @ApiOperation({
+    summary: 'Get Document Processing Status',
+    description:
+      'Get the current processing status of a document. Returns status, progress percentage, and any error messages.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Document status retrieved',
     type: DocumentStatusResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Document not found' })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found or access denied',
+  })
   async getDocumentStatus(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
@@ -170,13 +191,28 @@ export class DocumentProcessingController {
   }
 
   @Get(':documentId')
-  @ApiOperation({ summary: 'Get document details and OCR results' })
-  @ApiResponse({
-    status: 200,
-    description: 'Document retrieved',
+  @ApiOperation({
+    summary: 'Get Document Details',
+    description:
+      'Get detailed information about a document including metadata, processing status, and OCR results.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Document details retrieved',
     type: DocumentResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Document not found' })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found or access denied',
+  })
   async getDocument(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
@@ -190,13 +226,28 @@ export class DocumentProcessingController {
   }
 
   @Get(':documentId/fields')
-  @ApiOperation({ summary: 'Get extracted structured fields from document' })
-  @ApiResponse({
-    status: 200,
-    description: 'Fields retrieved',
+  @ApiOperation({
+    summary: 'Get Extracted Fields',
+    description:
+      'Get structured fields extracted from the document via OCR processing (e.g., patient name, date, lab values).',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Extracted fields retrieved',
     type: [ExtractedFieldResponseDto],
   })
-  @ApiResponse({ status: 404, description: 'Document not found' })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found or access denied',
+  })
   async getExtractedFields(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
@@ -209,18 +260,42 @@ export class DocumentProcessingController {
   }
 
   @Get(':documentId/download')
-  @ApiOperation({ summary: 'Get signed URL for document download' })
-  @ApiResponse({
-    status: 200,
+  @ApiOperation({
+    summary: 'Get Document Download URL',
+    description:
+      'Get a signed URL for downloading the original document file. The URL expires after 24 hours.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
     description: 'Download URL generated',
     schema: {
+      type: 'object',
       properties: {
-        downloadUrl: { type: 'string' },
-        expiresIn: { type: 'number' },
+        downloadUrl: {
+          type: 'string',
+          example:
+            'https://storage.googleapis.com/bucket/file.pdf?signature=...',
+        },
+        expiresIn: {
+          type: 'number',
+          example: 86400,
+          description: 'Expiration in seconds (24 hours)',
+        },
       },
     },
   })
-  @ApiResponse({ status: 404, description: 'Document not found' })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found or access denied',
+  })
   async getDownloadUrl(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
@@ -234,8 +309,52 @@ export class DocumentProcessingController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List user documents with pagination' })
-  @ApiResponse({ status: 200, description: 'Documents retrieved' })
+  @ApiOperation({
+    summary: 'List Documents',
+    description:
+      "Get a paginated list of the authenticated user's documents with optional filtering by status and document type.",
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
+    description: 'Filter by processing status',
+  })
+  @ApiQuery({
+    name: 'documentType',
+    required: false,
+    enum: [
+      'LAB_RESULT',
+      'PRESCRIPTION',
+      'MEDICAL_RECORD',
+      'INSURANCE_CARD',
+      'IMAGING_REPORT',
+      'IMMUNIZATION_RECORD',
+      'OTHER',
+    ],
+    description: 'Filter by document type',
+  })
+  @ApiOkResponse({
+    description: 'Paginated list of documents',
+    type: InfinityPaginationResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
   async listDocuments(
     @Request() req,
     @Query() query: DocumentListQueryDto,
@@ -251,11 +370,26 @@ export class DocumentProcessingController {
   @Delete(':documentId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary:
-      'Soft delete document (scheduled for hard delete after retention period)',
+    summary: 'Delete Document',
+    description:
+      'Soft delete a document. The document will be marked as deleted and scheduled for hard deletion after the retention period (8 years for HIPAA compliance).',
   })
-  @ApiResponse({ status: 204, description: 'Document deleted' })
-  @ApiResponse({ status: 404, description: 'Document not found' })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiNoContentResponse({
+    description: 'Document deleted successfully',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found or access denied',
+  })
   async deleteDocument(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,

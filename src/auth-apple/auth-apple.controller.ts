@@ -7,7 +7,15 @@ import {
   SerializeOptions,
   Logger,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiTags, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiTags,
+  ApiOperation,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
+  ApiTooManyRequestsResponse,
+} from '@nestjs/swagger';
 import { AuthService } from '../auth/auth.service';
 import { AuthAppleService } from './auth-apple.service';
 import { AuthAppleLoginDto } from './dto/auth-apple-login.dto';
@@ -28,13 +36,34 @@ export class AuthAppleController {
     private readonly authAppleService: AuthAppleService,
   ) {}
 
+  @Post('login')
+  @ApiOperation({
+    summary: 'Sign in with Apple',
+    description:
+      'Authenticate user with Apple ID token. Returns JWT access token, refresh token, and user information. ' +
+      "If user doesn't exist, a new account will be created. First name and last name are required on first sign-in. " +
+      'Rate limited to 5 requests per minute.',
+  })
   @ApiOkResponse({
     type: LoginResponseDto,
+    description:
+      'Login successful. Returns access token, refresh token, and user data.',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid request body or missing ID token',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired Apple ID token',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Failed to verify Apple ID token or create user',
+  })
+  @ApiTooManyRequestsResponse({
+    description: 'Rate limit exceeded. Maximum 5 login attempts per minute.',
   })
   @SerializeOptions({
     groups: ['me'],
   })
-  @Post('login')
   @HttpCode(HttpStatus.OK)
   // HIPAA Security: Rate limiting on Apple OAuth login (5 requests per 60 seconds)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -71,14 +100,25 @@ export class AuthAppleController {
    *
    * @param notificationDto - JWS-signed notification from Apple
    */
+  @Post('notifications')
   @ApiOperation({
     summary: 'Apple Server-to-Server Notifications',
     description:
-      'Receives notifications from Apple about user account changes. ' +
-      'Configure this endpoint URL in Apple Developer Console. ' +
-      'HIPAA-compliant: All events logged, no PHI processed.',
+      'Receives JWS-signed notifications from Apple about user account changes (email forwarding, consent revocation, account deletion). ' +
+      'Configure this endpoint URL in Apple Developer Console under your App ID. ' +
+      'Must be HTTPS with TLS 1.2+ and publicly accessible. ' +
+      'HIPAA-compliant: All events logged for audit trail, no PHI processed. ' +
+      'No rate limiting (Apple is trusted caller).',
   })
-  @Post('notifications')
+  @ApiOkResponse({
+    description: 'Notification received and processed successfully',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid JWS payload or malformed request',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'JWS signature verification failed',
+  })
   @HttpCode(HttpStatus.OK)
   @SkipThrottle() // Apple is trusted caller, no rate limiting needed
   async handleNotification(
