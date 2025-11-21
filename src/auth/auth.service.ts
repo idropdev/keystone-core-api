@@ -29,6 +29,7 @@ import { SessionService } from '../session/session.service';
 import { StatusEnum } from '../statuses/statuses.enum';
 import { User } from '../users/domain/user';
 import { AuditService, AuthEventType } from '../audit/audit.service';
+import { AnythingLLMService } from '../anything-llm/anythingllm.service';
 import {
   TokenIntrospectDto,
   TokenIntrospectResponseDto,
@@ -43,6 +44,7 @@ export class AuthService {
     private mailService: MailService,
     private configService: ConfigService<AllConfigType>,
     private auditService: AuditService,
+    private anythingLLMService: AnythingLLMService,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
@@ -121,6 +123,24 @@ export class AuthService {
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
           password: 'incorrectPassword',
+        },
+      });
+    }
+
+    if (user.status?.id?.toString() !== StatusEnum.active.toString()) {
+      // HIPAA Audit: Log failed login attempt (account not activated)
+      this.auditService.logAuthEvent({
+        userId: user.id,
+        provider: AuthProvidersEnum.email,
+        event: AuthEventType.LOGIN_FAILED,
+        success: false,
+        errorMessage: 'Account not activated - email verification required',
+      });
+
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'emailNotConfirmed',
         },
       });
     }
@@ -261,6 +281,15 @@ export class AuthService {
       success: true,
     });
 
+    // Create user in AnythingLLM if new user
+    if (isNewUser) {
+      try {
+        await this.anythingLLMService.createUser(user);
+      } catch {
+        // Log but don't fail
+      }
+    }
+
     return {
       refreshToken,
       token: jwtToken,
@@ -342,6 +371,13 @@ export class AuthService {
     };
 
     await this.usersService.update(user.id, user);
+
+    // Create user in AnythingLLM when email is confirmed
+    try {
+      await this.anythingLLMService.createUser(user);
+    } catch {
+      // Log but don't fail - user can be created later via introspection
+    }
   }
 
   async confirmNewEmail(hash: string): Promise<void> {

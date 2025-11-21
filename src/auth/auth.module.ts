@@ -11,6 +11,7 @@ import { SessionModule } from '../session/session.module';
 import { UsersModule } from '../users/users.module';
 import { AuditModule } from '../audit/audit.module';
 import { ServiceApiKeyGuard } from './guards/service-api-key.guard';
+import { AnythingLLMModule } from '../anything-llm/anythingllm.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ServiceApiKeyGuard } from './guards/service-api-key.guard';
     MailModule,
     JwtModule.register({}),
     AuditModule,
+    AnythingLLMModule,
   ],
   controllers: [AuthController],
   providers: [

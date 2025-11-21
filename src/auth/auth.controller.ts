@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Query,
   Request,
   Post,
   UseGuards,
@@ -128,6 +129,28 @@ export class AuthController {
     @Body() confirmEmailDto: AuthConfirmEmailDto,
   ): Promise<void> {
     return this.service.confirmEmail(confirmEmailDto.hash);
+  }
+
+  @Get('email/confirm')
+  @ApiOperation({
+    summary: 'Confirm Email Address (GET)',
+    description:
+      'Confirm email address using the hash token from URL query parameter. Browser-friendly endpoint for email links.',
+  })
+  @ApiOkResponse({
+    description: 'Email confirmed successfully. Account activated.',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid or expired confirmation hash',
+  })
+  @ApiNotFoundResponse({
+    description: 'User not found or already confirmed',
+  })
+  async confirmEmailGet(
+    @Query('hash') hash: string,
+  ): Promise<{ message: string }> {
+    await this.service.confirmEmail(hash);
+    return { message: 'Email confirmed successfully. You can now log in.' };
   }
 
   @Post('email/confirm/new')

@@ -33,6 +33,7 @@ import { DatabaseConfig } from './database/config/database-config.type';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import anythingllmConfig from './anything-llm/config/anythingllm.config';
 
 // <database-block>
 const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
@@ -63,6 +64,7 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
         appleConfig,
         throttlerConfig,
         documentProcessingConfig,
+        anythingllmConfig,
       ],
       envFilePath: ['.env'],
     }),
