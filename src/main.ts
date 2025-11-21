@@ -19,6 +19,11 @@ async function bootstrap() {
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
   const configService = app.get(ConfigService<AllConfigType>);
 
+  // RFC 7662: Enable body parser for application/x-www-form-urlencoded
+  // This is required for OAuth 2.0 token introspection endpoint
+  // NestJS uses express body-parser by default, which handles form-urlencoded
+  // No additional configuration needed, but ensure it's enabled
+
   // HIPAA Security: Add security headers using Helmet
   // TODO: Fine-tune CSP (Content Security Policy) for production
   // TODO: Ensure HSTS (HTTP Strict Transport Security) is configured at load balancer level

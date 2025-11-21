@@ -33,6 +33,7 @@ import {
   TokenIntrospectDto,
   TokenIntrospectResponseDto,
 } from './dto/token-introspect.dto';
+import { TokenIntrospectionCacheService } from './services/token-introspection-cache.service';
 
 @Injectable()
 export class AuthService {
@@ -43,6 +44,7 @@ export class AuthService {
     private mailService: MailService,
     private configService: ConfigService<AllConfigType>,
     private auditService: AuditService,
+    private introspectionCache: TokenIntrospectionCacheService,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
@@ -667,6 +669,9 @@ export class AuthService {
         sessionId: data.sessionId,
         success: true,
       });
+
+      // Invalidate cache entries for this session
+      this.introspectionCache.invalidateBySessionId(data.sessionId);
     }
 
     return this.sessionService.deleteById(data.sessionId);
@@ -677,19 +682,41 @@ export class AuthService {
    *
    * @param dto - Token introspection request
    * @param clientService - Service identifier for audit logging
+   * @param ipAddress - Client IP address for audit logging (HIPAA compliance)
    * @returns Token introspection response
    *
    * HIPAA Compliance:
    * - No PHI in introspection requests/responses
-   * - Audit log all introspection events
+   * - Audit log all introspection events (including IP address)
    * - Never log raw tokens
    * - Sanitize error messages
    */
   async introspectToken(
     dto: TokenIntrospectDto,
     clientService: string = 'unknown',
+    ipAddress: string = 'unknown',
   ): Promise<TokenIntrospectResponseDto> {
     const { token, includeUser = true } = dto;
+
+    // Generate token hash for caching (never store raw tokens)
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Check cache first (only for active tokens)
+    const cached = this.introspectionCache.get(tokenHash);
+    if (cached) {
+      // Log cached introspection (for audit trail)
+      this.auditService.logAuthEvent({
+        userId: cached.sub || 'unknown',
+        provider: 'system',
+        event: AuthEventType.TOKEN_INTROSPECTION_SUCCESS,
+        sessionId: cached.sid,
+        success: true,
+        ipAddress,
+        metadata: { clientService, cached: true },
+      });
+
+      return cached;
+    }
 
     try {
       // Decode token to extract claims (no verification yet)
@@ -704,6 +731,7 @@ export class AuthService {
           event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
           success: false,
           errorMessage: 'Invalid token structure',
+          ipAddress,
           metadata: { clientService },
         });
 
@@ -739,6 +767,7 @@ export class AuthService {
           event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
           success: false,
           errorMessage: `Unsupported algorithm: ${tokenHeader?.alg}`,
+          ipAddress,
           metadata: { clientService },
         });
 
@@ -784,6 +813,7 @@ export class AuthService {
           event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
           success: false,
           errorMessage: `Token verification failed: ${error?.message || 'Unknown error'}`,
+          ipAddress,
           metadata: { clientService, reason },
         });
 
@@ -821,6 +851,7 @@ export class AuthService {
           sessionId,
           success: false,
           errorMessage: 'Session revoked or not found',
+          ipAddress,
           metadata: { clientService },
         });
 
@@ -873,8 +904,12 @@ export class AuthService {
         event: AuthEventType.TOKEN_INTROSPECTION_SUCCESS,
         sessionId,
         success: true,
+        ipAddress,
         metadata: { clientService },
       });
+
+      // Cache the response (only active, non-revoked tokens)
+      this.introspectionCache.set(tokenHash, response);
 
       return response;
     } catch (error: any) {
@@ -885,6 +920,7 @@ export class AuthService {
         event: AuthEventType.TOKEN_INTROSPECTION_FAILED,
         success: false,
         errorMessage: `Unexpected error: ${error?.message || 'Unknown error'}`,
+        ipAddress,
         metadata: { clientService },
       });
 

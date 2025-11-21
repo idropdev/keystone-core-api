@@ -309,8 +309,12 @@ async function validateExternalToken(req, res, next) {
 
 /**
  * Call Keystone Core API introspection endpoint (RFC 7662)
+ * 
+ * RFC 7662 requires application/x-www-form-urlencoded, but Keystone also
+ * supports JSON for convenience. Both formats are supported.
  */
 async function callKeystoneIntrospect(token) {
+  // Option 1: JSON format (convenient, but not strictly RFC 7662)
   const response = await fetch(`${ExternalAuthConfig.apiUrl}/v1/auth/introspect`, {
     method: "POST",
     headers: {
@@ -323,6 +327,19 @@ async function callKeystoneIntrospect(token) {
       includeUser: true
     })
   });
+
+  // Option 2: RFC 7662 compliant form-urlencoded format
+  // const response = await fetch(`${ExternalAuthConfig.apiUrl}/v1/auth/introspect`, {
+  //   method: "POST",
+  //   headers: {
+  //     "Content-Type": "application/x-www-form-urlencoded",
+  //     "Authorization": `Bearer ${ExternalAuthConfig.serviceKey}`
+  //   },
+  //   body: new URLSearchParams({
+  //     token: token,
+  //     token_type_hint: "access_token"
+  //   }).toString()
+  // });
 
   if (!response.ok) {
     throw new Error(`Introspection failed: ${response.status}`);
