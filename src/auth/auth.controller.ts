@@ -10,6 +10,7 @@ import {
   Patch,
   Delete,
   SerializeOptions,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
@@ -41,6 +42,8 @@ import {
   TokenIntrospectDto,
   TokenIntrospectResponseDto,
 } from './dto/token-introspect.dto';
+import { UseInterceptors } from '@nestjs/common';
+import { FormUrlEncodedInterceptor } from './interceptors/form-urlencoded.interceptor';
 
 @ApiTags('Auth')
 @Controller({
@@ -338,9 +341,11 @@ export class AuthController {
    * - Rate limited to prevent abuse
    * - All introspection events are audit logged
    * - No PHI in requests/responses
+   * - Supports both JSON and application/x-www-form-urlencoded (RFC 7662)
    */
   @Post('introspect')
   @UseGuards(ServiceApiKeyGuard)
+  @UseInterceptors(FormUrlEncodedInterceptor)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Token Introspection (RFC 7662)',
@@ -348,6 +353,7 @@ export class AuthController {
       'Introspect a JWT access token to determine if it is active and get token metadata. ' +
       'This endpoint is for service-to-service communication (e.g., AnythingLLM integration). ' +
       'Requires service API key authentication. Rate limited to 100 requests per minute. ' +
+      'Supports both JSON and application/x-www-form-urlencoded content types (RFC 7662). ' +
       'HIPAA compliant: No PHI in requests/responses, all events audit logged.',
   })
   @ApiOkResponse({
@@ -368,11 +374,18 @@ export class AuthController {
   @Throttle({ default: { limit: 100, ttl: 60000 } }) // 100 requests per minute
   public async introspect(
     @Body() dto: TokenIntrospectDto,
-    @Request() request,
+    @Req() request: any,
   ): Promise<TokenIntrospectResponseDto> {
     // Extract client service identifier from request (optional, for audit logging)
     const clientService = request.headers['x-client-service'] || 'unknown';
 
-    return this.service.introspectToken(dto, clientService);
+    // Extract IP address for audit logging (HIPAA compliance)
+    const ipAddress =
+      request.ip ||
+      request.connection?.remoteAddress ||
+      request.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      'unknown';
+
+    return this.service.introspectToken(dto, clientService, ipAddress);
   }
 }

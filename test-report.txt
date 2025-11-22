@@ -1,0 +1,39 @@
+
+> nestjs-boilerplate@1.2.0 test:e2e
+> env-cmd jest --config ./test/jest-e2e.json test/auth/token-introspection.e2e-spec.ts
+
+PASS test/auth/token-introspection.e2e-spec.ts
+  Token Introspection Endpoint (RFC 7662)
+    POST /api/v1/auth/introspect
+      Authentication
+        ✓ should return 401 without service API key (3 ms)
+        ✓ should return 401 with invalid service API key (2 ms)
+        ✓ should accept valid service API key (14 ms)
+      Request Format (RFC 7662)
+        ✓ should accept JSON request body (5 ms)
+        ✓ should accept application/x-www-form-urlencoded (RFC 7662) (2 ms)
+        ✓ should require token parameter (2 ms)
+      Valid Token Response
+        ✓ should return active: true for valid token (2 ms)
+        ✓ should include all RFC 7662 standard fields (3 ms)
+        ✓ should include optional metadata fields (2 ms)
+      Invalid Token Response
+        ✓ should return active: false for expired token (2 ms)
+        ✓ should return active: false for malformed token (1 ms)
+        ✓ should return active: false for empty token (2 ms)
+      Revoked Token Response
+        ✓ should return active: false after logout (127 ms)
+      Token Type Hint
+        ✓ should accept token_type_hint parameter (11 ms)
+        ✓ should accept refresh_token hint (14 ms)
+      HIPAA Compliance
+        ✓ should not include PHI in response (12 ms)
+        ✓ should log introspection events (audit trail) (12 ms)
+      Rate Limiting
+        ○ skipped should enforce rate limiting (100 requests per minute)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 skipped, 17 passed, 18 total
+Snapshots:   0 total
+Time:        1.884 s, estimated 3 s
+Ran all test suites matching test/auth/token-introspection.e2e-spec.ts.
