@@ -46,3 +46,5 @@ lerna-debug.log*
 *service-account*.json
 keystone-sa-key.json
 gcp-*.json
+
+storage/*
