@@ -39,3 +39,10 @@ lerna-debug.log*
 .env
 /ormconfig.json
 .codegpt
+
+# GCP Service Account Keys (NEVER commit these!)
+.secrets/
+*.json.key
+*service-account*.json
+keystone-sa-key.json
+gcp-*.json
