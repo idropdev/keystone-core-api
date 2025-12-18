@@ -96,6 +96,8 @@ Each service can scale independently, while Core ensures consistent authenticati
 
 ## 🛠️ Setup
 
+### Quick Start
+
 ```bash
 git clone https://github.com/YOUR_TEAM/keystone-core-api
 cd keystone-core-api
@@ -103,6 +105,55 @@ cp .env.sample .env
 npm install
 npm run start:dev
 ```
+
+### GCP Credentials Setup (Required for Document Processing)
+
+The document download endpoint requires GCP service account credentials for generating signed URLs. Follow these steps:
+
+#### Option 1: Automated Setup Script
+
+```bash
+# Run the setup script (creates service account, grants permissions, generates key)
+./SETUP_SERVICE_ACCOUNT.sh
+
+# Add to your .env file (the script will show you the exact path)
+GOOGLE_APPLICATION_CREDENTIALS=.secrets/keystone-sa-key.json
+```
+
+#### Option 2: Manual Setup
+
+1. **Create Service Account:**
+   ```bash
+   gcloud iam service-accounts create keystone-doc-processing \
+     --display-name="Keystone Document Processing" \
+     --project=YOUR_PROJECT_ID
+   ```
+
+2. **Grant Permissions:**
+   ```bash
+   gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+     --member="serviceAccount:keystone-doc-processing@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/storage.objectAdmin"
+   ```
+
+3. **Create Key File:**
+   ```bash
+   gcloud iam service-accounts keys create .secrets/keystone-sa-key.json \
+     --iam-account=keystone-doc-processing@YOUR_PROJECT_ID.iam.gserviceaccount.com
+   ```
+
+4. **Add to .env:**
+   ```bash
+   GOOGLE_APPLICATION_CREDENTIALS=.secrets/keystone-sa-key.json
+   ```
+
+5. **Restart Application**
+
+**Security Note:** The `.secrets/` directory is excluded from git via `.gitignore`. Never commit service account keys to version control.
+
+For more details, see:
+- [`docs/gcp-authentication-setup.md`](/docs/gcp-authentication-setup.md) - Complete GCP authentication guide
+- [`VERIFY_GCP_CREDENTIALS.md`](/VERIFY_GCP_CREDENTIALS.md) - Troubleshooting guide
 
 Docker + CI setup also available.
 
