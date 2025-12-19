@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   Inject,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -19,6 +20,8 @@ import { AllConfigType } from '../../../config/config.type';
 import { AuditService } from '../../../audit/audit.service';
 import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
 import { Pdf2JsonService } from '../../infrastructure/pdf-extraction/pdf2json.service';
+import { OcrMergeService } from '../../utils/ocr-merge.service';
+import { OcrPostProcessorService } from '../../utils/ocr-post-processor.service';
 
 // Use require for pdf-parse (CommonJS module)
 // pdf-parse exports { PDFParse } as a named export
@@ -54,10 +57,17 @@ export class DocumentProcessingDomainService {
     @Inject('StorageServicePort')
     private readonly storageService: StorageServicePort,
     @Inject('OcrServicePort')
-    private readonly ocrService: OcrServicePort,
+    private readonly ocrService: OcrServicePort, // Backward compatibility
+    @Inject('VisionOcrServicePort')
+    private readonly visionOcrService: OcrServicePort,
+    @Inject('DocumentAiOcrServicePort')
+    private readonly documentAiOcrService: OcrServicePort,
+    private readonly ocrMergeService: OcrMergeService,
     private readonly auditService: AuditService,
     private readonly configService: ConfigService<AllConfigType>,
     private readonly pdf2JsonService: Pdf2JsonService,
+    @Optional()
+    private readonly ocrPostProcessorService?: OcrPostProcessorService,
   ) {
     this.retentionYears = this.configService.getOrThrow(
       'documentProcessing.retentionYears',
@@ -315,63 +325,321 @@ export class DocumentProcessingDomainService {
                 );
               }
             } catch (pdfParseError) {
-              // pdf-parse also failed - fall back to OCR
+              // pdf-parse also failed - fall back to parallel OCR
               this.logger.warn(
-                `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to OCR`,
+                `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to parallel OCR`,
               );
               this.logger.warn(
                 `[PDF-PARSE] Error: ${pdfParseError.message || pdfParseError}`,
               );
 
+              const mergeEnabled =
+                this.configService.get('documentProcessing.ocrMerge.enabled', {
+                  infer: true,
+                }) !== false;
+              const postProcessingEnabled =
+                this.configService.get(
+                  'documentProcessing.ocrPostProcessing.enabled',
+                  { infer: true },
+                ) || false;
+
+              if (mergeEnabled) {
+                const [visionResult, documentAiResult] =
+                  await Promise.allSettled([
+                    this.visionOcrService.processDocument(
+                      gcsUri,
+                      mimeType,
+                      document.pageCount,
+                    ),
+                    this.documentAiOcrService.processDocument(
+                      gcsUri,
+                      mimeType,
+                      document.pageCount,
+                    ),
+                  ]);
+
+                const visionOcrResult =
+                  visionResult.status === 'fulfilled'
+                    ? visionResult.value
+                    : null;
+                const documentAiOcrResult =
+                  documentAiResult.status === 'fulfilled'
+                    ? documentAiResult.value
+                    : null;
+
+                if (visionResult.status === 'rejected') {
+                  this.logger.warn(
+                    `[PARALLEL OCR] Vision AI failed: ${this.sanitizeError(visionResult.reason)}`,
+                  );
+                }
+
+                if (documentAiResult.status === 'rejected') {
+                  this.logger.warn(
+                    `[PARALLEL OCR] Document AI failed: ${this.sanitizeError(documentAiResult.reason)}`,
+                  );
+                }
+
+                if (visionOcrResult && documentAiOcrResult) {
+                  ocrResult = await this.ocrMergeService.mergeOcrResults(
+                    visionOcrResult,
+                    documentAiOcrResult,
+                    { enablePostProcessing: postProcessingEnabled },
+                  );
+                  processingMethod = ProcessingMethod.OCR_MERGED;
+                } else if (visionOcrResult) {
+                  ocrResult = visionOcrResult;
+                  processingMethod = ProcessingMethod.OCR_VISION_SYNC;
+                } else if (documentAiOcrResult) {
+                  ocrResult = documentAiOcrResult;
+                  processingMethod =
+                    document.pageCount && document.pageCount <= 15
+                      ? ProcessingMethod.OCR_SYNC
+                      : ProcessingMethod.OCR_BATCH;
+                } else {
+                  throw new Error('Both OCR engines failed');
+                }
+              } else {
+                ocrResult = await this.ocrService.processDocument(
+                  gcsUri,
+                  mimeType,
+                  document.pageCount,
+                );
+                processingMethod =
+                  document.pageCount && document.pageCount <= 15
+                    ? ProcessingMethod.OCR_SYNC
+                    : ProcessingMethod.OCR_BATCH;
+              }
+
+              this.logger.log(
+                `[PDF PROCESSING] OCR fallback completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
+              );
+            }
+          } else {
+            // Not an XRef error - go directly to parallel OCR
+            this.logger.log(
+              `[PDF PROCESSING] Non-XRef error, falling back directly to parallel OCR`,
+            );
+
+            const mergeEnabled =
+              this.configService.get('documentProcessing.ocrMerge.enabled', {
+                infer: true,
+              }) !== false;
+            const postProcessingEnabled =
+              this.configService.get(
+                'documentProcessing.ocrPostProcessing.enabled',
+                { infer: true },
+              ) || false;
+
+            if (mergeEnabled) {
+              const [visionResult, documentAiResult] =
+                await Promise.allSettled([
+                  this.visionOcrService.processDocument(
+                    gcsUri,
+                    mimeType,
+                    document.pageCount,
+                  ),
+                  this.documentAiOcrService.processDocument(
+                    gcsUri,
+                    mimeType,
+                    document.pageCount,
+                  ),
+                ]);
+
+              const visionOcrResult =
+                visionResult.status === 'fulfilled' ? visionResult.value : null;
+              const documentAiOcrResult =
+                documentAiResult.status === 'fulfilled'
+                  ? documentAiResult.value
+                  : null;
+
+              if (visionResult.status === 'rejected') {
+                this.logger.warn(
+                  `[PARALLEL OCR] Vision AI failed: ${this.sanitizeError(visionResult.reason)}`,
+                );
+              }
+
+              if (documentAiResult.status === 'rejected') {
+                this.logger.warn(
+                  `[PARALLEL OCR] Document AI failed: ${this.sanitizeError(documentAiResult.reason)}`,
+                );
+              }
+
+              if (visionOcrResult && documentAiOcrResult) {
+                ocrResult = await this.ocrMergeService.mergeOcrResults(
+                  visionOcrResult,
+                  documentAiOcrResult,
+                  { enablePostProcessing: postProcessingEnabled },
+                );
+
+                // Store raw OCR results in fullResponse for comparison endpoints
+                if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+                  ocrResult.fullResponse.rawVisionResult = visionOcrResult;
+                  ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                }
+
+                processingMethod = ProcessingMethod.OCR_MERGED;
+              } else if (visionOcrResult) {
+                ocrResult = visionOcrResult;
+                // Store Vision AI result for comparison endpoints
+                if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+                  ocrResult.fullResponse.rawVisionResult = visionOcrResult;
+                }
+                processingMethod = ProcessingMethod.OCR_VISION_SYNC;
+              } else if (documentAiOcrResult) {
+                ocrResult = documentAiOcrResult;
+                // Store Document AI result for comparison endpoints
+                if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+                  ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                }
+                processingMethod =
+                  document.pageCount && document.pageCount <= 15
+                    ? ProcessingMethod.OCR_SYNC
+                    : ProcessingMethod.OCR_BATCH;
+              } else {
+                throw new Error('Both OCR engines failed');
+              }
+            } else {
               ocrResult = await this.ocrService.processDocument(
                 gcsUri,
                 mimeType,
                 document.pageCount,
-              );
-              this.logger.log(
-                `[PDF PROCESSING] OCR fallback completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
               );
               processingMethod =
                 document.pageCount && document.pageCount <= 15
                   ? ProcessingMethod.OCR_SYNC
                   : ProcessingMethod.OCR_BATCH;
             }
-          } else {
-            // Not an XRef error - go directly to OCR
-            this.logger.log(
-              `[PDF PROCESSING] Non-XRef error, falling back directly to OCR`,
-            );
 
-            ocrResult = await this.ocrService.processDocument(
-              gcsUri,
-              mimeType,
-              document.pageCount,
-            );
             this.logger.log(
               `[PDF PROCESSING] OCR fallback completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
             );
+          }
+        }
+      } else {
+        // Not a PDF or no buffer available - use parallel OCR with merge
+        this.logger.log(
+          `[PDF PROCESSING] Not a PDF or no buffer - using parallel OCR`,
+        );
+
+        // Check if merge is enabled
+        const mergeEnabled =
+          this.configService.get('documentProcessing.ocrMerge.enabled', {
+            infer: true,
+          }) !== false;
+        const postProcessingEnabled =
+          this.configService.get(
+            'documentProcessing.ocrPostProcessing.enabled',
+            { infer: true },
+          ) || false;
+
+        if (mergeEnabled) {
+          // Run both OCRs in parallel
+          this.logger.log(
+            `[PARALLEL OCR] Starting parallel execution of Vision AI and Document AI`,
+          );
+
+          const [visionResult, documentAiResult] = await Promise.allSettled([
+            this.visionOcrService.processDocument(
+              gcsUri,
+              mimeType,
+              document.pageCount,
+            ),
+            this.documentAiOcrService.processDocument(
+              gcsUri,
+              mimeType,
+              document.pageCount,
+            ),
+          ]);
+
+          const visionOcrResult =
+            visionResult.status === 'fulfilled' ? visionResult.value : null;
+          const documentAiOcrResult =
+            documentAiResult.status === 'fulfilled'
+              ? documentAiResult.value
+              : null;
+
+          // Handle results
+          if (visionResult.status === 'rejected') {
+            this.logger.warn(
+              `[PARALLEL OCR] Vision AI failed: ${this.sanitizeError(visionResult.reason)}`,
+            );
+          }
+
+          if (documentAiResult.status === 'rejected') {
+            this.logger.warn(
+              `[PARALLEL OCR] Document AI failed: ${this.sanitizeError(documentAiResult.reason)}`,
+            );
+          }
+
+          // Merge if both succeeded
+          if (visionOcrResult && documentAiOcrResult) {
+            this.logger.log(
+              `[PARALLEL OCR] Both OCRs succeeded, merging results`,
+            );
+
+            ocrResult = await this.ocrMergeService.mergeOcrResults(
+              visionOcrResult,
+              documentAiOcrResult,
+              { enablePostProcessing: postProcessingEnabled },
+            );
+
+            // Store raw OCR results in fullResponse for comparison endpoints
+            if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+              ocrResult.fullResponse.rawVisionResult = visionOcrResult;
+              ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+            }
+
+            processingMethod = ProcessingMethod.OCR_MERGED;
+          } else if (visionOcrResult) {
+            // Only Vision AI succeeded
+            this.logger.log(
+              `[PARALLEL OCR] Only Vision AI succeeded, using Vision result`,
+            );
+            ocrResult = visionOcrResult;
+            // Store Vision AI result for comparison endpoints
+            if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+              ocrResult.fullResponse.rawVisionResult = visionOcrResult;
+            }
+            processingMethod = ProcessingMethod.OCR_VISION_SYNC;
+          } else if (documentAiOcrResult) {
+            // Only Document AI succeeded
+            this.logger.log(
+              `[PARALLEL OCR] Only Document AI succeeded, using Document AI result`,
+            );
+            ocrResult = documentAiOcrResult;
+            // Store Document AI result for comparison endpoints
+            if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+              ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+            }
             processingMethod =
               document.pageCount && document.pageCount <= 15
                 ? ProcessingMethod.OCR_SYNC
                 : ProcessingMethod.OCR_BATCH;
+          } else {
+            // Both failed
+            throw new Error('Both OCR engines failed');
           }
+        } else {
+          // Merge disabled - use single OCR (backward compatibility)
+          this.logger.log(
+            `[PDF PROCESSING] Merge disabled - using single OCR`,
+          );
+          ocrResult = await this.ocrService.processDocument(
+            gcsUri,
+            mimeType,
+            document.pageCount,
+          );
+          // Store Document AI result for comparison endpoints (single OCR = Document AI)
+          if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+            ocrResult.fullResponse.rawDocumentAiResult = ocrResult;
+          }
+          this.logger.log(
+            `[PDF PROCESSING] OCR completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
+          );
+          processingMethod = mimeType.startsWith('image/')
+            ? ProcessingMethod.OCR_SYNC
+            : ProcessingMethod.OCR_BATCH;
         }
-      } else {
-        // Not a PDF or no buffer available - use standard OCR
-        this.logger.log(
-          `[PDF PROCESSING] Not a PDF or no buffer - using standard OCR`,
-        );
-        ocrResult = await this.ocrService.processDocument(
-          gcsUri,
-          mimeType,
-          document.pageCount,
-        );
-        this.logger.log(
-          `[PDF PROCESSING] OCR completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
-        );
-        processingMethod = mimeType.startsWith('image/')
-          ? ProcessingMethod.OCR_SYNC
-          : ProcessingMethod.OCR_BATCH;
       }
 
       this.logger.log(
@@ -736,6 +1004,68 @@ export class DocumentProcessingDomainService {
       );
     }
     return fields;
+  }
+
+  /**
+   * Get Vision AI OCR output for document
+   */
+  async getVisionAiOutput(
+    documentId: string,
+    userId: string | number,
+  ): Promise<any> {
+    const document = await this.getDocument(documentId, userId); // Authorization check
+
+    if (!document.ocrJsonOutput) {
+      throw new NotFoundException('OCR output not available for this document');
+    }
+
+    // Extract Vision AI result from stored OCR output
+    const rawVisionResult =
+      document.ocrJsonOutput?.rawVisionResult ||
+      document.ocrJsonOutput?.sources?.vision;
+
+    if (!rawVisionResult) {
+      throw new NotFoundException(
+        'Vision AI output not available. Document may not have been processed with parallel OCR merge.',
+      );
+    }
+
+    return rawVisionResult;
+  }
+
+  /**
+   * Get Document AI OCR output for document
+   */
+  async getDocumentAiOutput(
+    documentId: string,
+    userId: string | number,
+  ): Promise<any> {
+    const document = await this.getDocument(documentId, userId); // Authorization check
+
+    if (!document.ocrJsonOutput) {
+      throw new NotFoundException('OCR output not available for this document');
+    }
+
+    // Extract Document AI result from stored OCR output
+    const rawDocumentAiResult =
+      document.ocrJsonOutput?.rawDocumentAiResult ||
+      document.ocrJsonOutput?.sources?.documentAi;
+
+    if (!rawDocumentAiResult) {
+      // Fallback: if document was processed with single OCR (Document AI), return full response
+      if (
+        document.processingMethod === 'OCR_SYNC' ||
+        document.processingMethod === 'OCR_BATCH'
+      ) {
+        return document.ocrJsonOutput;
+      }
+
+      throw new NotFoundException(
+        'Document AI output not available. Document may not have been processed with parallel OCR merge.',
+      );
+    }
+
+    return rawDocumentAiResult;
   }
 
   /**

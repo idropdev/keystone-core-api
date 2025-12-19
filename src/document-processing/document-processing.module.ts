@@ -12,7 +12,10 @@ import { ExtractedFieldEntity } from './infrastructure/persistence/relational/en
 import { DocumentRepositoryAdapter } from './infrastructure/persistence/relational/repositories/document.repository';
 import { GcpStorageAdapter } from './infrastructure/storage/gcp-storage.adapter';
 import { GcpDocumentAiAdapter } from './infrastructure/ocr/gcp-document-ai.adapter';
+import { GcpVisionAiAdapter } from './infrastructure/ocr/gcp-vision-ai.adapter';
 import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.service';
+import { OcrMergeService } from './utils/ocr-merge.service';
+import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
@@ -56,6 +59,14 @@ import { AuditModule } from '../audit/audit.module';
     },
     {
       provide: 'OcrServicePort',
+      useClass: GcpDocumentAiAdapter, // Backward compatibility
+    },
+    {
+      provide: 'VisionOcrServicePort',
+      useClass: GcpVisionAiAdapter,
+    },
+    {
+      provide: 'DocumentAiOcrServicePort',
       useClass: GcpDocumentAiAdapter,
     },
 
@@ -63,6 +74,11 @@ import { AuditModule } from '../audit/audit.module';
     DocumentRepositoryAdapter,
     GcpStorageAdapter,
     GcpDocumentAiAdapter,
+    GcpVisionAiAdapter,
+
+    // Merge and post-processing services
+    OcrMergeService,
+    OcrPostProcessorService,
 
     // PDF extraction service
     Pdf2JsonService,
