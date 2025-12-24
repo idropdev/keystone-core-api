@@ -22,7 +22,7 @@ export class AccessGrantEntity extends EntityRelationalHelper {
   @JoinColumn({ name: 'document_id' })
   document: DocumentEntity;
 
-  @Column({ name: 'document_id', type: 'varchar', length: 36 })
+  @Column({ name: 'document_id' })
   @Index()
   documentId: string;
 
