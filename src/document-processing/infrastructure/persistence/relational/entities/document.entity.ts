@@ -30,6 +30,25 @@ export class DocumentEntity extends EntityRelationalHelper {
   @Column({ name: 'user_id' })
   userId: number;
 
+  // Origin authority (IMMUTABLE - set at creation, never changes)
+  // TODO: Enforce immutability at application level - originManagerId cannot be updated after creation
+  @ManyToOne(() => UserEntity, { nullable: false, eager: false })
+  @JoinColumn({ name: 'origin_manager_id' })
+  @Index()
+  originManager: UserEntity;
+
+  @Column({ name: 'origin_manager_id' })
+  originManagerId: number;
+
+  // Optional: user who uploaded (intake context, not ownership)
+  // Visible only to origin manager and auditors
+  @ManyToOne(() => UserEntity, { nullable: true, eager: false })
+  @JoinColumn({ name: 'origin_user_context_id' })
+  originUserContext?: UserEntity;
+
+  @Column({ name: 'origin_user_context_id', nullable: true })
+  originUserContextId?: number;
+
   @Column({ name: 'document_type', type: 'varchar', length: 50 })
   @Index()
   documentType: DocumentType;
