@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { AccessGrantEntity } from '../entities/access-grant.entity';
-import { AccessGrantRepository } from '../../../domain/repositories/access-grant.repository.port';
-import { AccessGrant } from '../../../domain/entities/access-grant.entity';
+import { AccessGrantRepository } from '../../../../domain/repositories/access-grant.repository.port';
+import { AccessGrant } from '../../../../domain/entities/access-grant.entity';
 import { NullableType } from '../../../../../utils/types/nullable.type';
 
 @Injectable()
