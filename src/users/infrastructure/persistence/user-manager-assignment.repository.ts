@@ -1,4 +1,4 @@
-import { NullableType } from '../../utils/types/nullable.type';
+import { NullableType } from '../../../utils/types/nullable.type';
 import { UserManagerAssignment } from '../../domain/entities/user-manager-assignment.entity';
 
 export abstract class UserManagerAssignmentRepository {
