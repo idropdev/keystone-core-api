@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
@@ -39,6 +40,8 @@ import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
+import { extractActorFromRequest } from './utils/actor-extractor.util';
+import { RoleEnum } from '../roles/roles.enum';
 
 /**
  * Document Processing Controller
@@ -186,8 +189,13 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<DocumentStatusResponseDto> {
-    const userId = req.user.id;
-    return this.documentProcessingService.getDocumentStatus(documentId, userId);
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getDocumentStatus(documentId, actor);
   }
 
   @Get(':documentId')
@@ -217,10 +225,15 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<DocumentResponseDto> {
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
     const document = await this.documentProcessingService.getDocument(
       documentId,
-      userId,
+      actor,
     );
     return this.documentProcessingService.toResponseDto(document);
   }
@@ -359,9 +372,14 @@ export class DocumentProcessingController {
     @Request() req,
     @Query() query: DocumentListQueryDto,
   ): Promise<InfinityPaginationResponseDto<DocumentResponseDto>> {
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
     const result = await this.documentProcessingService.listDocuments(
-      userId,
+      actor,
       query,
     );
     return result;

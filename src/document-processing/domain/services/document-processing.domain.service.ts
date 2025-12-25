@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -19,6 +20,8 @@ import { AllConfigType } from '../../../config/config.type';
 import { AuditService } from '../../../audit/audit.service';
 import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
 import { Pdf2JsonService } from '../../infrastructure/pdf-extraction/pdf2json.service';
+import { DocumentStateMachine } from '../utils/document-state-machine.util';
+import { Actor } from '../../../access-control/domain/services/access-grant.domain.service';
 
 // Use require for pdf-parse (CommonJS module)
 // pdf-parse exports { PDFParse } as a named export
@@ -93,6 +96,13 @@ export class DocumentProcessingDomainService {
       document.updatedAt = new Date();
       document.retryCount = 0;
 
+      // Set retention policy: scheduledDeletionAt = now + retentionYears
+      const scheduledDeletionAt = new Date();
+      scheduledDeletionAt.setFullYear(
+        scheduledDeletionAt.getFullYear() + this.retentionYears,
+      );
+      document.scheduledDeletionAt = scheduledDeletionAt;
+
       // 2. Save to database (get UUID from database)
       const savedDocument = await this.documentRepository.save(document);
 
@@ -105,7 +115,11 @@ export class DocumentProcessingDomainService {
         contentLength: fileBuffer.length,
       });
 
-      // 4. Update document with GCS URI and status
+      // 4. Update document with GCS URI and status (validate state transition)
+      DocumentStateMachine.validateTransition(
+        savedDocument.status,
+        DocumentStatus.STORED,
+      );
       await this.documentRepository.updateStatus(
         savedDocument.id,
         DocumentStatus.STORED,
@@ -160,6 +174,16 @@ export class DocumentProcessingDomainService {
     fileBuffer?: Buffer,
   ): Promise<void> {
     try {
+      // Get document to check current status
+      const document = await this.documentRepository.findById(documentId);
+      if (!document) throw new Error('Document not found');
+
+      // Validate state transition before updating
+      DocumentStateMachine.validateTransition(
+        document.status,
+        DocumentStatus.PROCESSING,
+      );
+
       // Update status to PROCESSING
       await this.documentRepository.updateStatus(
         documentId,
@@ -168,9 +192,6 @@ export class DocumentProcessingDomainService {
           processingStartedAt: new Date(),
         },
       );
-
-      const document = await this.documentRepository.findById(documentId);
-      if (!document) throw new Error('Document not found');
 
       // Audit log
       this.auditService.logAuthEvent({
@@ -394,6 +415,15 @@ export class DocumentProcessingDomainService {
       await this.extractAndSaveFields(documentId, ocrResult);
 
       // Update document with results
+      // Validate state transition before updating
+      const currentDocument = await this.documentRepository.findById(documentId);
+      if (currentDocument) {
+        DocumentStateMachine.validateTransition(
+          currentDocument.status,
+          DocumentStatus.PROCESSED,
+        );
+      }
+
       await this.documentRepository.updateStatus(
         documentId,
         DocumentStatus.PROCESSED,
@@ -529,6 +559,12 @@ export class DocumentProcessingDomainService {
         `Processing failed for document ${documentId}, retry ${retryCount}/${this.maxRetryCount}`,
       );
 
+      // Validate state transition for retry
+      DocumentStateMachine.validateTransition(
+        document.status,
+        DocumentStatus.QUEUED,
+      );
+
       await this.documentRepository.update(documentId, {
         retryCount,
         errorMessage,
@@ -544,6 +580,12 @@ export class DocumentProcessingDomainService {
         ).catch(() => {});
       }, 30000 * retryCount); // Exponential backoff: 30s, 60s, 90s
     } else {
+      // Validate state transition before marking as failed
+      DocumentStateMachine.validateTransition(
+        document.status,
+        DocumentStatus.FAILED,
+      );
+
       // Mark as failed
       await this.documentRepository.updateStatus(
         documentId,
@@ -690,6 +732,95 @@ export class DocumentProcessingDomainService {
 
     this.logger.log(
       `Document soft-deleted: ${documentId} (hard delete at ${scheduledDeletionAt.toISOString()})`,
+    );
+  }
+
+  /**
+   * Trigger OCR processing (origin manager only)
+   * 
+   * Authority Rules (from Phase 2):
+   * - Only origin manager can trigger OCR
+   * - Document must be in STORED, PROCESSED, or FAILED state
+   * - Re-processing allowed (PROCESSED → PROCESSING)
+   * 
+   * @param documentId - Document UUID
+   * @param actor - Actor requesting OCR trigger (must be origin manager)
+   * @throws ForbiddenException if actor is not origin manager
+   * @throws BadRequestException if document state doesn't allow processing
+   */
+  async triggerOcr(documentId: string, actor: Actor): Promise<void> {
+    // 1. Get document
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // 2. Validate actor is origin manager
+    if (
+      actor.type !== 'manager' ||
+      document.originManagerId !== actor.id
+    ) {
+      this.auditService.logAuthEvent({
+        userId: String(actor.id),
+        provider: 'document-processing',
+        event: DocumentEventType.UNAUTHORIZED_DOCUMENT_ACCESS as any,
+        success: false,
+        metadata: {
+          documentId,
+          actorType: actor.type,
+          actorId: actor.id,
+          operation: 'trigger-ocr',
+          originManagerId: document.originManagerId,
+        },
+      });
+
+      throw new ForbiddenException(
+        'Only the origin manager can trigger OCR processing',
+      );
+    }
+
+    // 3. Validate document state allows processing
+    if (!DocumentStateMachine.canProcess(document.status)) {
+      throw new BadRequestException(
+        `Document cannot be processed in current state: ${document.status}. ` +
+          `Document must be in STORED, PROCESSED, or FAILED state to trigger OCR.`,
+      );
+    }
+
+    // 4. Validate state transition
+    DocumentStateMachine.validateTransition(
+      document.status,
+      DocumentStatus.PROCESSING,
+    );
+
+    // 5. Trigger processing (async, don't await)
+    this.startProcessing(
+      documentId,
+      document.rawFileUri,
+      document.mimeType,
+    ).catch((error) => {
+      this.logger.error(
+        `Failed to trigger OCR for document ${documentId}: ${error.message}`,
+      );
+    });
+
+    // 6. Audit log
+    this.auditService.logAuthEvent({
+      userId: String(actor.id),
+      provider: 'document-processing',
+      event: DocumentEventType.DOCUMENT_PROCESSING_STARTED as any,
+      success: true,
+      metadata: {
+        documentId,
+        actorType: actor.type,
+        actorId: actor.id,
+        operation: 'trigger-ocr',
+        fromStatus: document.status,
+      },
+    });
+
+    this.logger.log(
+      `OCR triggered for document ${documentId} by origin manager ${actor.id}`,
     );
   }
 

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
+import { DocumentAccessDomainService } from './domain/services/document-access.domain.service';
+import { Actor } from '../access-control/domain/services/access-grant.domain.service';
 import { Document } from './domain/entities/document.entity';
 import { DocumentType } from './domain/enums/document-type.enum';
 import { DocumentStatus } from './domain/enums/document-status.enum';
@@ -26,6 +28,7 @@ export class DocumentProcessingService {
 
   constructor(
     private readonly domainService: DocumentProcessingDomainService,
+    private readonly accessService: DocumentAccessDomainService,
   ) {}
 
   async uploadDocument(
@@ -46,7 +49,20 @@ export class DocumentProcessingService {
     );
   }
 
+  /**
+   * Get document with access control (uses DocumentAccessDomainService)
+   */
   async getDocument(
+    documentId: string,
+    actor: Actor,
+  ): Promise<Document> {
+    return this.accessService.getDocument(documentId, actor);
+  }
+
+  /**
+   * Legacy method for backward compatibility (deprecated - use getDocument with Actor)
+   */
+  async getDocumentLegacy(
     documentId: string,
     userId: string | number,
   ): Promise<Document> {
@@ -55,9 +71,9 @@ export class DocumentProcessingService {
 
   async getDocumentStatus(
     documentId: string,
-    userId: string | number,
+    actor: Actor,
   ): Promise<DocumentStatusResponseDto> {
-    const document = await this.domainService.getDocument(documentId, userId);
+    const document = await this.accessService.getDocument(documentId, actor);
 
     const response = new DocumentStatusResponseDto();
     response.id = document.id;
@@ -73,18 +89,18 @@ export class DocumentProcessingService {
   }
 
   async listDocuments(
-    userId: string | number,
+    actor: Actor,
     query: DocumentListQueryDto,
   ): Promise<InfinityPaginationResponseDto<DocumentResponseDto>> {
-    const result = await this.domainService.listDocuments(userId, {
-      page: query.page,
-      limit: query.limit,
+    const result = await this.accessService.listDocuments(actor, {
+      skip: query.page ? (query.page - 1) * (query.limit || 10) : 0,
+      limit: query.limit || 10,
       status: query.status,
     });
 
     return {
       data: result.data.map((doc) => this.toResponseDto(doc)),
-      hasNextPage: result.page * result.limit < result.total,
+      hasNextPage: result.skip + result.limit < result.total,
     };
   }
 

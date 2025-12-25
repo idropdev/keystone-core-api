@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
@@ -7,6 +7,7 @@ import documentProcessingConfig from './config/document-processing.config';
 import { DocumentProcessingController } from './document-processing.controller';
 import { DocumentProcessingService } from './document-processing.service';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
+import { DocumentAccessDomainService } from './domain/services/document-access.domain.service';
 import { DocumentEntity } from './infrastructure/persistence/relational/entities/document.entity';
 import { ExtractedFieldEntity } from './infrastructure/persistence/relational/entities/extracted-field.entity';
 import { DocumentRepositoryAdapter } from './infrastructure/persistence/relational/repositories/document.repository';
@@ -14,6 +15,7 @@ import { GcpStorageAdapter } from './infrastructure/storage/gcp-storage.adapter'
 import { GcpDocumentAiAdapter } from './infrastructure/ocr/gcp-document-ai.adapter';
 import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.service';
 import { AuditModule } from '../audit/audit.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 
 @Module({
   imports: [
@@ -36,6 +38,9 @@ import { AuditModule } from '../audit/audit.module';
 
     // Audit logging
     AuditModule,
+
+    // Access control (forwardRef to break circular dependency)
+    forwardRef(() => AccessControlModule),
   ],
   controllers: [DocumentProcessingController],
   providers: [
@@ -44,6 +49,7 @@ import { AuditModule } from '../audit/audit.module';
 
     // Domain layer
     DocumentProcessingDomainService,
+    DocumentAccessDomainService,
 
     // Infrastructure adapters (Hexagonal Architecture)
     {
@@ -67,6 +73,10 @@ import { AuditModule } from '../audit/audit.module';
     // PDF extraction service
     Pdf2JsonService,
   ],
-  exports: [DocumentProcessingService],
+  exports: [
+    DocumentProcessingService,
+    DocumentAccessDomainService,
+    'DocumentRepositoryPort', // Export for use in AccessControlModule
+  ],
 })
 export class DocumentProcessingModule {}

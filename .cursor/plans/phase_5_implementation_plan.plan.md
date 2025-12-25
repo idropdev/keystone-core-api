@@ -1,0 +1,126 @@
+# PHASE 5: Implementation Plan - Document Identity Management Platform
+
+## Status
+
+**Phase**: 5 - Implementation Plan**Status**: Ready for Implementation**Document**: [docs/phase-5-implementation-plan.md](docs/phase-5-implementation-plan.md)
+
+## Overview
+
+This phase provides the complete implementation roadmap for the HIPAA-compliant Document Identity Management Platform. It breaks down the work from Phases 0-4 and the Manager Role Architecture into incremental, testable modules that can be implemented and deployed independently.**Key Principle**: Implement incrementally, test thoroughly, maintain HIPAA compliance at every step. Each module builds on previous work and can be validated independently.
+
+## Implementation Phases
+
+### Phase 5.1: Foundation (Week 1-2)
+
+- ✅ Manager role and entities (ManagerOrganization, ManagerInstance)
+- ✅ UserManagerAssignment entity and repository
+- ✅ AccessGrant entity and repository
+- ✅ Document originManagerId migration
+
+### Phase 5.2: Access Control Core (Week 3-4)
+
+- ✅ AccessGrantService (access resolution logic)
+- ✅ DocumentAccessService (authorization rules)
+- ✅ UserManagerAssignmentService
+- ✅ Authorization guards updates
+
+### Phase 5.3: Document Lifecycle (Week 5-6)
+
+- ⏳ Document state machine enforcement
+- ⏳ OCR authority rules
+- ⏳ Retention policy implementation
+
+### Phase 5.4: API Surface (Week 7-8)
+
+- ⏳ Access grant endpoints
+- ⏳ Revocation request endpoints
+- ⏳ Manager assignment endpoints
+- ⏳ Document endpoint updates
+
+### Phase 5.5: Audit & Compliance (Week 9-10)
+
+- ⏳ Complete audit event taxonomy (40+ event types)
+- ⏳ PHI sanitization
+- ⏳ GCP Cloud Logging integration
+- ⏳ Audit query endpoints
+
+### Phase 5.6: Testing & Hardening (Week 11-12)
+
+- ⏳ E2E test suite
+- ⏳ Performance testing
+- ⏳ Security audit
+- ⏳ Documentation updates
+
+## Key Deliverables
+
+1. **Manager Role System**: ManagerOrganization, ManagerInstance, UserManagerAssignment
+2. **AccessGrant System**: Complete access control with origin manager authority
+3. **Document Lifecycle**: State machine, OCR authority, retention policy
+4. **API Surface**: All endpoints from Phase 3 implemented
+5. **Audit System**: Complete event taxonomy, PHI sanitization, GCP Cloud Logging
+6. **Testing**: Comprehensive E2E test suite, performance benchmarks, security audit
+
+## Implementation Timeline
+
+**Total Duration**: 12 weeks (3 months)
+
+- Phase 5.1 (Foundation): 2 weeks
+- Phase 5.2 (Access Control Core): 2 weeks
+- Phase 5.3 (Document Lifecycle): 2 weeks
+- Phase 5.4 (API Surface): 2 weeks
+- Phase 5.5 (Audit & Compliance): 2 weeks
+- Phase 5.6 (Testing & Hardening): 2 weeks
+
+## Success Criteria
+
+### Functional Requirements
+
+- ⏳ All endpoints from Phase 3 implemented and tested
+- ✅ Access control from Phase 1 fully enforced (Phase 5.2 complete)
+- ⏳ Document lifecycle from Phase 2 working correctly
+- ⏳ Audit logging from Phase 4 complete
+- ✅ Manager role and assignments working (Phase 5.1 complete)
+
+### Non-Functional Requirements
+
+- ✅ HIPAA compliance verified (no PHI in logs, access control enforced) - Partial (Phase 5.2)
+- ⏳ Performance targets met (access resolution < 50ms, listing < 200ms)
+- ⏳ Security audit passed (no vulnerabilities)
+- ⏳ Documentation complete and accurate
+- ⏳ E2E test coverage > 80%
+
+### Compliance Requirements
+
+- ⏳ Audit events immutable and retained (6+ years)
+- ⏳ PHI sanitization verified (automated tests)
+- ✅ Access control audited (all mutations logged) - Partial (Phase 5.2)
+- ⏳ GCP Cloud Logging integrated and working
+- ⏳ Audit query endpoints functional
+
+## Next Steps
+
+1. **Review and Approve**: This implementation plan
+2. **Set Up Development Environment**: Database, GCP credentials, test data
+3. **Begin Phase 5.1**: Start with foundation modules
+4. **Weekly Progress Reviews**: Track implementation against plan
+5. **Iterate and Adjust**: Adapt plan based on learnings
+
+## Status Update
+
+**Version**: 1.0 (Initial Implementation Plan)**Last Updated**: Phase 5.2 Complete (Access Control Core)**Current Progress**:
+
+- ✅ Phase 5.1: Foundation (Complete)
+- ✅ Phase 5.2: Access Control Core (Complete)
+- ⏳ Phase 5.3: Document Lifecycle (Not Started)
+- ⏳ Phase 5.4: API Surface (Not Started)
+- ⏳ Phase 5.5: Audit & Compliance (Not Started)
+- ⏳ Phase 5.6: Testing & Hardening (Not Started)
+
+**Phase 5.2 Completion Summary**:
+
+- ✅ AccessGrantDomainService implemented with hasAccess(), createGrant(), revokeGrant()
+- ✅ DocumentAccessDomainService implemented with getDocument(), listDocuments(), canPerformOperation()
+- ✅ UserManagerAssignmentService implemented with full validation and audit logging
+- ✅ RolesGuard updated to recognize manager role
+- ✅ DocumentProcessingController updated to hard-deny admins and use actor-based access
+- ✅ All services wired and tested (no linter errors)
