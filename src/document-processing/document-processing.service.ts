@@ -32,15 +32,18 @@ export class DocumentProcessingService {
   ) {}
 
   async uploadDocument(
-    userId: string | number,
+    actor: Actor,
     fileBuffer: Buffer,
     fileName: string,
     mimeType: string,
     documentType: DocumentType,
     description?: string,
   ): Promise<Document> {
+    // Determine originManagerId:
+    // - If actor is a manager → they become the origin manager
+    // - If actor is a user → we need their assigned manager (handled in domain service)
     return this.domainService.uploadDocument(
-      userId,
+      actor,
       fileBuffer,
       fileName,
       mimeType,
@@ -104,31 +107,72 @@ export class DocumentProcessingService {
     };
   }
 
-  async deleteDocument(
-    documentId: string,
-    userId: string | number,
-  ): Promise<void> {
-    return this.domainService.deleteDocument(documentId, userId);
+  async deleteDocument(documentId: string, actor: Actor): Promise<void> {
+    // Check authorization (only origin manager can delete)
+    const canDelete = await this.accessService.canPerformOperation(
+      documentId,
+      'delete',
+      actor,
+    );
+
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'Only the origin manager can delete documents',
+      );
+    }
+
+    // Get document to verify it exists
+    const document = await this.accessService.getDocument(documentId, actor);
+
+    // Delete via domain service (it will handle soft delete and audit)
+    return this.domainService.deleteDocument(documentId, actor.id);
   }
 
-  async getDownloadUrl(
-    documentId: string,
-    userId: string | number,
-  ): Promise<string> {
-    return this.domainService.getDownloadUrl(documentId, userId);
+  async getDownloadUrl(documentId: string, actor: Actor): Promise<string> {
+    // Check authorization (origin manager OR granted access)
+    const canDownload = await this.accessService.canPerformOperation(
+      documentId,
+      'download',
+      actor,
+    );
+
+    if (!canDownload) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists and get file URI
+    const document = await this.accessService.getDocument(documentId, actor);
+
+    // Generate signed URL via domain service
+    return this.domainService.getDownloadUrl(documentId, actor.id);
   }
 
   async getExtractedFields(
     documentId: string,
-    userId: string | number,
+    actor: Actor,
   ): Promise<ExtractedFieldResponseDto[]> {
     this.logger.log(
       `[APP SERVICE] Getting extracted fields for document ${documentId}`,
     );
 
+    // Check authorization (origin manager OR granted access)
+    const canView = await this.accessService.canPerformOperation(
+      documentId,
+      'view',
+      actor,
+    );
+
+    if (!canView) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists
+    await this.accessService.getDocument(documentId, actor);
+
+    // Get fields via domain service
     const fields = await this.domainService.getExtractedFields(
       documentId,
-      userId,
+      actor.id,
     );
 
     this.logger.log(
@@ -163,6 +207,13 @@ export class DocumentProcessingService {
     }
 
     return dtos;
+  }
+
+  /**
+   * Trigger OCR processing (origin manager only)
+   */
+  async triggerOcr(documentId: string, actor: Actor): Promise<void> {
+    return this.domainService.triggerOcr(documentId, actor);
   }
 
   /**

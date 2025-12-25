@@ -16,6 +16,7 @@ import { GcpDocumentAiAdapter } from './infrastructure/ocr/gcp-document-ai.adapt
 import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.service';
 import { AuditModule } from '../audit/audit.module';
 import { AccessControlModule } from '../access-control/access-control.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -41,6 +42,9 @@ import { AccessControlModule } from '../access-control/access-control.module';
 
     // Access control (forwardRef to break circular dependency)
     forwardRef(() => AccessControlModule),
+
+    // Users module (for UserManagerAssignmentService to determine origin manager)
+    forwardRef(() => UsersModule),
   ],
   controllers: [DocumentProcessingController],
   providers: [

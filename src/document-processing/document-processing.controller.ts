@@ -148,10 +148,15 @@ export class DocumentProcessingController {
       throw new BadRequestException('File is required');
     }
 
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
 
     const document = await this.documentProcessingService.uploadDocument(
-      userId,
+      actor,
       file.buffer,
       file.originalname,
       file.mimetype,
@@ -265,11 +270,13 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<ExtractedFieldResponseDto[]> {
-    const userId = req.user.id;
-    return this.documentProcessingService.getExtractedFields(
-      documentId,
-      userId,
-    );
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getExtractedFields(documentId, actor);
   }
 
   @Get(':documentId/download')
@@ -313,10 +320,15 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<{ downloadUrl: string; expiresIn: number }> {
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
     const downloadUrl = await this.documentProcessingService.getDownloadUrl(
       documentId,
-      userId,
+      actor,
     );
     return { downloadUrl, expiresIn: 86400 }; // 24 hours
   }
@@ -412,7 +424,55 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<void> {
-    const userId = req.user.id;
-    await this.documentProcessingService.deleteDocument(documentId, userId);
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    await this.documentProcessingService.deleteDocument(documentId, actor);
+  }
+
+  @Post(':documentId/trigger-ocr')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Trigger OCR Processing (Origin Manager Only)',
+    description:
+      'Manually trigger OCR processing for a document. Only the origin manager can trigger OCR. Document must be in STORED, PROCESSED, or FAILED state.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'OCR processing triggered successfully',
+  })
+  @ApiBadRequestResponse({
+    description: 'Document state does not allow processing',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only origin manager can trigger OCR processing',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found',
+  })
+  async triggerOcr(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ): Promise<{ message: string }> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    await this.documentProcessingService.triggerOcr(documentId, actor);
+    return { message: 'OCR processing triggered successfully' };
   }
 }
