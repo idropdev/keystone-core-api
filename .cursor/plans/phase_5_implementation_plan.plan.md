@@ -32,10 +32,10 @@ This phase provides the complete implementation roadmap for the HIPAA-compliant 
 
 ### Phase 5.4: API Surface (Week 7-8)
 
-- ⏳ Access grant endpoints
-- ⏳ Revocation request endpoints
-- ⏳ Manager assignment endpoints
-- ⏳ Document endpoint updates
+- ✅ Access grant endpoints
+- ✅ Revocation request endpoints
+- ✅ Manager assignment endpoints
+- ✅ Document endpoint updates
 
 ### Phase 5.5: Audit & Compliance (Week 9-10)
 
@@ -108,13 +108,13 @@ This phase provides the complete implementation roadmap for the HIPAA-compliant 
 ## Status Update
 
 **Version**: 1.0 (Initial Implementation Plan)
-**Last Updated**: Phase 5.3 Complete (Document Lifecycle)
+**Last Updated**: Phase 5.4 Complete (API Surface)
 **Current Progress**:
 
 - ✅ Phase 5.1: Foundation (Complete)
 - ✅ Phase 5.2: Access Control Core (Complete)
 - ✅ Phase 5.3: Document Lifecycle (Complete)
-- ⏳ Phase 5.4: API Surface (Not Started)
+- ✅ Phase 5.4: API Surface (Complete)
 - ⏳ Phase 5.5: Audit & Compliance (Not Started)
 - ⏳ Phase 5.6: Testing & Hardening (Not Started)
 
@@ -136,15 +136,34 @@ This phase provides the complete implementation roadmap for the HIPAA-compliant 
 - ✅ Background job cleanupExpiredDocuments() already exists and working
 - ✅ All state machine rules enforced, OCR authority restricted, retention policy active
 
-**Next Steps**: Proceed with Phase 5.4 (API Surface) - See detailed plan: `.cursor/plans/phase_5.4_api_surface_implementation.plan.md`
+**Phase 5.4 Completion Summary**:
 
-**Phase 5.3 Completion Summary**:
+- ✅ Phase 5.4.1: Access Grant Endpoints
+- Created AccessGrantResponseDto and ListAccessGrantsDto
+- Created AccessControlService (application layer)
+- Created AccessControlController with 4 endpoints (POST, GET, DELETE, GET my-grants)
+- All endpoints use DocumentAccessDomainService for authorization
 
-- ✅ DocumentStateMachine utility created with state transition validation
-- ✅ All state transitions validated in domain service (UPLOADED→STORED→PROCESSING→PROCESSED/ERROR)
-- ✅ triggerOcr() method implemented with origin manager authority enforcement
-- ✅ scheduledDeletionAt set at document creation (8 years retention)
-- ✅ Background job cleanupExpiredDocuments() already exists and working
-- ✅ All state machine rules enforced, OCR authority restricted, retention policy active
+- ✅ Phase 5.4.2: Revocation Request Endpoints
+- Created RevocationRequest domain entity and database entity
+- Created RevocationRequestRepository (port + relational implementation)
+- Created RevocationRequestDomainService with workflow logic (create, approve, deny, cancel)
+- Created RevocationService (application layer) and RevocationController with 5 endpoints
+- Added revocation event types to AuditService
+- All workflow steps audit logged
 
-**Next Steps**: Proceed with Phase 5.4 (API Surface) - See detailed plan: `.cursor/plans/phase_5.4_api_surface_implementation.plan.md`
+- ✅ Phase 5.4.3: Manager Assignment Endpoints
+- Created UserManagerAssignmentResponseDto
+- Added 4 manager assignment endpoints to UsersController
+- All endpoints admin-only with full validation and audit logging
+
+- ✅ Phase 5.4.4: Document Endpoint Updates
+- Updated getExtractedFields(), getDownloadUrl(), deleteDocument() to use Actor and DocumentAccessDomainService
+- Added triggerOcr() endpoint with origin manager authority enforcement
+- Updated uploadDocument() to set originManagerId correctly:
+  - Manager uploads → originManagerId = manager.id
+  - User uploads → originManagerId = assigned manager (from UserManagerAssignmentService)
+- All endpoints hard-deny admins
+- All endpoints use new access control system
+
+**Next Steps**: Proceed with Phase 5.5 (Audit & Compliance) - Complete audit event taxonomy, PHI sanitization, GCP Cloud Logging integration
