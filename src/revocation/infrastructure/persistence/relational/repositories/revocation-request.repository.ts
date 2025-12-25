@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { RevocationRequestRepositoryPort } from '../../../domain/repositories/revocation-request.repository.port';
-import { RevocationRequest } from '../../../domain/entities/revocation-request.entity';
+import { RevocationRequestRepositoryPort } from '../../../../domain/repositories/revocation-request.repository.port';
+import { RevocationRequest } from '../../../../domain/entities/revocation-request.entity';
 import { RevocationRequestEntity } from '../entities/revocation-request.entity';
 
 /**
@@ -17,7 +17,9 @@ export class RevocationRequestRelationalRepository
   constructor(
     @InjectRepository(RevocationRequestEntity)
     private readonly repository: Repository<RevocationRequestEntity>,
-  ) {}
+  ) {
+    super();
+  }
 
   async create(
     request: Omit<RevocationRequest, 'id' | 'createdAt' | 'updatedAt'>,
