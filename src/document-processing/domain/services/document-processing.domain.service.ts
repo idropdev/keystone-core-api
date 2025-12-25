@@ -23,7 +23,6 @@ import { Pdf2JsonService } from '../../infrastructure/pdf-extraction/pdf2json.se
 import { DocumentStateMachine } from '../utils/document-state-machine.util';
 import { Actor } from '../../../access-control/domain/services/access-grant.domain.service';
 import { UserManagerAssignmentService } from '../../../users/domain/services/user-manager-assignment.service';
-import { BadRequestException } from '@nestjs/common';
 
 // Use require for pdf-parse (CommonJS module)
 // pdf-parse exports { PDFParse } as a named export

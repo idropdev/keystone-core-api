@@ -32,6 +32,8 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiNoContentResponse,
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { DocumentProcessingService } from './document-processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
