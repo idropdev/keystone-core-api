@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Request,
   HttpStatus,
   HttpCode,
   SerializeOptions,
@@ -47,7 +48,6 @@ import { UserManagerAssignmentService } from './domain/services/user-manager-ass
 import { CreateUserManagerAssignmentDto } from './dto/create-user-manager-assignment.dto';
 import { UserManagerAssignmentResponseDto } from './dto/user-manager-assignment-response.dto';
 import { UserManagerAssignment } from './domain/entities/user-manager-assignment.entity';
-import { Request } from 'express';
 import { plainToClass } from 'class-transformer';
 
 @ApiBearerAuth()
