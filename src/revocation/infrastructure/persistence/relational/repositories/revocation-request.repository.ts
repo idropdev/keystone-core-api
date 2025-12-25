@@ -18,7 +18,7 @@ export class RevocationRequestRelationalRepository
     @InjectRepository(RevocationRequestEntity)
     private readonly repository: Repository<RevocationRequestEntity>,
   ) {
-    super();
+    super(); // Required when extending abstract class
   }
 
   async create(
