@@ -26,9 +26,9 @@ This phase provides the complete implementation roadmap for the HIPAA-compliant 
 
 ### Phase 5.3: Document Lifecycle (Week 5-6)
 
-- ⏳ Document state machine enforcement
-- ⏳ OCR authority rules
-- ⏳ Retention policy implementation
+- ✅ Document state machine enforcement
+- ✅ OCR authority rules
+- ✅ Retention policy implementation
 
 ### Phase 5.4: API Surface (Week 7-8)
 
@@ -107,11 +107,13 @@ This phase provides the complete implementation roadmap for the HIPAA-compliant 
 
 ## Status Update
 
-**Version**: 1.0 (Initial Implementation Plan)**Last Updated**: Phase 5.2 Complete (Access Control Core)**Current Progress**:
+**Version**: 1.0 (Initial Implementation Plan)
+**Last Updated**: Phase 5.3 Complete (Document Lifecycle)
+**Current Progress**:
 
 - ✅ Phase 5.1: Foundation (Complete)
 - ✅ Phase 5.2: Access Control Core (Complete)
-- ⏳ Phase 5.3: Document Lifecycle (Not Started)
+- ✅ Phase 5.3: Document Lifecycle (Complete)
 - ⏳ Phase 5.4: API Surface (Not Started)
 - ⏳ Phase 5.5: Audit & Compliance (Not Started)
 - ⏳ Phase 5.6: Testing & Hardening (Not Started)
@@ -124,3 +126,25 @@ This phase provides the complete implementation roadmap for the HIPAA-compliant 
 - ✅ RolesGuard updated to recognize manager role
 - ✅ DocumentProcessingController updated to hard-deny admins and use actor-based access
 - ✅ All services wired and tested (no linter errors)
+
+**Phase 5.3 Completion Summary**:
+
+- ✅ DocumentStateMachine utility created with state transition validation
+- ✅ All state transitions validated in domain service (UPLOADED→STORED→PROCESSING→PROCESSED/ERROR)
+- ✅ triggerOcr() method implemented with origin manager authority enforcement
+- ✅ scheduledDeletionAt set at document creation (8 years retention)
+- ✅ Background job cleanupExpiredDocuments() already exists and working
+- ✅ All state machine rules enforced, OCR authority restricted, retention policy active
+
+**Next Steps**: Proceed with Phase 5.4 (API Surface) - See detailed plan: `.cursor/plans/phase_5.4_api_surface_implementation.plan.md`
+
+**Phase 5.3 Completion Summary**:
+
+- ✅ DocumentStateMachine utility created with state transition validation
+- ✅ All state transitions validated in domain service (UPLOADED→STORED→PROCESSING→PROCESSED/ERROR)
+- ✅ triggerOcr() method implemented with origin manager authority enforcement
+- ✅ scheduledDeletionAt set at document creation (8 years retention)
+- ✅ Background job cleanupExpiredDocuments() already exists and working
+- ✅ All state machine rules enforced, OCR authority restricted, retention policy active
+
+**Next Steps**: Proceed with Phase 5.4 (API Surface) - See detailed plan: `.cursor/plans/phase_5.4_api_surface_implementation.plan.md`

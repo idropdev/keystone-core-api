@@ -283,6 +283,46 @@ gcloud auth application-default login
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
 ```
 
+### Error: "invalid_grant" / "invalid_rapt" (Reauthentication Required)
+
+**Cause:** Application Default Credentials (ADC) have expired due to Google Workspace reauthentication policies. This is common when:
+- Using `gcloud auth application-default login` and the token expired
+- Google Workspace admin has set session length limits
+- Service account key has been revoked or expired
+
+**Fix for Local Development (ADC):**
+```bash
+# Re-authenticate with your Google account
+gcloud auth application-default login
+
+# Verify it's working
+gcloud auth application-default print-access-token
+
+# Set your project
+gcloud config set project YOUR_PROJECT_ID
+```
+
+**Fix for Production (Service Account):**
+```bash
+# 1. Verify GOOGLE_APPLICATION_CREDENTIALS points to valid key
+echo $GOOGLE_APPLICATION_CREDENTIALS
+
+# 2. Test the service account key
+gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+
+# 3. If key is invalid, regenerate it
+gcloud iam service-accounts keys create new-key.json \
+  --iam-account=SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com
+
+# 4. Update GOOGLE_APPLICATION_CREDENTIALS to point to new-key.json
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/new-key.json
+```
+
+**Prevention:**
+- For production, use Workload Identity (Cloud Run/GKE) instead of service account keys
+- For local dev, re-authenticate periodically: `gcloud auth application-default login`
+- Consider using service account keys with longer expiration for CI/CD
+
 ### Error: "Permission denied"
 
 **Cause:** Service account lacks required IAM roles

@@ -75,7 +75,7 @@ import { AccessControlModule } from '../access-control/access-control.module';
   ],
   exports: [
     DocumentProcessingService,
-    DocumentAccessDomainService,
+    DocumentAccessDomainService, // Export for use in AccessControlModule
     'DocumentRepositoryPort', // Export for use in AccessControlModule
   ],
 })

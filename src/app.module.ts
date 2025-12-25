@@ -25,6 +25,7 @@ import { MailModule } from './mail/mail.module';
 import { HomeModule } from './home/home.module';
 import { ManagersModule } from './managers/managers.module';
 import { AccessControlModule } from './access-control/access-control.module';
+import { RevocationModule } from './revocation/revocation.module';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { AllConfigType } from './config/config.type';
 import { SessionModule } from './session/session.module';
@@ -121,6 +122,7 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     DocumentProcessingModule,
     ManagersModule,
     AccessControlModule,
+    RevocationModule,
   ],
   providers: [
     // Apply rate limiting globally
