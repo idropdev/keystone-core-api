@@ -238,36 +238,53 @@ class User {
 
 ---
 
-### 6. Manager (ManagerInstance)
+### 6. Manager
 
-**Purpose**: Represents a specific instance/location of a healthcare provider organization that can be origin managers for documents.
+**Purpose**: Represents an independent, verified healthcare provider that can act as origin manager for documents. Managers exist without organizational grouping.
 
 **Properties**:
 ```typescript
-class ManagerInstance {
-  id: number;                     // Auto-increment
-  organizationId: number;         // FK to ManagerOrganization (REQUIRED)
-  name: string;                   // Instance-specific name (e.g., "Quest Diagnostics - Downtown Lab")
-  location?: string;              // Physical location/address
-  labCode?: string;               // Lab-specific identifier (CLIA, etc.)
-  email: string;                  // Contact email
-  phone?: string;                 // Contact phone
-  status: 'active' | 'inactive' | 'suspended';
+class Manager {
+  id: number;                          // Auto-increment
+  userId: number;                      // FK to User (manager must have role 'manager')
+  
+  // Identity (Required for uniqueness)
+  displayName: string;                 // REQUIRED: "Quest Diagnostics – Downtown Lab"
+  legalName?: string;                  // Optional: "Quest Diagnostics Incorporated"
+  
+  // Location (at least one required)
+  address?: string;                    // Full address string OR
+  latitude?: number;                   // Geographic coordinates (if no address)
+  longitude?: number;                  // Geographic coordinates (if no address)
+  
+  // Contact & Metadata
+  phoneNumber?: string;                // Contact phone
+  operatingHours?: string;             // Free-form or structured JSON
+  timezone?: string;                   // IANA timezone format (e.g., "America/New_York")
+  
+  // Verification (Manager-Level)
+  verificationStatus: 'pending' | 'verified' | 'suspended';
+  verifiedAt?: Date;                   // Timestamp when verified
+  verifiedByAdminId?: number;          // Admin who verified
+  
+  // Timestamps
   createdAt: Date;
   updatedAt: Date;
-  deletedAt?: Date;               // Soft delete
+  deletedAt?: Date;                    // Soft delete
 }
 ```
 
 **Invariants**:
 1. ✅ Managers are separate entities (not Users with a role)
 2. ✅ Only Managers can be origin managers for documents
-3. ✅ Managers must belong to a ManagerOrganization
+3. ✅ **Managers are independent (no organization grouping)**
 4. ✅ **Managers must be verified before activation** (verificationStatus = 'verified')
 5. ✅ Managers authenticate via shared OAuth infrastructure (same as users)
 6. ✅ Managers can be assigned to users (for management relationships)
 7. ✅ Managers can receive access grants (as secondary managers)
 8. ✅ Managers cannot delete documents (only revoke access)
+9. ✅ **Manager identity must be human-distinguishable** (displayName + location)
+10. ✅ **At least one location method required**: address OR (latitude AND longitude)
 
 **Authority**:
 - **As Origin Manager**: Full custodial authority (upload, OCR, metadata, re-share)
@@ -275,51 +292,41 @@ class ManagerInstance {
 - Can manage documents for assigned users (if assigned)
 - Cannot override another origin manager's authority
 
----
-
-### 6a. ManagerOrganization
-
-**Purpose**: Represents the canonical organizational identity of a healthcare provider (e.g., "Quest Diagnostics", "LabCorp"). Multiple ManagerInstances can belong to one organization.
-
-**Properties**:
-```typescript
-class ManagerOrganization {
-  id: number;                     // Auto-increment
-  canonicalName: string;          // "Quest Diagnostics", "LabCorp", etc.
-  verificationStatus: 'verified' | 'pending' | 'rejected';
-  identifiers: {
-    npi?: string;                 // National Provider Identifier
-    clia?: string;                 // Clinical Laboratory Improvement Amendments
-    taxId?: string;                // Tax ID (encrypted)
-    other?: Record<string, string>; // Additional identifiers
-  };
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;               // Soft delete
-}
-```
-
-**Invariants**:
-1. ✅ Organizations have stable canonical names (immutable after verification)
-2. ✅ Organizations can have multiple instances (locations, labs)
-3. ✅ **Verification status is REQUIRED** - Only verified organizations/instances can be selected by users
-4. ✅ Identifiers (NPI, CLIA) are used for verification and routing
-5. ✅ Organizations are onboarded via Admin invitation (no public self-signup)
-6. ✅ Verification must be completed before any ManagerInstance can be activated
+**Verification Model**:
+- Verification is manager-level (not organization-level)
+- States: `pending` → `verified` → `suspended` (or back to `verified`)
+- Only `verified` managers can:
+  - Upload documents
+  - Trigger OCR
+  - Act as origin managers
+  - Appear in directory listings
+- Suspending one manager does not affect others
 
 **Rationale**:
-- Enables multiple Quest Diagnostics labs to exist as separate ManagerInstances
-- Provides accurate custody tracking (which specific lab, not just "Quest")
-- Supports verified directory for user selection during upload
-- Allows routing and organizational-level queries
+- Simplifies domain model (no two-tier hierarchy)
+- Enables independent verification per manager
+- Prevents cascading suspension effects
+- Maintains HIPAA-compliant verification requirements
+- Preserves origin-centered document authority
 
 **Example**:
 ```
-ManagerOrganization: "Quest Diagnostics"
-  ├─ ManagerInstance: "Quest Diagnostics - Downtown Lab" (labCode: "QD-DT-001")
-  ├─ ManagerInstance: "Quest Diagnostics - Uptown Lab" (labCode: "QD-UT-002")
-  └─ ManagerInstance: "Quest Diagnostics - Mobile Unit" (labCode: "QD-MB-003")
+Manager: "Quest Diagnostics – Downtown Lab"
+  - displayName: "Quest Diagnostics – Downtown Lab"
+  - legalName: "Quest Diagnostics Incorporated"
+  - address: "123 Main St, Austin, TX 78701"
+  - verificationStatus: "verified"
+  - verifiedAt: 2025-01-15T10:00:00Z
+
+Manager: "Quest Diagnostics – Uptown Lab"
+  - displayName: "Quest Diagnostics – Uptown Lab"
+  - legalName: "Quest Diagnostics Incorporated"
+  - address: "456 Oak Ave, Austin, TX 78702"
+  - verificationStatus: "verified"
+  - verifiedAt: 2025-01-16T14:30:00Z
 ```
+
+**Note**: The `ManagerOrganization` concept has been removed. Managers are now independent entities identified by real-world attributes (displayName + location).
 
 ---
 
@@ -332,7 +339,7 @@ ManagerOrganization: "Quest Diagnostics"
 class UserManagerAssignment {
   id: number;                     // Auto-increment
   userId: number;                 // FK to User
-  managerId: number;              // FK to ManagerInstance
+  managerId: number;              // FK to Manager (not ManagerInstance)
   assignedBy: number;             // Admin or Manager ID who created assignment
   assignedAt: Date;               // When assignment was created
   status: 'active' | 'inactive'; // Assignment status
@@ -341,6 +348,8 @@ class UserManagerAssignment {
   deletedAt?: Date;               // Soft delete
 }
 ```
+
+**Note**: `managerId` references `Manager.id` (not `ManagerInstance.id`). The Manager entity is now the single entity for managers.
 
 **Invariants**:
 1. ✅ Assignment is separate from AccessGrants (document-level permissions)
@@ -436,18 +445,10 @@ enum AuditEventType {
 
 ```
 ┌─────────────────────┐
-│ManagerOrganization │
-│  (Canonical)        │
-│  Quest Diagnostics  │
-└──────────┬───────────┘
-           │ 1
-           │ has
-           │ N
-           ▼
-┌─────────────────────┐
-│  ManagerInstance    │
-│  (Origin/Secondary) │
+│      Manager        │
+│  (Independent)      │
 │  Quest - Downtown   │
+│  (Verified)         │
 └──────────┬──────────┘
            │ 1
            │ creates/assigned
@@ -474,10 +475,10 @@ enum AuditEventType {
        │ N                   │ N
        │                     │
        ▼                     ▼
-┌─────────────┐        ┌─────────────────────┐
-│    User     │        │  ManagerInstance    │
-│  (Intake)   │        │   (Secondary)       │
-└─────────────┘        └─────────────────────┘
+┌─────────────┐        ┌─────────────┐
+│    User     │        │   Manager   │
+│  (Intake)   │        │ (Secondary) │
+└─────────────┘        └─────────────┘
 
 ┌─────────────┐
 │  Document   │
@@ -523,7 +524,7 @@ enum AuditEventType {
 - One document can have many revocation requests (historical)
 - Only one active request per subject per document (status = 'pending')
 
-**User ↔ ManagerInstance** (N:M via UserManagerAssignment)
+**User ↔ Manager** (N:M via UserManagerAssignment)
 - Users can be assigned to managers for supervision/governance
 - Separate from AccessGrants (document-level permissions)
 - Assignment does not imply document access
@@ -915,7 +916,7 @@ When origin manager approves a revocation request:
 class UserManagerAssignment {
   id: number;
   userId: number;                 // FK to User
-  managerId: number;              // FK to ManagerInstance
+  managerId: number;              // FK to Manager
   assignedBy: number;             // Admin or Manager ID who created assignment
   assignedAt: Date;
   status: 'active' | 'inactive';
@@ -936,8 +937,8 @@ class UserManagerAssignment {
 **Implementation**:
 - Default retention period: 8 years
 - Retention duration is:
-  - Policy-driven (configurable per organization)
-  - Organization-specific (can vary by ManagerOrganization)
+  - Policy-driven (configurable per manager or globally)
+  - Manager-specific (can vary by Manager)
   - Changeable without domain refactor
 - Documents are never deleted before retention expiration
 
@@ -984,8 +985,10 @@ class UserManagerAssignment {
 - Verification is required before appearing in any selection flow
 - Unverified entities are invisible to users
 - Verification status is checked before document creation
+- **Verification is manager-level** (not organization-level)
+- Each manager is independently verified
 
-**Rationale**: Prevents misattribution of custodianship, impersonation, and accidental data routing to invalid providers.
+**Rationale**: Prevents misattribution of custodianship, impersonation, and accidental data routing to invalid providers. Manager-level verification ensures independent verification without cascading effects.
 
 ---
 
@@ -1056,6 +1059,13 @@ After approval of PHASE 0, proceed to:
 - ✅ Added new audit events: `DOCUMENT_INTAKE_BY_USER`, `ORIGIN_MANAGER_ASSIGNED`, `ORIGIN_MANAGER_ACCEPTED_DOCUMENT`
 - ✅ Updated User authority to include intake role
 - ✅ Updated Document invariants to require origin manager at creation
+
+**Version 1.2** (Simplified Architecture):
+- ✅ Removed ManagerOrganization concept (simplified to single Manager entity)
+- ✅ Renamed ManagerInstance → Manager
+- ✅ Moved verification from organization-level to manager-level
+- ✅ Added real-world identity fields (displayName, address, latitude/longitude)
+- ✅ Updated verification model to be manager-independent
 - ✅ Added user upload flow documentation
 - ✅ Updated edge cases and assumptions
 

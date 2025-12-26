@@ -65,13 +65,50 @@ export class Pdf2JsonService {
     // Create parser instance using the constructor
     const pdfParser: any = new PDFParserCtor();
 
+    // Suppress pdf2json library's console.error output (it prints verbose stack traces)
+    // We'll handle errors through our own logging
+    const originalConsoleError = console.error;
+    const suppressedErrors: string[] = [];
+    
+    console.error = (...args: any[]) => {
+      const message = args.join(' ');
+      // Suppress pdf2json's verbose error output (we'll log it ourselves)
+      if (
+        message.includes('Invalid XRef stream header') ||
+        message.includes('pdfjs-code.js') ||
+        message.includes('while reading XRef')
+      ) {
+        suppressedErrors.push(message);
+        return; // Suppress this output
+      }
+      // Allow other console.error messages through
+      originalConsoleError.apply(console, args);
+    };
+
     return new Promise<any>((resolve, reject) => {
       pdfParser.on('pdfParser_dataError', (errData: any) => {
-        this.logger.warn('[PDF2JSON] parse error:', errData.parserError);
-        reject(errData.parserError);
+        // Restore console.error
+        console.error = originalConsoleError;
+        
+        const error = errData.parserError;
+        const errorMessage = error?.message || String(error);
+        
+        // Log a clean error message (suppressed verbose stack traces from library)
+        this.logger.warn(`[PDF2JSON] Parse failed: ${errorMessage}`);
+        if (suppressedErrors.length > 0) {
+          this.logger.debug(
+            `[PDF2JSON] Suppressed ${suppressedErrors.length} verbose error message(s) from pdf2json library`,
+          );
+        }
+        
+        // Reject with error (will be handled by caller's fallback logic)
+        reject(error);
       });
 
       pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+        // Restore console.error on success
+        console.error = originalConsoleError;
+        
         this.logger.log(
           `[PDF2JSON] parse done: pages=${pdfData.Pages?.length}`,
         );
@@ -80,9 +117,17 @@ export class Pdf2JsonService {
 
       pdfParser.parseBuffer(buffer);
     })
-      .then((pdfData) => this.mapPdfData(pdfData))
+      .then((pdfData) => {
+        // Ensure console.error is restored
+        console.error = originalConsoleError;
+        return this.mapPdfData(pdfData);
+      })
       .catch((err) => {
-        this.logger.warn('[PDF2JSON] falling back because of error', err);
+        // Ensure console.error is restored even on error
+        console.error = originalConsoleError;
+        
+        const errorMessage = err?.message || String(err);
+        this.logger.warn(`[PDF2JSON] Parse failed: ${errorMessage}`);
         throw err;
       });
   }

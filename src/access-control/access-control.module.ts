@@ -7,16 +7,23 @@ import { AccessGrantDomainService } from './domain/services/access-grant.domain.
 import { AccessControlService } from './access-control.service';
 import { AccessControlController } from './access-control.controller';
 import { DocumentProcessingModule } from '../document-processing/document-processing.module';
+import { RelationalManagerPersistenceModule } from '../managers/infrastructure/persistence/relational/relational-persistence.module';
+import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AccessGrantEntity]),
     forwardRef(() => DocumentProcessingModule), // Import to access DocumentRepositoryPort and DocumentAccessDomainService (forwardRef to break circular dependency)
+    RelationalManagerPersistenceModule, // Import to access ManagerRepositoryPort
   ],
   providers: [
     {
       provide: AccessGrantRepository,
       useClass: AccessGrantRelationalRepository,
+    },
+    {
+      provide: 'ManagerRepositoryPort',
+      useExisting: ManagerRepositoryPort,
     },
     AccessGrantDomainService,
     AccessControlService,

@@ -61,5 +61,11 @@ export class DocumentResponseDto {
   @Expose()
   createdAt: Date;
 
+  @ApiProperty({
+    description: 'Origin manager ID (Manager ID, not User ID)',
+  })
+  @Expose()
+  originManagerId: number;
+
   // SECURITY: Never expose GCS URIs, full OCR output, or internal IDs
 }

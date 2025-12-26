@@ -11,6 +11,7 @@ import {
   Index,
 } from 'typeorm';
 import { UserEntity } from '../../../../../users/infrastructure/persistence/relational/entities/user.entity';
+import { ManagerEntity } from '../../../../../managers/infrastructure/persistence/relational/entities/manager.entity';
 import { ExtractedFieldEntity } from './extracted-field.entity';
 import { DocumentStatus } from '../../../../domain/enums/document-status.enum';
 import { DocumentType } from '../../../../domain/enums/document-type.enum';
@@ -32,10 +33,11 @@ export class DocumentEntity extends EntityRelationalHelper {
 
   // Origin authority (IMMUTABLE - set at creation, never changes)
   // TODO: Enforce immutability at application level - originManagerId cannot be updated after creation
-  @ManyToOne(() => UserEntity, { nullable: false, eager: false })
+  // NOTE: originManagerId references managers.id, not user.id
+  @ManyToOne(() => ManagerEntity, { nullable: false, eager: false })
   @JoinColumn({ name: 'origin_manager_id' })
   @Index()
-  originManager: UserEntity;
+  originManager: ManagerEntity;
 
   @Column({ name: 'origin_manager_id' })
   originManagerId: number;

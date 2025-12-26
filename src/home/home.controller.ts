@@ -2,11 +2,15 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
 
 import { HomeService } from './home.service';
+import { HealthService } from './health.service';
 
 @ApiTags('Home')
 @Controller()
 export class HomeController {
-  constructor(private service: HomeService) {}
+  constructor(
+    private service: HomeService,
+    private healthService: HealthService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -27,5 +31,27 @@ export class HomeController {
   })
   appInfo() {
     return this.service.appInfo();
+  }
+
+  @Get('health/gcp')
+  @ApiOperation({
+    summary: 'GCP Storage Health Check',
+    description:
+      'Check if GCP Cloud Storage is accessible and authenticated. Returns health status of GCP storage adapter.',
+  })
+  @ApiOkResponse({
+    description: 'GCP health status',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'healthy' },
+        bucket: { type: 'string', example: 'healthatlas-documents-prod' },
+        accessible: { type: 'boolean', example: true },
+        error: { type: 'string', nullable: true },
+      },
+    },
+  })
+  async gcpHealth() {
+    return this.healthService.checkGcpHealth();
   }
 }

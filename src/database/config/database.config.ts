@@ -75,6 +75,38 @@ class EnvironmentVariablesValidator {
 export default registerAs<DatabaseConfig>('database', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
+  // Parse logging configuration from environment
+  // Options: false | true | 'all' | 'error' | 'warn' | 'query' | 'schema' | 'info' | 'log' | 'simple' | 'advanced'
+  // Or comma-separated list: 'error,warn' or 'query,error'
+  let logging: boolean | 'all' | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[] | 'simple' | 'advanced' = false;
+  
+  if (process.env.DATABASE_LOGGING) {
+    const loggingValue = process.env.DATABASE_LOGGING.toLowerCase().trim();
+    
+    if (loggingValue === 'true' || loggingValue === 'all') {
+      logging = true;
+    } else if (loggingValue === 'false') {
+      logging = false;
+    } else if (loggingValue === 'error') {
+      logging = ['error'];
+    } else if (loggingValue === 'warn') {
+      logging = ['warn'];
+    } else if (loggingValue === 'query') {
+      logging = ['query'];
+    } else if (loggingValue === 'simple') {
+      logging = 'simple';
+    } else if (loggingValue === 'advanced') {
+      logging = 'advanced';
+    } else {
+      // Comma-separated list: 'error,warn' or 'query,error'
+      const logTypes = loggingValue.split(',').map(t => t.trim()) as ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[];
+      logging = logTypes.filter(t => ['query', 'error', 'schema', 'warn', 'info', 'log'].includes(t));
+    }
+  } else {
+    // Default: only log errors in production, all queries in development
+    logging = process.env.NODE_ENV !== 'production' ? ['error', 'warn'] : ['error'];
+  }
+
   return {
     isDocumentDatabase: ['mongodb'].includes(process.env.DATABASE_TYPE ?? ''),
     url: process.env.DATABASE_URL,
@@ -95,5 +127,6 @@ export default registerAs<DatabaseConfig>('database', () => {
     ca: process.env.DATABASE_CA,
     key: process.env.DATABASE_KEY,
     cert: process.env.DATABASE_CERT,
+    logging,
   };
 });

@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   BadRequestException,
   NotFoundException,
   ForbiddenException,
@@ -28,6 +29,8 @@ import { AuditService, AuthEventType } from '../../../audit/audit.service';
  */
 @Injectable()
 export class UserManagerAssignmentService {
+  private readonly logger = new Logger(UserManagerAssignmentService.name);
+
   constructor(
     private readonly assignmentRepository: UserManagerAssignmentRepository,
     private readonly userRepository: UserRepository,
@@ -51,20 +54,39 @@ export class UserManagerAssignmentService {
     dto: CreateUserManagerAssignmentDto,
     assignedById: number,
   ): Promise<UserManagerAssignment> {
+    this.logger.log(
+      `[ASSIGN USER TO MANAGER] Starting assignment: userId=${dto.userId}, managerId=${dto.managerId}, assignedById=${assignedById}`,
+    );
+
     // 1. Validate user exists
     const user = await this.userRepository.findById(dto.userId);
     if (!user) {
+      this.logger.error(
+        `[ASSIGN USER TO MANAGER] User not found: userId=${dto.userId}`,
+      );
       throw new NotFoundException('User not found');
     }
+    this.logger.debug(
+      `[ASSIGN USER TO MANAGER] User found: userId=${dto.userId}, roleId=${user.role?.id}`,
+    );
 
     // 2. Validate manager exists
     const manager = await this.userRepository.findById(dto.managerId);
     if (!manager) {
+      this.logger.error(
+        `[ASSIGN USER TO MANAGER] Manager not found: managerId=${dto.managerId}`,
+      );
       throw new NotFoundException('Manager not found');
     }
+    this.logger.debug(
+      `[ASSIGN USER TO MANAGER] Manager found: managerId=${dto.managerId}, roleId=${manager.role?.id}`,
+    );
 
     // 3. Validate manager has role 'manager'
     if (!manager.role || manager.role.id !== RoleEnum.manager) {
+      this.logger.warn(
+        `[ASSIGN USER TO MANAGER] Manager does not have manager role: managerId=${dto.managerId}, roleId=${manager.role?.id}, expected=${RoleEnum.manager}`,
+      );
       throw new BadRequestException(
         'User does not have manager role. Only users with manager role can be assigned as managers.',
       );
@@ -72,6 +94,9 @@ export class UserManagerAssignmentService {
 
     // 4. Validate user is not assigning themselves
     if (dto.userId === dto.managerId) {
+      this.logger.warn(
+        `[ASSIGN USER TO MANAGER] Self-assignment attempt: userId=${dto.userId}`,
+      );
       throw new BadRequestException(
         'User cannot be assigned to themselves',
       );
@@ -84,18 +109,28 @@ export class UserManagerAssignmentService {
     );
 
     if (existingAssignment) {
+      this.logger.warn(
+        `[ASSIGN USER TO MANAGER] Assignment already exists: userId=${dto.userId}, managerId=${dto.managerId}, assignmentId=${existingAssignment.id}`,
+      );
       throw new BadRequestException(
         'Assignment already exists between this user and manager',
       );
     }
 
     // 6. Create assignment
+    this.logger.log(
+      `[ASSIGN USER TO MANAGER] Creating assignment: userId=${dto.userId}, managerId=${dto.managerId}`,
+    );
     const assignment = await this.assignmentRepository.create({
       userId: dto.userId,
       managerId: dto.managerId,
       assignedAt: new Date(),
       assignedById: assignedById || dto.assignedById,
     });
+
+    this.logger.log(
+      `[ASSIGN USER TO MANAGER] Assignment created successfully: assignmentId=${assignment.id}, userId=${assignment.userId}, managerId=${assignment.managerId}`,
+    );
 
     // 7. Audit log
     this.auditService.logAuthEvent({
@@ -194,9 +229,29 @@ export class UserManagerAssignmentService {
    * @returns Array of manager IDs
    */
   async getAssignedManagerIds(userId: number): Promise<number[]> {
+    this.logger.debug(
+      `[GET ASSIGNED MANAGER IDS] Querying assignments for userId=${userId}`,
+    );
+    
     const assignments = await this.assignmentRepository.findByUserId(userId);
 
-    return assignments.map((assignment) => assignment.managerId);
+    this.logger.debug(
+      `[GET ASSIGNED MANAGER IDS] Found ${assignments.length} assignment(s) for userId=${userId}`,
+    );
+
+    // Filter out any assignments that might have been soft-deleted
+    // (repository should already filter, but double-check for safety)
+    const activeAssignments = assignments.filter(
+      (assignment) => !assignment.deletedAt,
+    );
+
+    const managerIds = activeAssignments.map((assignment) => assignment.managerId);
+    
+    this.logger.log(
+      `[GET ASSIGNED MANAGER IDS] Returning ${managerIds.length} active manager ID(s) for userId=${userId}: [${managerIds.join(', ')}]`,
+    );
+
+    return managerIds;
   }
 
   /**

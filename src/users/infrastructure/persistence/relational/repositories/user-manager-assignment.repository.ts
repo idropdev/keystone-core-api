@@ -31,13 +31,15 @@ export class UserManagerAssignmentRelationalRepository
   }
 
   async findByUserId(userId: number): Promise<UserManagerAssignment[]> {
-    const entities = await this.repository.find({
-      where: {
-        userId,
-        deletedAt: IsNull(),
-      },
-      relations: ['manager', 'assignedBy'],
-    });
+    // Use query builder to bypass entity cache and ensure fresh reads
+    // This is critical in test environments where transactions might be isolated
+    const entities = await this.repository
+      .createQueryBuilder('assignment')
+      .leftJoinAndSelect('assignment.manager', 'manager')
+      .leftJoinAndSelect('assignment.assignedBy', 'assignedBy')
+      .where('assignment.user_id = :userId', { userId })
+      .andWhere('assignment.deleted_at IS NULL')
+      .getMany();
 
     return entities.map((entity) => this.toDomain(entity));
   }
@@ -67,7 +69,12 @@ export class UserManagerAssignmentRelationalRepository
       assignedById: data.assignedById,
     });
 
+    // Save entity - TypeORM auto-commits by default
+    // Note: In test environments, there might be transaction isolation issues
+    // The save() method should commit immediately. If issues persist in tests,
+    // ensure test setup properly commits transactions
     const saved = await this.repository.save(entity);
+    
     return this.toDomain(saved);
   }
 

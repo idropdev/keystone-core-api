@@ -53,9 +53,7 @@ todos:
 
 ## Overview
 
-This design specifies a **Parallel OCR Merge Architecture** that replaces the sequential fallback OCR strategy with a parallel execution + hierarchical merge system. The system runs both Google Vision AI (DOCUMENT_TEXT_DETECTION) and Google Document AI OCR simultaneously, aligns their outputs hierarchically, applies evidence-based voting with validation heuristics, computes confidence scores, and returns a merged OCR result with comprehensive metadata and optional post-processing.
-
-**Goal**: Produce higher-quality OCR results than either engine alone by leveraging complementary strengths and using research-validated multi-engine OCR fusion techniques.
+This design specifies a **Parallel OCR Merge Architecture** that replaces the sequential fallback OCR strategy with a parallel execution + hierarchical merge system. The system runs both Google Vision AI (DOCUMENT_TEXT_DETECTION) and Google Document AI OCR simultaneously, aligns their outputs hierarchically, applies evidence-based voting with validation heuristics, computes confidence scores, and returns a merged OCR result with comprehensive metadata and optional post-processing.**Goal**: Produce higher-quality OCR results than either engine alone by leveraging complementary strengths and using research-validated multi-engine OCR fusion techniques.
 
 ## Architecture Principles
 
@@ -129,6 +127,8 @@ interface LineWithBoundingBox {
 }
 ```
 
+
+
 ### Function Contract
 
 ```typescript
@@ -176,24 +176,26 @@ function extractLinesWithBoundingBoxes(ocrResult: OcrResult): LineWithBoundingBo
 class GcpVisionAiAdapter implements OcrServicePort
 ```
 
+
+
 ### Behavior Specification
 
 **Request Routing by MIME Type**:
 
 1. **Images (PNG, JPG, WEBP)** - Synchronous processing:
 
-   - Use `ImageAnnotatorClient.annotateImage()`
-   - Request: `{ image: { source: { gcsImageUri } }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }`
-   - Extract `fullTextAnnotation.text` and structure
+- Use `ImageAnnotatorClient.annotateImage()`
+- Request: `{ image: { source: { gcsImageUri } }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }`
+- Extract `fullTextAnnotation.text` and structure
 
 2. **PDF/TIFF** - Asynchronous batch processing:
 
-   - Use `ImageAnnotatorClient.asyncBatchAnnotateFiles()`
-   - Input config: `{ gcsSource: { uri }, mimeType }`
-   - Output config: `{ gcsDestination: { uri: outputGcsUri } }`
-   - Request: `{ inputConfigs, outputConfig, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }`
-   - Poll operation until complete
-   - Read results from GCS output location
+- Use `ImageAnnotatorClient.asyncBatchAnnotateFiles()`
+- Input config: `{ gcsSource: { uri }, mimeType }`
+- Output config: `{ gcsDestination: { uri: outputGcsUri } }`
+- Request: `{ inputConfigs, outputConfig, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }`
+- Poll operation until complete
+- Read results from GCS output location
 
 ### Vision Async Output Contract
 
@@ -204,7 +206,7 @@ class GcpVisionAiAdapter implements OcrServicePort
 
 **Output Location Pattern**:
 
-```
+```javascript
 gs://{bucket}/{prefix}/{documentId}/{runId}/
 ```
 
@@ -250,6 +252,8 @@ class OcrMergeService {
 }
 ```
 
+
+
 ### Merge Algorithm Specification
 
 #### Step 1: Page-Level Segmentation
@@ -264,27 +268,27 @@ For each page:
 
 1. **Extract lines** using `extractLinesWithBoundingBoxes()`:
 
-   - Document AI: Use layout structure (pages → paragraphs → lines) with bounding boxes
-   - Vision AI: Reconstruct lines from words/blocks using bounding boxes + Y-coordinate sorting
+- Document AI: Use layout structure (pages → paragraphs → lines) with bounding boxes
+- Vision AI: Reconstruct lines from words/blocks using bounding boxes + Y-coordinate sorting
 
 2. **Pair lines** using two methods in order:
 
 **Method 1: Bounding Box Overlap (Primary)**
 
-   - Calculate vertical overlap: `overlap = min(y1_end, y2_end) - max(y1_start, y2_start)`
-   - Calculate overlap ratio: `overlapRatio = overlap / max(line1_height, line2_height)`
-   - If `overlapRatio >= LINE_VERTICAL_OVERLAP_MIN` (0.5): Pair lines
+- Calculate vertical overlap: `overlap = min(y1_end, y2_end) - max(y1_start, y2_start)`
+- Calculate overlap ratio: `overlapRatio = overlap / max(line1_height, line2_height)`
+- If `overlapRatio >= LINE_VERTICAL_OVERLAP_MIN` (0.5): Pair lines
 
 **Method 2: Text Similarity (Fallback)**
 
-   - For unmatched lines, calculate edit distance to nearby lines (within `SIMILARITY_WINDOW` of 5 lines)
-   - Calculate similarity: `similarity = 1 - (editDistance / max(len1, len2))`
-   - If `similarity >= SIMILARITY_MIN` (0.7): Pair lines
+- For unmatched lines, calculate edit distance to nearby lines (within `SIMILARITY_WINDOW` of 5 lines)
+- Calculate similarity: `similarity = 1 - (editDistance / max(len1, len2))`
+- If `similarity >= SIMILARITY_MIN` (0.7): Pair lines
 
 3. **Track pairing metadata**:
 
-   - Which method succeeded (bounding box or similarity)
-   - Similarity score if using fallback method
+- Which method succeeded (bounding box or similarity)
+- Similarity score if using fallback method
 
 #### Step 3: Word/Character Alignment (within matched lines only)
 
@@ -292,15 +296,15 @@ For each paired line:
 
 1. **Word-level alignment** (fast, handles most cases):
 
-   - Split line into words (whitespace-separated)
-   - Align words using greedy matching or edit distance
-   - Handle word insertions/deletions
+- Split line into words (whitespace-separated)
+- Align words using greedy matching or edit distance
+- Handle word insertions/deletions
 
 2. **Character-level alignment** (only for mismatched word pairs):
 
-   - Perform character-level alignment ONLY within word pairs that don't match
-   - Use edit distance or simple character-by-character comparison
-   - **DO NOT** perform character-level alignment on entire document or entire line
+- Perform character-level alignment ONLY within word pairs that don't match
+- Use edit distance or simple character-by-character comparison
+- **DO NOT** perform character-level alignment on entire document or entire line
 
 #### Step 4: Evidence-Based Voting
 
@@ -311,19 +315,20 @@ lineAgreement = 1 - normalizedEditDistance(lineA, lineB)
 // where normalizedEditDistance = editDistance(lineA, lineB) / max(lineA.length, lineB.length)
 ```
 
-**Deterministic Line Winner Rule** (prevents Frankenstein lines):
-
-If `lineAgreement < LINE_MIX_THRESHOLD` (0.55):
+**Deterministic Line Winner Rule** (prevents Frankenstein lines):If `lineAgreement < LINE_MIX_THRESHOLD` (0.55):
 
 - **DO NOT mix** lines character-by-character
 - Choose the single best whole line (Vision or Document AI) based on scoring:
   ```typescript
-  lineScore = validationScore(text) + ocrNoiseScore(text) + (lineConfidence || 0.5)
+    lineScore = validationScore(text) + ocrNoiseScore(text) + (lineConfidence || 0.5)
   ```
 
-  - `validationScore`: Format validation (dates, phone numbers, medical codes)
-  - `ocrNoiseScore`: Penalize weird characters, OCR confusion patterns (I/l/1, O/0, rn/m)
-  - `lineConfidence`: Engine-provided confidence if available
+
+
+
+- `validationScore`: Format validation (dates, phone numbers, medical codes)
+- `ocrNoiseScore`: Penalize weird characters, OCR confusion patterns (I/l/1, O/0, rn/m)
+- `lineConfidence`: Engine-provided confidence if available
 - Winner: Engine with higher `lineScore`
 - Set `wholeLineChosen: true` in metadata
 
@@ -331,20 +336,17 @@ If `lineAgreement >= LINE_MIX_THRESHOLD` (0.55):
 
 - Proceed with per-word/character voting (below)
 
-**Per-Word/Character Voting** (for high-agreement lines):
-
-For each aligned position, apply rules in order:
+**Per-Word/Character Voting** (for high-agreement lines):For each aligned position, apply rules in order:
 
 1. **Agreement Wins**: If both engines agree → keep character (highest confidence)
-
 2. **If Disagreement**:
 
-   - Apply validation heuristics:
-     - Fewer weird characters (, excessive punctuation)
-     - Fewer OCR-likely confusions (I|l|1, O|0, rn|m)
-     - Dictionary/regex validation for patterns (dates: `/\d{1,2}\/\d{1,2}\/\d{4}/`, phones: `/\d{3}-\d{3}-\d{4}/`, medical codes)
-   - If both plausible: Prefer engine with better line-level confidence (if available)
-   - Else: Choose based on validation heuristic score
+- Apply validation heuristics:
+    - Fewer weird characters (, excessive punctuation)
+    - Fewer OCR-likely confusions (I|l|1, O|0, rn|m)
+    - Dictionary/regex validation for patterns (dates: `/\d{1,2}\/\d{1,2}\/\d{4}/`, phones: `/\d{3}-\d{3}-\d{4}/`, medical codes)
+- If both plausible: Prefer engine with better line-level confidence (if available)
+- Else: Choose based on validation heuristic score
 
 #### Step 5: Confidence Scoring
 
@@ -368,22 +370,21 @@ docAgreement = weightedAverage(
 overallConfidence = sum(lineConfidence * lineLength) / sum(lineLength)
 ```
 
+
+
 #### Step 6: Merge Threshold Behavior
 
-**Low Agreement Handling**:
-
-If `docAgreement < DOC_PROCESSING_OCR_MERGE_MIN_AGREEMENT` (0.7):
+**Low Agreement Handling**:If `docAgreement < DOC_PROCESSING_OCR_MERGE_MIN_AGREEMENT` (0.7):
 
 - **Default behavior**: Return best single-engine result
-  - Compare Vision and Document AI results
-  - Choose based on: overall confidence, validation scores, OCR noise scores
-  - Set `processingMethod = OCR_VISION_SYNC` or `OCR_SYNC`/`OCR_BATCH`
-  - Log warning with agreement rate
-
+- Compare Vision and Document AI results
+- Choose based on: overall confidence, validation scores, OCR noise scores
+- Set `processingMethod = OCR_VISION_SYNC` or `OCR_SYNC`/`OCR_BATCH`
+- Log warning with agreement rate
 - **Configurable override**: If `DOC_PROCESSING_OCR_MERGE_FORCE_MERGE_ON_LOW_AGREEMENT = true`:
-  - Still return merged result
-  - Set `lowAgreementFlag = true` in metadata
-  - Log warning with agreement rate
+- Still return merged result
+- Set `lowAgreementFlag = true` in metadata
+- Log warning with agreement rate
 
 **Output**: Standard `OcrResult` with:
 
@@ -453,6 +454,8 @@ interface MergedOcrResult extends OcrResult {
 }
 ```
 
+
+
 ### PHI-Safe Source Storage Rule
 
 **Default Behavior** (HIPAA-compliant):
@@ -467,9 +470,7 @@ interface MergedOcrResult extends OcrResult {
 - **Warning**: Only enable in development/debugging environments
 - **Production**: Always keep `DEBUG_OCR_STORE_SOURCES = false`
 
-**Rationale**: Storing full source texts expands PHI surface area and increases storage costs. Hashes + excerpts provide debugging capability without exposing full PHI.
-
----
+**Rationale**: Storing full source texts expands PHI surface area and increases storage costs. Hashes + excerpts provide debugging capability without exposing full PHI.---
 
 ## 6. Post-Processing Service Specification
 
@@ -488,6 +489,8 @@ class OcrPostProcessorService {
 }
 ```
 
+
+
 ### Input
 
 - `text`: Merged text to post-process
@@ -497,26 +500,26 @@ class OcrPostProcessorService {
 
 1. **Language Model Scoring / Lexical Filtering** (optional):
 
-   - Use lightweight language model or dictionary lookup
-   - Score word/phrase likelihood
-   - Flag suspicious OCR artifacts (nonsense words, excessive punctuation)
-   - Only if `DOC_PROCESSING_OCR_POST_PROCESSING_USE_LM = true`
+- Use lightweight language model or dictionary lookup
+- Score word/phrase likelihood
+- Flag suspicious OCR artifacts (nonsense words, excessive punctuation)
+- Only if `DOC_PROCESSING_OCR_POST_PROCESSING_USE_LM = true`
 
 2. **Regex Corrections**:
 
-   - Fix common OCR character confusions (I→l, O→0, rn→m)
-   - Validate and correct formats:
-     - Dates: Normalize date formats
-     - Phone numbers: Standardize phone number formats
-     - Medical codes: Validate ICD/MRN patterns
-     - Addresses: Standardize address formats
-   - Only if `DOC_PROCESSING_OCR_POST_PROCESSING_USE_REGEX = true`
+- Fix common OCR character confusions (I→l, O→0, rn→m)
+- Validate and correct formats:
+    - Dates: Normalize date formats
+    - Phone numbers: Standardize phone number formats
+    - Medical codes: Validate ICD/MRN patterns
+    - Addresses: Standardize address formats
+- Only if `DOC_PROCESSING_OCR_POST_PROCESSING_USE_REGEX = true`
 
 3. **Grammar/Context Validation**:
 
-   - Fix common OCR errors using context (e.g., "teh" → "the")
-   - Use context-aware corrections (nearby words help disambiguate)
-   - Only if `DOC_PROCESSING_OCR_POST_PROCESSING_USE_LM = true`
+- Fix common OCR errors using context (e.g., "teh" → "the")
+- Use context-aware corrections (nearby words help disambiguate)
+- Only if `DOC_PROCESSING_OCR_POST_PROCESSING_USE_LM = true`
 
 ### Output
 
@@ -533,6 +536,8 @@ interface PostProcessedResult {
   qualityScore: number;            // Overall quality improvement score (0-1)
 }
 ```
+
+
 
 ### Configuration Flags
 
@@ -629,6 +634,8 @@ DOC_PROCESSING_OCR_POST_PROCESSING_CONFIDENCE_THRESHOLD: number = 0.8;  // Minim
 ```typescript
 DEBUG_OCR_STORE_SOURCES: boolean = false;  // Store full source texts in fullResponse (default: false for PHI safety)
 ```
+
+
 
 ### Configuration Validation
 
@@ -775,6 +782,8 @@ averageLineConfidence = sum(lineConfidence * lineLength) / sum(lineLength)
 // Low agreement flag
 lowAgreementFlag = docAgreement < DOC_PROCESSING_OCR_MERGE_MIN_AGREEMENT
 ```
+
+
 
 ### Monitoring Integration
 
@@ -951,5 +960,3 @@ providers: [
 8. **Backward Compatibility**: Keep existing `OcrServicePort` interface, add new adapters
 
 ---
-
-This design specification provides a complete blueprint for implementing the Parallel OCR Merge Architecture with all required contracts, constants, behaviors, and quality metrics explicitly defined.

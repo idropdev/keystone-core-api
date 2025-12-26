@@ -68,7 +68,12 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       { infer: true },
     );
 
-    this.logger.log('GCP Document AI adapter initialized');
+    this.logger.log(
+      `GCP Document AI adapter initialized with processor: projects/${this.projectId}/locations/${this.location}/processors/${this.processorId}`,
+    );
+    this.logger.log(
+      'NOTE: Text extraction is primary focus. Entity extraction will be implemented later.',
+    );
   }
 
   async processDocument(
@@ -84,7 +89,32 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       return this.processSync(gcsUri, mimeType);
     } else {
       this.logger.debug(`Using batch processing for ${gcsUri}`);
-      return this.processBatch(gcsUri, mimeType);
+      try {
+        return await this.processBatch(gcsUri, mimeType);
+      } catch (batchError: any) {
+        // If batch fails and we don't know page count, try sync as fallback
+        // (batch might fail due to configuration, but sync might work)
+        if (pageCount === undefined) {
+          this.logger.warn(
+            `Batch processing failed, falling back to sync mode: ${this.sanitizeError(batchError).substring(0, 100)}`,
+          );
+          this.logger.debug(
+            `Attempting sync processing as fallback for ${gcsUri}`,
+          );
+          try {
+            return await this.processSync(gcsUri, mimeType);
+          } catch (syncError: any) {
+            // If sync also fails, throw original batch error with context
+            this.logger.error(
+              `Both batch and sync processing failed. Batch error: ${this.sanitizeError(batchError).substring(0, 100)}`,
+            );
+            throw batchError; // Throw original batch error
+          }
+        } else {
+          // If we know page count and it's > syncMaxPages, batch is required
+          throw batchError;
+        }
+      }
     }
   }
 
@@ -119,7 +149,27 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       const fullText = doc.text || '';
       const extractedText = fullText.substring(0, 5000);
 
-      this.logger.log(
+      // Validate that we got text
+      if (!fullText || fullText.trim().length === 0) {
+        this.logger.warn(
+          `[GCP DOCUMENT AI] No text extracted from document. This may indicate:`,
+        );
+        this.logger.warn(
+          `  1. Document is image-only with no text layer`,
+        );
+        this.logger.warn(
+          `  2. OCR processing failed silently`,
+        );
+        this.logger.warn(
+          `  3. Document format is not supported`,
+        );
+      } else {
+        this.logger.log(
+          `[GCP DOCUMENT AI] Successfully extracted ${fullText.length} characters of text (storing first ${extractedText.length} chars)`,
+        );
+      }
+
+      this.logger.debug(
         `[GCP DOCUMENT AI] Sync result structure: ${JSON.stringify({
           hasEntities: !!doc.entities,
           entitiesCount: doc.entities?.length || 0,
@@ -133,14 +183,16 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       let entities: any[] = [];
 
       if (!doc.entities || doc.entities.length === 0) {
-        this.logger.warn(
-          `[GCP DOCUMENT AI] No entities in Document AI response! Falling back to regex-based extraction.`,
+        // Entity extraction is not implemented yet - this is expected
+        // For now, just extract text and use regex-based entity extraction as fallback
+        this.logger.debug(
+          `[GCP DOCUMENT AI] No entities in response (expected - entity extraction to be implemented later). Using regex-based extraction from text.`,
         );
 
         // Fallback: Extract entities from text using regex patterns
         const textEntities = extractEntitiesFromText(fullText);
-        this.logger.log(
-          `[GCP DOCUMENT AI] Fallback extraction found ${textEntities.length} entities`,
+        this.logger.debug(
+          `[GCP DOCUMENT AI] Regex extraction found ${textEntities.length} entities from text`,
         );
         entities = textEntities;
       } else {
@@ -163,14 +215,14 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
           }));
       }
 
-      // Calculate overall confidence (average of entity confidences)
+      // Calculate overall confidence (average of entity confidences, or default based on text quality)
       const confidence =
         entities.length > 0
           ? entities.reduce((sum, e) => sum + e.confidence, 0) / entities.length
-          : 0.8; // Default if no entities
+          : fullText.length > 0 ? 0.8 : 0.0; // Default confidence if text extracted, 0 if no text
 
       this.logger.log(
-        `[GCP DOCUMENT AI] Sync processing complete: ${entities.length} entities extracted, confidence: ${confidence.toFixed(2)}`,
+        `[GCP DOCUMENT AI] Sync processing complete: ${fullText.length} chars of text extracted, ${entities.length} entities (via regex), confidence: ${confidence.toFixed(2)}`,
       );
 
       return {
@@ -180,9 +232,28 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         entities,
         fullResponse: result.document, // Store full response for advanced use cases
       };
-    } catch (error) {
-      this.logger.error(`Sync processing failed: ${this.sanitizeError(error)}`);
-      throw new Error('Document OCR processing failed');
+    } catch (error: any) {
+      const errorMessage = this.sanitizeError(error);
+      this.logger.error(`Sync processing failed: ${errorMessage}`);
+      
+      // Provide more specific error messages for common issues
+      if (errorMessage.includes('NOT_FOUND')) {
+        throw new Error(
+          'GCP Document AI processor not found. Please verify processor ID and project configuration.',
+        );
+      }
+      if (errorMessage.includes('PERMISSION_DENIED')) {
+        throw new Error(
+          'GCP Document AI permission denied. Please verify service account permissions.',
+        );
+      }
+      if (errorMessage.includes('INVALID_ARGUMENT')) {
+        throw new Error(
+          'Invalid document format or GCS URI. Please verify document file and GCS configuration.',
+        );
+      }
+      
+      throw new Error(`Document OCR processing failed: ${errorMessage.substring(0, 150)}`);
     }
   }
 
@@ -222,11 +293,125 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       this.logger.debug(`Starting batch processing, output: ${outputUri}`);
 
       // Start batch operation (Long Running Operation)
-      const [operation] = await this.client.batchProcessDocuments(request);
+      let operation;
+      try {
+        [operation] = await this.client.batchProcessDocuments(request);
+      } catch (requestError: any) {
+        const errorMessage = this.sanitizeError(requestError);
+        this.logger.error(
+          `Failed to start batch processing request: ${errorMessage}`,
+        );
+        
+        // Provide specific error messages
+        if (errorMessage.includes('NOT_FOUND')) {
+          throw new Error(
+            'GCP Document AI processor not found. Please verify processor ID and project configuration.',
+          );
+        }
+        if (errorMessage.includes('PERMISSION_DENIED')) {
+          throw new Error(
+            'GCP Document AI permission denied. Please verify service account has roles/documentai.apiUser role.',
+          );
+        }
+        if (errorMessage.includes('INVALID_ARGUMENT')) {
+          throw new Error(
+            'Invalid batch processing request. Please verify GCS URIs and document format.',
+          );
+        }
+        
+        throw new Error(`Failed to start batch processing: ${errorMessage.substring(0, 150)}`);
+      }
 
       // Poll until complete (can take minutes for large documents)
       this.logger.debug('Waiting for batch operation to complete...');
-      await operation.promise();
+      
+      try {
+        const [result] = await operation.promise();
+        
+        // Check if operation completed with errors
+        if (result?.error) {
+          const errorDetails = result.error;
+          const errorMessage = this.sanitizeError(errorDetails);
+          this.logger.error(
+            `Batch operation completed with error: ${errorMessage}`,
+          );
+          this.logger.error(
+            `Error details: ${JSON.stringify({
+              code: errorDetails.code,
+              message: errorDetails.message?.substring(0, 200),
+              details: errorDetails.details?.[0]?.toString().substring(0, 200),
+            })}`,
+          );
+          
+          // Extract specific error codes if available
+          if (errorDetails.code) {
+            if (errorDetails.code === 5) { // NOT_FOUND
+              throw new Error(
+                `GCP Document AI processor not found: projects/${this.projectId}/locations/${this.location}/processors/${this.processorId}. Please verify processor ID exists and is accessible.`,
+              );
+            }
+            if (errorDetails.code === 7) { // PERMISSION_DENIED
+              throw new Error(
+                'GCP Document AI permission denied. Please verify service account has roles/documentai.apiUser and roles/storage.objectCreator roles.',
+              );
+            }
+            if (errorDetails.code === 3) { // INVALID_ARGUMENT
+              throw new Error(
+                `Invalid batch processing request. GCS URI: ${gcsUri.substring(0, 100)}... Please verify GCS URI is accessible and document format is supported.`,
+              );
+            }
+          }
+          
+          throw new Error(
+            `Batch processing failed (code: ${errorDetails.code || 'unknown'}): ${errorMessage.substring(0, 200)}`,
+          );
+        }
+        
+        // Check for partial failures in result
+        if (result?.response?.status?.partialFailures?.length > 0) {
+          const failures = result.response.status.partialFailures;
+          this.logger.warn(
+            `Batch operation completed with ${failures.length} partial failure(s)`,
+          );
+          // Continue processing - partial failures might not be critical
+        }
+      } catch (operationError: any) {
+        // Handle promise rejection (operation failed to complete)
+        const errorMessage = this.sanitizeError(operationError);
+        this.logger.error(
+          `Batch operation promise rejected: ${errorMessage}`,
+        );
+        
+        // Check if it's a known error
+        if (
+          errorMessage.includes('NOT_FOUND') ||
+          errorMessage.includes('not found')
+        ) {
+          throw new Error(
+            'GCP Document AI processor not found. Please verify processor ID and project configuration.',
+          );
+        }
+        if (
+          errorMessage.includes('PERMISSION_DENIED') ||
+          errorMessage.includes('permission denied')
+        ) {
+          throw new Error(
+            'GCP Document AI permission denied. Please verify service account has roles/documentai.apiUser role.',
+          );
+        }
+        if (
+          errorMessage.includes('INVALID_ARGUMENT') ||
+          errorMessage.includes('invalid')
+        ) {
+          throw new Error(
+            'Invalid batch processing request. Please verify GCS URIs and document format.',
+          );
+        }
+        
+        throw new Error(
+          `Batch processing operation failed: ${errorMessage.substring(0, 200)}`,
+        );
+      }
 
       this.logger.debug('Batch operation complete, reading results...');
 
@@ -234,11 +419,23 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       const results = await this.readBatchResults(outputUri);
 
       return results;
-    } catch (error) {
-      this.logger.error(
-        `Batch processing failed: ${this.sanitizeError(error)}`,
-      );
-      throw new Error('Document OCR batch processing failed');
+    } catch (error: any) {
+      const errorMessage = this.sanitizeError(error);
+      
+      // Don't log the same error twice if it was already logged
+      if (!errorMessage.includes('GCP Document AI configuration error') && 
+          !errorMessage.includes('Batch processing operation failed')) {
+        this.logger.error(
+          `Batch processing failed: ${errorMessage}`,
+        );
+      }
+      
+      // Re-throw with more context if it's not already a descriptive error
+      if (error instanceof Error && error.message.includes('GCP Document AI')) {
+        throw error;
+      }
+      
+      throw new Error(`Document OCR batch processing failed: ${errorMessage.substring(0, 150)}`);
     }
   }
 
@@ -272,7 +469,27 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       const fullText = doc.text || '';
       const extractedText = fullText.substring(0, 5000);
 
-      this.logger.log(
+      // Validate that we got text
+      if (!fullText || fullText.trim().length === 0) {
+        this.logger.warn(
+          `[GCP DOCUMENT AI] No text extracted from document. This may indicate:`,
+        );
+        this.logger.warn(
+          `  1. Document is image-only with no text layer`,
+        );
+        this.logger.warn(
+          `  2. OCR processing failed silently`,
+        );
+        this.logger.warn(
+          `  3. Document format is not supported`,
+        );
+      } else {
+        this.logger.log(
+          `[GCP DOCUMENT AI] Successfully extracted ${fullText.length} characters of text (storing first ${extractedText.length} chars)`,
+        );
+      }
+
+      this.logger.debug(
         `[GCP DOCUMENT AI] Batch result structure: ${JSON.stringify({
           hasEntities: !!doc.entities,
           entitiesCount: doc.entities?.length || 0,
@@ -287,14 +504,16 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       let entities: any[] = [];
 
       if (!doc.entities || doc.entities.length === 0) {
-        this.logger.warn(
-          `[GCP DOCUMENT AI] No entities in Document AI response! Falling back to regex-based extraction.`,
+        // Entity extraction is not implemented yet - this is expected
+        // For now, just extract text and use regex-based entity extraction as fallback
+        this.logger.debug(
+          `[GCP DOCUMENT AI] No entities in response (expected - entity extraction to be implemented later). Using regex-based extraction from text.`,
         );
 
         // Fallback: Extract entities from text using regex patterns
         const textEntities = extractEntitiesFromText(fullText);
-        this.logger.log(
-          `[GCP DOCUMENT AI] Fallback extraction found ${textEntities.length} entities`,
+        this.logger.debug(
+          `[GCP DOCUMENT AI] Regex extraction found ${textEntities.length} entities from text`,
         );
         entities = textEntities;
       } else {
@@ -314,10 +533,10 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         entities.length > 0
           ? entities.reduce((sum: number, e: any) => sum + e.confidence, 0) /
             entities.length
-          : 0.8;
+          : fullText.length > 0 ? 0.8 : 0.0; // Default confidence if text extracted, 0 if no text
 
       this.logger.log(
-        `[GCP DOCUMENT AI] Batch results parsed: ${entities.length} entities extracted, confidence: ${confidence.toFixed(2)}`,
+        `[GCP DOCUMENT AI] Batch results parsed: ${fullText.length} chars of text extracted, ${entities.length} entities (via regex), confidence: ${confidence.toFixed(2)}`,
       );
 
       return {
@@ -328,11 +547,25 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         fullResponse: result,
         outputRef: outputUri, // Store reference to full output folder
       };
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = this.sanitizeError(error);
       this.logger.error(
-        `Failed to read batch results: ${this.sanitizeError(error)}`,
+        `Failed to read batch results: ${errorMessage}`,
       );
-      throw new Error('Failed to read OCR results');
+      
+      // Provide more specific error messages
+      if (errorMessage.includes('not found') || errorMessage.includes('NOT_FOUND')) {
+        throw new Error(
+          'Batch processing result file not found. The batch operation may have failed or results may not be ready yet.',
+        );
+      }
+      if (errorMessage.includes('PERMISSION_DENIED')) {
+        throw new Error(
+          'Permission denied reading batch results from GCS. Please verify service account has storage.objectViewer role.',
+        );
+      }
+      
+      throw new Error(`Failed to read OCR results: ${errorMessage.substring(0, 150)}`);
     }
   }
 

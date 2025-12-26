@@ -9,5 +9,8 @@ export class ManagerInstance {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  displayName?: string;
+  phone?: string;
+  operatingHours?: string;
 }
 

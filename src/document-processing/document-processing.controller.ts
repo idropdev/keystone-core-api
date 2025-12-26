@@ -15,6 +15,7 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -71,7 +72,7 @@ export class DocumentProcessingController {
   ) {}
 
   @Post('upload')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
   @ApiOperation({ summary: 'Upload medical document for OCR processing' })
   @ApiConsumes('multipart/form-data')
@@ -146,16 +147,30 @@ export class DocumentProcessingController {
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,
   ): Promise<DocumentResponseDto> {
+    const logger = new Logger(DocumentProcessingController.name);
+    
+    logger.log(
+      `[UPLOAD DOCUMENT] Request received: userId=${req.user?.id}, roleId=${req.user?.role?.id}, ` +
+      `documentType=${dto.documentType}, fileName=${file?.originalname || 'none'}, fileSize=${file?.size || 0}`,
+    );
+
     if (!file) {
+      logger.error('[UPLOAD DOCUMENT] ❌ No file provided');
       throw new BadRequestException('File is required');
     }
 
     // Hard deny admins
     if (req.user?.role?.id === RoleEnum.admin) {
+      logger.warn(
+        `[UPLOAD DOCUMENT] ❌ FORBIDDEN (403): Admin user ${req.user.id} attempted to upload document`,
+      );
       throw new ForbiddenException('Admins do not have document-level access');
     }
 
     const actor = extractActorFromRequest(req);
+    logger.debug(
+      `[UPLOAD DOCUMENT] Actor extracted: type=${actor.type}, id=${actor.id}`,
+    );
 
     const document = await this.documentProcessingService.uploadDocument(
       actor,
@@ -164,6 +179,10 @@ export class DocumentProcessingController {
       file.mimetype,
       dto.documentType,
       dto.description,
+    );
+
+    logger.log(
+      `[UPLOAD DOCUMENT] ✅ Document uploaded successfully: documentId=${document.id}, originManagerId=${document.originManagerId}`,
     );
 
     return this.documentProcessingService.toResponseDto(document);
@@ -435,7 +454,7 @@ export class DocumentProcessingController {
     await this.documentProcessingService.deleteDocument(documentId, actor);
   }
 
-  @Post(':documentId/trigger-ocr')
+  @Post(':documentId/ocr/trigger')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Trigger OCR Processing (Origin Manager Only)',

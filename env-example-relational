@@ -47,6 +47,10 @@ DATABASE_CA=  # Path to CA certificate for SSL
 DATABASE_KEY=  # Path to client key for SSL
 DATABASE_CERT=  # Path to client certificate for SSL
 DATABASE_URL=  # Alternative: Full connection string
+# Database Logging: false | true | 'all' | 'error' | 'warn' | 'query' | 'error,warn' | 'error,warn,query' | 'simple' | 'advanced'
+# Recommended for dev: 'error,warn' (clean output, no query logs)
+# For debugging: 'error,warn,query' (includes SQL queries)
+DATABASE_LOGGING=error,warn  # Show only errors and warnings (no query logs)
 
 # ----------------------------------------------------------------------------
 # FILE STORAGE

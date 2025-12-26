@@ -23,8 +23,7 @@ export class CreateAccessGrants1735000002000 implements MigrationInterface {
           },
           {
             name: 'document_id',
-            type: 'varchar',
-            length: '36',
+            type: 'uuid',
             isNullable: false,
           },
           {

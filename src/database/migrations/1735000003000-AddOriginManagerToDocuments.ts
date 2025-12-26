@@ -34,11 +34,12 @@ export class AddOriginManagerToDocuments1735000003000
     );
 
     // Create foreign key constraint for origin_manager_id
+    // NOTE: origin_manager_id references manager_instances.id, not user.id
     await queryRunner.createForeignKey(
       'documents',
       new TableForeignKey({
         columnNames: ['origin_manager_id'],
-        referencedTableName: 'user',
+        referencedTableName: 'manager_instances',
         referencedColumnNames: ['id'],
         onDelete: 'RESTRICT', // Prevent deletion of manager if documents exist
       }),

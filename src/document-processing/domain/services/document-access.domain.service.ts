@@ -10,6 +10,7 @@ import {
   AccessGrantDomainService,
   Actor,
 } from '../../../access-control/domain/services/access-grant.domain.service';
+import { ManagerRepositoryPort } from '../../../managers/domain/repositories/manager.repository.port';
 import { AuditService, AuthEventType } from '../../../audit/audit.service';
 
 /**
@@ -58,6 +59,8 @@ export class DocumentAccessDomainService {
     @Inject('DocumentRepositoryPort')
     private readonly documentRepository: DocumentRepositoryPort,
     private readonly accessGrantService: AccessGrantDomainService,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
     private readonly auditService: AuditService,
   ) {}
 
@@ -141,15 +144,20 @@ export class DocumentAccessDomainService {
     let allDocumentIds = [...documentIdsFromGrants];
 
     if (actor.type === 'manager') {
-      // Get all documents where originManagerId = actor.id
-      // Note: This requires a new repository method or we fetch all and filter
-      // For now, we'll use the existing findByUserId method as a workaround
-      // TODO: Add findByOriginManagerId method to DocumentRepositoryPort
-      const originManagerDocuments = await this.getDocumentsByOriginManager(
-        actor.id,
-      );
-      const originManagerIds = originManagerDocuments.map((doc) => doc.id);
-      allDocumentIds = [...new Set([...allDocumentIds, ...originManagerIds])];
+      // Get Manager ID from User ID
+      const manager =
+        await this.managerRepository.findByUserId(actor.id);
+      if (manager) {
+        // Get all documents where originManagerId = manager.id
+        // Note: This requires a new repository method or we fetch all and filter
+        // For now, we'll use the existing findByUserId method as a workaround
+        // TODO: Add findByOriginManagerId method to DocumentRepositoryPort
+        const originManagerDocuments = await this.getDocumentsByOriginManager(
+          manager.id,
+        );
+        const originManagerIds = originManagerDocuments.map((doc) => doc.id);
+        allDocumentIds = [...new Set([...allDocumentIds, ...originManagerIds])];
+      }
     }
 
     // 5. If no documents, return empty
@@ -218,8 +226,16 @@ export class DocumentAccessDomainService {
     }
 
     // 3. Check if actor is origin manager
-    const isOriginManager =
-      actor.type === 'manager' && document.originManagerId === actor.id;
+    // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
+    // We need to resolve the Manager ID from the User ID
+    let isOriginManager = false;
+    if (actor.type === 'manager') {
+      const manager =
+        await this.managerRepository.findByUserId(actor.id);
+      if (manager && document.originManagerId === manager.id) {
+        isOriginManager = true;
+      }
+    }
 
     // 4. Origin manager operations (only origin manager can perform)
     if (operation === 'trigger-ocr' || operation === 'delete') {

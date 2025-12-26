@@ -8,6 +8,7 @@ import { AccessGrantRepository } from '../repositories/access-grant.repository.p
 import { AccessGrant } from '../entities/access-grant.entity';
 import { CreateAccessGrantDto } from '../../dto/create-access-grant.dto';
 import { DocumentRepositoryPort } from '../../../document-processing/domain/ports/document.repository.port';
+import { ManagerRepositoryPort } from '../../../managers/domain/repositories/manager.repository.port';
 import { NullableType } from '../../../utils/types/nullable.type';
 
 /**
@@ -43,6 +44,8 @@ export class AccessGrantDomainService {
     private readonly accessGrantRepository: AccessGrantRepository,
     @Inject('DocumentRepositoryPort')
     private readonly documentRepository: DocumentRepositoryPort,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
   ) {}
 
   /**
@@ -70,8 +73,13 @@ export class AccessGrantDomainService {
 
     // 2. Check if actor is origin manager (implicit access)
     // Only managers can be origin managers
-    if (actorType === 'manager' && document.originManagerId === actorId) {
-      return true;
+    // NOTE: actorId is the User ID, but originManagerId is the Manager ID
+    // We need to resolve the Manager ID from the User ID
+    if (actorType === 'manager') {
+      const manager = await this.managerRepository.findByUserId(actorId);
+      if (manager && document.originManagerId === manager.id) {
+        return true;
+      }
     }
 
     // 3. Admins have no document-level access (hard deny)
@@ -127,13 +135,15 @@ export class AccessGrantDomainService {
     }
 
     // 3. Validate subject is not origin manager (they have implicit access)
-    if (
-      dto.subjectType === 'manager' &&
-      document.originManagerId === dto.subjectId
-    ) {
-      throw new BadRequestException(
-        'Cannot create grant for origin manager (they have implicit access)',
-      );
+    // NOTE: dto.subjectId is the User ID, but originManagerId is the Manager ID
+    if (dto.subjectType === 'manager') {
+      const manager =
+        await this.managerRepository.findByUserId(dto.subjectId);
+      if (manager && document.originManagerId === manager.id) {
+        throw new BadRequestException(
+          'Cannot create grant for origin manager (they have implicit access)',
+        );
+      }
     }
 
     // 4. Check if grant already exists
@@ -195,9 +205,15 @@ export class AccessGrantDomainService {
     }
 
     // Origin manager can revoke any grant
-    const isOriginManager =
-      revoker.type === 'manager' &&
-      document.originManagerId === revoker.id;
+    // NOTE: revoker.id is the User ID, but originManagerId is the Manager ID
+    let isOriginManager = false;
+    if (revoker.type === 'manager') {
+      const manager =
+        await this.managerRepository.findByUserId(revoker.id);
+      if (manager && document.originManagerId === manager.id) {
+        isOriginManager = true;
+      }
+    }
 
     // Grant creator can revoke their own grants (for delegated grants)
     const isGrantCreator =

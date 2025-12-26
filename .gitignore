@@ -17,6 +17,8 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+test-report.*
+*.test-report.*
 
 # IDEs and editors
 /.idea
@@ -48,3 +50,9 @@ keystone-sa-key.json
 gcp-*.json
 
 storage/*
+
+# Diagnostic and temporary files
+*.diagnostic.sh
+*-diagnostic.sh
+*_DIAGNOSTIC.*
+*_VERIFICATION.*
