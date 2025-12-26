@@ -196,6 +196,15 @@ export class DocumentAccessDomainService {
   }
 
   /**
+   * Check if a document exists (without access control)
+   * Used for DELETE operations to return 404 vs 403 correctly
+   */
+  async documentExists(documentId: string): Promise<boolean> {
+    const document = await this.documentRepository.findById(documentId);
+    return !!document;
+  }
+
+  /**
    * Check if an actor can perform an operation on a document
    * 
    * Operation Authorization Matrix (from Phase 1):

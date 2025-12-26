@@ -35,14 +35,26 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Retry a request with exponential backoff on rate limit
+ * Retry a request with rate limit handling
+ * 
+ * When a 429 is encountered, waits for the full rate limit TTL window to reset.
+ * Rate limiting is IP-based, so all requests from the same test runner share limits.
+ * 
+ * Auth endpoints: 5 requests per 60 seconds (TTL = 60000ms)
+ * Global endpoints: 10 requests per 60 seconds (TTL = 60000ms)
  */
 async function retryOnRateLimit<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
   delayMs = 1000,
   operation = 'operation',
+  isAuthEndpoint = false,
 ): Promise<T> {
+  // Rate limit TTL from server config (60000ms = 60 seconds)
+  // Auth endpoints: 5 requests per 60s, Global: 10 requests per 60s
+  const RATE_LIMIT_TTL_MS = 60000; // 60 seconds
+  const RATE_LIMIT_BUFFER_MS = 5000; // 5 second buffer to ensure window has reset
+  
   for (let i = 0; i < maxRetries; i++) {
     try {
       const result = await fn();
@@ -54,9 +66,11 @@ async function retryOnRateLimit<T>(
       const isRateLimit = error.status === 429 || (error.response && error.response.status === 429);
       
       if (isRateLimit && i < maxRetries - 1) {
-        // Rate limited - wait and retry with exponential backoff
-        const waitTime = delayMs * Math.pow(2, i); // Exponential backoff
-        console.log(`[RETRY] ${operation} rate limited (429), waiting ${waitTime}ms before retry ${i + 2}/${maxRetries}`);
+        // Rate limited - wait for the full TTL window to reset
+        // This ensures the rate limit bucket has fully reset before retrying
+        const waitTime = RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS; // Full window + buffer
+        const waitSeconds = Math.round(waitTime / 1000);
+        console.log(`[RETRY] ${operation} rate limited (429), waiting ${waitSeconds}s (full TTL window) before retry ${i + 2}/${maxRetries}`);
         await sleep(waitTime);
         continue;
       }
@@ -84,7 +98,8 @@ export async function createTestUser(
 
   console.log(`[CREATE_USER] Starting user creation: ${emailPrefix} (${email})`);
   
-  // Register user with retry on rate limit (reduced retries and delays for faster execution)
+  // Register user with retry on rate limit
+  // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const registerResponse = await retryOnRateLimit(
     async () => {
       const response = await request(APP_URL)
@@ -109,9 +124,10 @@ export async function createTestUser(
       console.log(`[CREATE_USER] Registration successful for ${emailPrefix}: ${response.status}`);
       return response;
     },
-    5, // max retries (increased back to 5 for rate limit resilience)
-    3000, // initial delay 3 seconds
+    5, // max retries
+    3000, // initial delay (not used for 429, but kept for compatibility)
     `register user ${emailPrefix}`,
+    true, // isAuthEndpoint = true (uses 5 req/60s limit)
   );
 
   // Wait a bit before login to avoid rate limiting
@@ -119,6 +135,7 @@ export async function createTestUser(
   await sleep(2000);
 
   // Login to get token with retry on rate limit
+  // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const loginResponse = await retryOnRateLimit(
     async () => {
       const response = await request(APP_URL)
@@ -137,9 +154,10 @@ export async function createTestUser(
       console.log(`[CREATE_USER] Login successful for ${emailPrefix}`);
       return response;
     },
-    5, // max retries (increased back to 5 for rate limit resilience)
-    3000, // initial delay 3 seconds
+    5, // max retries
+    3000, // initial delay (not used for 429, but kept for compatibility)
     `login user ${emailPrefix}`,
+    true, // isAuthEndpoint = true (uses 5 req/60s limit)
   );
 
   // If role is not user, admin needs to update it
@@ -177,6 +195,7 @@ export async function createTestUser(
     await sleep(2000);
 
     // Re-login to get updated token
+    // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
     const updatedLoginResponse = await retryOnRateLimit(
       async () => {
         const response = await request(APP_URL)
@@ -196,8 +215,9 @@ export async function createTestUser(
         return response;
       },
       5, // max retries
-      3000, // initial delay 3 seconds
+      3000, // initial delay (not used for 429, but kept for compatibility)
       `re-login user ${emailPrefix}`,
+      true, // isAuthEndpoint = true (uses 5 req/60s limit)
     );
 
     return {
@@ -223,6 +243,7 @@ export async function createTestUser(
  * Get admin token
  */
 export async function getAdminToken(): Promise<string> {
+  // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const response = await retryOnRateLimit(
     async () => {
       const response = await request(APP_URL)
@@ -241,8 +262,9 @@ export async function getAdminToken(): Promise<string> {
       return response;
     },
     5, // max retries
-    3000, // initial delay 3 seconds
+    3000, // initial delay (not used for 429, but kept for compatibility)
     'get admin token',
+    true, // isAuthEndpoint = true (uses 5 req/60s limit)
   );
 
   return response.body.token;
@@ -471,6 +493,7 @@ export async function acceptTestManagerInvitation(
   await sleep(1000);
 
   // Login as the new manager to get token
+  // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const loginResponse = await retryOnRateLimit(
     async () => {
       const res = await request(APP_URL)
@@ -490,8 +513,10 @@ export async function acceptTestManagerInvitation(
       }
       return res;
     },
-    3,
-    2000,
+    5, // max retries (increased for rate limit resilience)
+    3000, // initial delay (not used for 429, but kept for compatibility)
+    'manager login',
+    true, // isAuthEndpoint = true (uses 5 req/60s limit)
   );
 
   return {

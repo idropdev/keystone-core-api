@@ -21,7 +21,10 @@ import { ProcessingMethod } from '../enums/processing-method.enum';
 import { AllConfigType } from '../../../config/config.type';
 import { AuditService } from '../../../audit/audit.service';
 import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
-import { Pdf2JsonService } from '../../infrastructure/pdf-extraction/pdf2json.service';
+import {
+  Pdf2JsonService,
+  PdfParseError,
+} from '../../infrastructure/pdf-extraction/pdf2json.service';
 import { DocumentStateMachine } from '../utils/document-state-machine.util';
 import { Actor } from '../../../access-control/domain/services/access-grant.domain.service';
 import { UserManagerAssignmentService } from '../../../users/domain/services/user-manager-assignment.service';
@@ -421,16 +424,29 @@ export class DocumentProcessingDomainService {
           processingMethod = ProcessingMethod.DIRECT_EXTRACTION;
         } catch (pdf2jsonError) {
           // pdf2json failed - check error type for intelligent fallback
-          const errorMessage = pdf2jsonError.message || String(pdf2jsonError);
-          const isXRefError = errorMessage.includes(
-            'Invalid XRef stream header',
-          );
+          // Error is already wrapped in PdfParseError with clean message
+          const isPdfParseError = pdf2jsonError instanceof PdfParseError;
+          const errorMessage = isPdfParseError
+            ? pdf2jsonError.message
+            : pdf2jsonError?.message || String(pdf2jsonError);
+          const errorType = isPdfParseError
+            ? pdf2jsonError.errorType
+            : errorMessage.includes('Invalid XRef stream header') ||
+                errorMessage.includes('XRef')
+              ? 'XRef'
+              : 'Unknown';
+          const isXRefError = errorType === 'XRef';
 
-          this.logger.warn(`[PDF2JSON] pdf2json failed for ${documentId}`);
-          this.logger.warn(`[PDF2JSON] Error details: ${errorMessage}`);
-          this.logger.debug(
-            `[PDF2JSON] Error stack: ${pdf2jsonError.stack || 'No stack trace'}`,
+          this.logger.warn(
+            `[PDF2JSON] pdf2json failed for ${documentId}: ${errorType} error`,
           );
+          this.logger.warn(`[PDF2JSON] Error: ${errorMessage}`);
+          // Only log stack trace in debug mode (not in production logs)
+          if (isPdfParseError && pdf2jsonError.originalError) {
+            this.logger.debug(
+              `[PDF2JSON] Original error details available (suppressed from main logs)`,
+            );
+          }
 
           // Multi-tier fallback strategy:
           // 1. If XRef error, try pdf-parse (handles corrupted XRef better)

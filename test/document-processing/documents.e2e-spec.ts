@@ -146,7 +146,7 @@ describe('Document Processing Endpoints (E2E)', () => {
         .attach('file', pdfBuffer, 'test-document.pdf');
 
       expect([400, 422]).toContain(response.status);
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should validate required fields (400/422)', async () => {
       const response = await request(APP_URL)
@@ -191,8 +191,9 @@ describe('Document Processing Endpoints (E2E)', () => {
       if (!documentId) {
         console.warn('Warning: documentId not set - some tests may be skipped');
       }
-      // Add delay between tests to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Add delay between tests to reduce rate limit collisions
+      // Rate limit: 5 auth requests per 60 seconds (IP-based)
+      await new Promise(resolve => setTimeout(resolve, 2000));
     });
 
     it('should allow origin manager to get document', async () => {
@@ -238,7 +239,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       console.log(`[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`);
       // Security: 404 if document doesn't exist OR no access
       expect([403, 404]).toContain(response.status);
-    }, 60000); // Increase timeout to 60 seconds for user creation and rate limiting
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should allow user with access grant to get document', async () => {
       if (!documentId) return;
@@ -272,7 +273,7 @@ describe('Document Processing Endpoints (E2E)', () => {
         console.error('[TEST] Access grant creation or document access failed:', error);
         throw error; // Re-throw to fail the test instead of silently skipping
       }
-    }, 60000); // Increase timeout to 60 seconds for user creation and rate limiting
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should allow secondary manager with access grant to get document', async () => {
       if (!documentId) return;
@@ -392,7 +393,7 @@ describe('Document Processing Endpoints (E2E)', () => {
         console.error('[TEST] Access grant creation or status access failed:', error);
         throw error; // Re-throw to fail the test instead of silently skipping
       }
-    }, 60000); // Increase timeout to 60 seconds for user creation and rate limiting
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return complete status response structure', async () => {
       if (!documentId) return;
@@ -474,7 +475,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       } catch (error) {
         console.warn('Access grant creation failed, skipping test:', error);
       }
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return complete download URL response structure', async () => {
       if (!documentId) return;
@@ -557,7 +558,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       } catch (error) {
         console.warn('Access grant creation failed, skipping test:', error);
       }
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return 409 if document not PROCESSED', async () => {
       // Upload a new document (should be UPLOADED or STORED, not PROCESSED yet)
@@ -658,7 +659,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       expect(Array.isArray(response.body.data)).toBe(true);
       // Should be empty array (not 403)
       expect(response.body.data.length).toBeGreaterThanOrEqual(0);
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return documents for user with access grants', async () => {
       if (!documentId) return;
@@ -688,7 +689,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       } catch (error) {
         console.warn('Access grant creation failed, skipping test:', error);
       }
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return documents for secondary manager with access grants', async () => {
       if (!documentId) return;
@@ -781,7 +782,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       } catch (error) {
         console.warn('Access grant creation failed, skipping test:', error);
       }
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return 400 if document not in triggerable state', async () => {
       // Upload a new document and immediately try to trigger OCR
@@ -873,7 +874,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       } catch (error) {
         console.warn('Access grant creation failed, skipping test:', error);
       }
-    });
+    }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should return 404 for non-existent document', async () => {
       const fakeId = '00000000-0000-0000-0000-000000000000';
@@ -881,7 +882,13 @@ describe('Document Processing Endpoints (E2E)', () => {
         .delete(`/api/v1/documents/${fakeId}`)
         .auth(managerUser.token, { type: 'bearer' });
 
+      // 400 = Invalid UUID format (from ParseUUIDPipe)
+      // 404 = Document not found (correct behavior)
       expect([400, 404]).toContain(response.status);
+      // For valid UUID format, should return 404
+      if (response.status !== 400) {
+        expect(response.status).toBe(404);
+      }
     });
   });
 

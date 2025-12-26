@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
 import { DocumentAccessDomainService } from './domain/services/document-access.domain.service';
@@ -108,7 +108,14 @@ export class DocumentProcessingService {
   }
 
   async deleteDocument(documentId: string, actor: Actor): Promise<void> {
-    // Check authorization (only origin manager can delete)
+    // First, check if document exists (to return 404 if not found)
+    // This must be done before authorization check to return correct status code
+    const documentExists = await this.accessService.documentExists(documentId);
+    if (!documentExists) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // Now check authorization (only origin manager can delete)
     const canDelete = await this.accessService.canPerformOperation(
       documentId,
       'delete',
@@ -121,7 +128,7 @@ export class DocumentProcessingService {
       );
     }
 
-    // Get document to verify it exists
+    // Get document for deletion (already verified it exists and user is authorized)
     const document = await this.accessService.getDocument(documentId, actor);
 
     // Delete via domain service (it will handle soft delete and audit)
