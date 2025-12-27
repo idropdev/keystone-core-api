@@ -73,23 +73,26 @@ export class AccessGrantResponseDto {
   @ApiPropertyOptional({
     description: 'Grant revocation timestamp (null if active)',
     example: null,
+    nullable: true,
   })
   @Expose()
-  revokedAt?: Date;
+  revokedAt?: Date | null;
 
   @ApiPropertyOptional({
     description: 'Revoker type (who revoked the grant, if applicable)',
     enum: ['user', 'manager'],
     example: null,
+    nullable: true,
   })
   @Expose()
-  revokedByType?: 'user' | 'manager';
+  revokedByType?: 'user' | 'manager' | null;
 
   @ApiPropertyOptional({
     description: 'Revoker ID (who revoked the grant, if applicable)',
     example: null,
+    nullable: true,
   })
   @Expose()
-  revokedById?: number;
+  revokedById?: number | null;
 }
 

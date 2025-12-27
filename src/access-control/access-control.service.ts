@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { AccessGrantDomainService, Actor } from './domain/services/access-grant.domain.service';
 import { DocumentAccessDomainService } from '../document-processing/domain/services/document-access.domain.service';
@@ -8,6 +8,7 @@ import { AccessGrantResponseDto } from './dto/access-grant-response.dto';
 import { AccessGrant } from './domain/entities/access-grant.entity';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 import { infinityPagination } from '../utils/infinity-pagination';
+import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
 
 /**
  * Access Control Service (Application Layer)
@@ -24,6 +25,8 @@ export class AccessControlService {
   constructor(
     private readonly accessGrantDomainService: AccessGrantDomainService,
     private readonly documentAccessService: DocumentAccessDomainService,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
   ) {}
 
   /**
@@ -100,9 +103,15 @@ export class AccessControlService {
       }
 
       // If actor is not origin manager, filter to only their own grants
-      const isOriginManager =
-        actor.type === 'manager' &&
-        document.originManagerId === actor.id;
+      // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
+      // We need to resolve the Manager ID from the User ID for managers
+      let isOriginManager = false;
+      if (actor.type === 'manager') {
+        const manager = await this.managerRepository.findByUserId(actor.id);
+        if (manager && document.originManagerId === manager.id) {
+          isOriginManager = true;
+        }
+      }
 
       if (!isOriginManager) {
         grants = grants.filter(
@@ -176,11 +185,22 @@ export class AccessControlService {
 
   /**
    * Transform domain entity to response DTO
+   * 
+   * Normalizes undefined optional fields to null for consistent JSON serialization
    */
   private toResponseDto(grant: AccessGrant): AccessGrantResponseDto {
-    return plainToClass(AccessGrantResponseDto, grant, {
+    const dto = plainToClass(AccessGrantResponseDto, grant, {
       excludeExtraneousValues: true,
     });
+    
+    // Normalize undefined to null for optional fields (JSON doesn't have undefined)
+    // This ensures consistent API responses and matches the documentation
+    return {
+      ...dto,
+      revokedAt: dto.revokedAt ?? null,
+      revokedByType: dto.revokedByType ?? null,
+      revokedById: dto.revokedById ?? null,
+    };
   }
 }
 

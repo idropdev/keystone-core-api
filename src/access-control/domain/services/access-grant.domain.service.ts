@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Inject,
 } from '@nestjs/common';
 import { AccessGrantRepository } from '../repositories/access-grant.repository.port';
@@ -129,7 +130,7 @@ export class AccessGrantDomainService {
     );
 
     if (!grantorHasAccess) {
-      throw new BadRequestException(
+      throw new ForbiddenException(
         'Grantor does not have authority to create access grants for this document',
       );
     }
@@ -221,7 +222,7 @@ export class AccessGrantDomainService {
       grant.grantedById === revoker.id;
 
     if (!isOriginManager && !isGrantCreator) {
-      throw new BadRequestException(
+      throw new ForbiddenException(
         'Revoker does not have authority to revoke this grant',
       );
     }
