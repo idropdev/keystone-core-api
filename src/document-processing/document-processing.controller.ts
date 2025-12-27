@@ -38,6 +38,7 @@ import {
 } from '@nestjs/swagger';
 import { DocumentProcessingService } from './document-processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { AssignManagerDto } from './dto/assign-manager.dto';
 import { DocumentResponseDto } from './dto/document-response.dto';
 import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
@@ -495,5 +496,58 @@ export class DocumentProcessingController {
     const actor = extractActorFromRequest(req);
     await this.documentProcessingService.triggerOcr(documentId, actor);
     return { message: 'OCR processing triggered successfully' };
+  }
+
+  @Post(':documentId/assign-manager')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign Manager to Self-Managed Document',
+    description:
+      'Assign a manager to a self-managed document. This is a one-time, irreversible operation. Only the user who uploaded the document can assign a manager.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiBody({
+    type: AssignManagerDto,
+    description: 'Manager ID to assign',
+  })
+  @ApiOkResponse({
+    description: 'Manager assigned successfully',
+    type: DocumentResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Document already has a manager or invalid request',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only the user who uploaded the document can assign a manager',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document or manager not found',
+  })
+  async assignManager(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() dto: AssignManagerDto,
+  ): Promise<DocumentResponseDto> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    const document = await this.documentProcessingService.assignManagerToDocument(
+      documentId,
+      dto.managerId,
+      actor,
+    );
+    return this.documentProcessingService.toResponseDto(document);
   }
 }

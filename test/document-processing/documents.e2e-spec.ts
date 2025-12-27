@@ -16,13 +16,13 @@ import { RoleEnum } from '../../src/roles/roles.enum';
 
 /**
  * Comprehensive Document Processing Endpoints E2E Tests
- * 
+ *
  * Tests all document endpoints with proper role-based authorization:
  * - Admin: Hard-denied from all document endpoints (403)
  * - User: Needs access grant, can view/download, can edit fields (when implemented)
  * - Manager (Origin): Implicit access, full authority (upload, view, download, trigger OCR, delete, update metadata)
  * - Manager (Secondary): Needs access grant, read-only access
- * 
+ *
  * Based on Phase 3 API Surface Design and current implementation.
  */
 describe('Document Processing Endpoints (E2E)', () => {
@@ -37,10 +37,10 @@ describe('Document Processing Endpoints (E2E)', () => {
   beforeAll(async () => {
     // Create users sequentially with delays to avoid rate limiting
     adminToken = await getAdminToken();
-    
+
     // Wait between user creations to avoid rate limiting
     regularUser = await createTestUser(RoleEnum.user, 'user');
-    
+
     // Create origin manager
     manager = await createTestManager(adminToken);
     managerUser = {
@@ -66,7 +66,7 @@ describe('Document Processing Endpoints (E2E)', () => {
   describe('POST /v1/documents/upload', () => {
     it('should allow origin manager to upload document', async () => {
       const pdfBuffer = readPdfFile(getTestPdfPath());
-      
+
       const response = await request(APP_URL)
         .post('/api/v1/documents/upload')
         .auth(managerUser.token, { type: 'bearer' })
@@ -101,7 +101,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       }
 
       // Wait a bit for assignment to be committed
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const pdfBuffer = readPdfFile(getTestPdfPath());
 
@@ -130,14 +130,14 @@ describe('Document Processing Endpoints (E2E)', () => {
 
       // Admin should be hard-denied (403)
       expect(response.status).toBe(403);
-      expect(response.body.message).toContain('Admins do not have document-level access');
+      expect(response.body.message).toContain(
+        'Admins do not have document-level access',
+      );
     });
 
-    it('should reject user without assigned manager (400/422)', async () => {
+    it('should allow user without assigned manager to upload document (self-managed)', async () => {
       const unassignedUser = await createTestUser(RoleEnum.user, 'unassigned');
-      const pdfBuffer = Buffer.from(
-        '%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Root 1 0 R\n>>\n%%EOF',
-      );
+      const pdfBuffer = readPdfFile(getTestPdfPath());
 
       const response = await request(APP_URL)
         .post('/api/v1/documents/upload')
@@ -145,7 +145,10 @@ describe('Document Processing Endpoints (E2E)', () => {
         .field('documentType', 'LAB_RESULT')
         .attach('file', pdfBuffer, 'test-document.pdf');
 
-      expect([400, 422]).toContain(response.status);
+      expect(response.status).toBe(201); // Should succeed - self-management allowed
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.originManagerId).toBeNull(); // Self-managed document
+      expect(response.body).toHaveProperty('documentType', 'LAB_RESULT');
     }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should validate required fields (400/422)', async () => {
@@ -193,7 +196,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       }
       // Add delay between tests to reduce rate limit collisions
       // Rate limit: 5 auth requests per 60 seconds (IP-based)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     });
 
     it('should allow origin manager to get document', async () => {
@@ -222,21 +225,30 @@ describe('Document Processing Endpoints (E2E)', () => {
         .auth(adminToken, { type: 'bearer' });
 
       expect(response.status).toBe(403);
-      expect(response.body.message).toContain('Admins do not have document-level access');
+      expect(response.body.message).toContain(
+        'Admins do not have document-level access',
+      );
     });
 
     it('should reject user without access grant (403/404)', async () => {
       if (!documentId) return;
 
-      console.log(`[TEST] should reject user without access grant - documentId=${documentId}`);
-      const unauthorizedUser = await createTestUser(RoleEnum.user, 'unauthorized');
+      console.log(
+        `[TEST] should reject user without access grant - documentId=${documentId}`,
+      );
+      const unauthorizedUser = await createTestUser(
+        RoleEnum.user,
+        'unauthorized',
+      );
       console.log(`[TEST] User created: id=${unauthorizedUser.id}`);
-      
+
       const response = await request(APP_URL)
         .get(`/api/v1/documents/${documentId}`)
         .auth(unauthorizedUser.token, { type: 'bearer' });
 
-      console.log(`[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`);
+      console.log(
+        `[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`,
+      );
       // Security: 404 if document doesn't exist OR no access
       expect([403, 404]).toContain(response.status);
     }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
@@ -244,10 +256,12 @@ describe('Document Processing Endpoints (E2E)', () => {
     it('should allow user with access grant to get document', async () => {
       if (!documentId) return;
 
-      console.log(`[TEST] should allow user with access grant - documentId=${documentId}`);
+      console.log(
+        `[TEST] should allow user with access grant - documentId=${documentId}`,
+      );
       const grantedUser = await createTestUser(RoleEnum.user, 'granted');
       console.log(`[TEST] User created: id=${grantedUser.id}`);
-      
+
       try {
         console.log(`[TEST] Creating access grant for user ${grantedUser.id}`);
         const grantResult = await createAccessGrant(
@@ -257,20 +271,27 @@ describe('Document Processing Endpoints (E2E)', () => {
           grantedUser.id,
           'delegated',
         );
-        console.log(`[TEST] Access grant created/verified: grantId=${grantResult.grantId}`);
+        console.log(
+          `[TEST] Access grant created/verified: grantId=${grantResult.grantId}`,
+        );
 
         // Small delay to ensure grant is fully committed
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         const response = await request(APP_URL)
           .get(`/api/v1/documents/${documentId}`)
           .auth(grantedUser.token, { type: 'bearer' });
 
-        console.log(`[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`);
+        console.log(
+          `[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`,
+        );
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('id', documentId);
       } catch (error) {
-        console.error('[TEST] Access grant creation or document access failed:', error);
+        console.error(
+          '[TEST] Access grant creation or document access failed:',
+          error,
+        );
         throw error; // Re-throw to fail the test instead of silently skipping
       }
     }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
@@ -345,9 +366,14 @@ describe('Document Processing Endpoints (E2E)', () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('id', documentId);
       expect(response.body).toHaveProperty('status');
-      expect(['UPLOADED', 'STORED', 'QUEUED', 'PROCESSING', 'PROCESSED', 'FAILED']).toContain(
-        response.body.status,
-      );
+      expect([
+        'UPLOADED',
+        'STORED',
+        'QUEUED',
+        'PROCESSING',
+        'PROCESSED',
+        'FAILED',
+      ]).toContain(response.body.status);
     });
 
     it('should reject admin from accessing document status (403)', async () => {
@@ -363,10 +389,12 @@ describe('Document Processing Endpoints (E2E)', () => {
     it('should allow user with access grant to get document status', async () => {
       if (!documentId) return;
 
-      console.log(`[TEST] should allow user with access grant to get status - documentId=${documentId}`);
+      console.log(
+        `[TEST] should allow user with access grant to get status - documentId=${documentId}`,
+      );
       const grantedUser = await createTestUser(RoleEnum.user, 'status-granted');
       console.log(`[TEST] User created: id=${grantedUser.id}`);
-      
+
       try {
         console.log(`[TEST] Creating access grant for user ${grantedUser.id}`);
         const grantResult = await createAccessGrant(
@@ -376,21 +404,28 @@ describe('Document Processing Endpoints (E2E)', () => {
           grantedUser.id,
           'delegated',
         );
-        console.log(`[TEST] Access grant created/verified: grantId=${grantResult.grantId}`);
+        console.log(
+          `[TEST] Access grant created/verified: grantId=${grantResult.grantId}`,
+        );
 
         // Small delay to ensure grant is fully committed
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         const response = await request(APP_URL)
           .get(`/api/v1/documents/${documentId}/status`)
           .auth(grantedUser.token, { type: 'bearer' });
 
-        console.log(`[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`);
+        console.log(
+          `[TEST] Response status: ${response.status}, body: ${JSON.stringify(response.body)}`,
+        );
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('id', documentId);
         expect(response.body).toHaveProperty('status');
       } catch (error) {
-        console.error('[TEST] Access grant creation or status access failed:', error);
+        console.error(
+          '[TEST] Access grant creation or status access failed:',
+          error,
+        );
         throw error; // Re-throw to fail the test instead of silently skipping
       }
     }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
@@ -405,7 +440,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('id', documentId);
       expect(response.body).toHaveProperty('status');
-      
+
       // Optional fields based on status
       if (response.body.status === 'PROCESSING') {
         expect(response.body.progress).toBeDefined();
@@ -415,7 +450,9 @@ describe('Document Processing Endpoints (E2E)', () => {
         expect(response.body.errorMessage).toBeDefined();
       }
       if (response.body.processingStartedAt) {
-        expect(new Date(response.body.processingStartedAt)).toBeInstanceOf(Date);
+        expect(new Date(response.body.processingStartedAt)).toBeInstanceOf(
+          Date,
+        );
       }
     });
   });
@@ -452,8 +489,11 @@ describe('Document Processing Endpoints (E2E)', () => {
     it('should allow user with access grant to get download URL', async () => {
       if (!documentId) return;
 
-      const grantedUser = await createTestUser(RoleEnum.user, 'download-granted');
-      
+      const grantedUser = await createTestUser(
+        RoleEnum.user,
+        'download-granted',
+      );
+
       try {
         await createAccessGrant(
           managerUser.token,
@@ -488,7 +528,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       expect(response.body).toHaveProperty('downloadUrl');
       expect(response.body).toHaveProperty('expiresIn');
       expect(response.body.expiresIn).toBeGreaterThanOrEqual(86400); // 24 hours
-      
+
       // expiresAt may be present
       if (response.body.expiresAt) {
         const expiresAt = new Date(response.body.expiresAt);
@@ -510,7 +550,7 @@ describe('Document Processing Endpoints (E2E)', () => {
 
       // May return 200 with fields or 409 if document not PROCESSED
       expect([200, 409]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(Array.isArray(response.body)).toBe(true);
         if (response.body.length > 0) {
@@ -535,7 +575,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       if (!documentId) return;
 
       const grantedUser = await createTestUser(RoleEnum.user, 'fields-granted');
-      
+
       try {
         await createAccessGrant(
           managerUser.token,
@@ -551,7 +591,7 @@ describe('Document Processing Endpoints (E2E)', () => {
 
         // May return 200 with fields or 409 if document not PROCESSED
         expect([200, 409]).toContain(response.status);
-        
+
         if (response.status === 200) {
           expect(Array.isArray(response.body)).toBe(true);
         }
@@ -648,8 +688,11 @@ describe('Document Processing Endpoints (E2E)', () => {
     });
 
     it('should return empty list for user without access grants', async () => {
-      const unauthorizedUser = await createTestUser(RoleEnum.user, 'list-unauthorized');
-      
+      const unauthorizedUser = await createTestUser(
+        RoleEnum.user,
+        'list-unauthorized',
+      );
+
       const response = await request(APP_URL)
         .get('/api/v1/documents')
         .auth(unauthorizedUser.token, { type: 'bearer' });
@@ -665,7 +708,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       if (!documentId) return;
 
       const grantedUser = await createTestUser(RoleEnum.user, 'list-granted');
-      
+
       try {
         await createAccessGrant(
           managerUser.token,
@@ -682,7 +725,7 @@ describe('Document Processing Endpoints (E2E)', () => {
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('data');
         expect(Array.isArray(response.body.data)).toBe(true);
-        
+
         // Should include the document we granted access to
         const documentIds = response.body.data.map((doc: any) => doc.id);
         expect(documentIds).toContain(documentId);
@@ -710,7 +753,7 @@ describe('Document Processing Endpoints (E2E)', () => {
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('data');
         expect(Array.isArray(response.body.data)).toBe(true);
-        
+
         const documentIds = response.body.data.map((doc: any) => doc.id);
         expect(documentIds).toContain(documentId);
       } catch (error) {
@@ -732,7 +775,7 @@ describe('Document Processing Endpoints (E2E)', () => {
 
       // May return 202 (accepted) or 400 (document not in correct state)
       expect([202, 400]).toContain(response.status);
-      
+
       if (response.status === 202) {
         expect(response.body).toHaveProperty('message');
       }
@@ -763,7 +806,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       if (!documentId) return;
 
       const grantedUser = await createTestUser(RoleEnum.user, 'ocr-user');
-      
+
       try {
         await createAccessGrant(
           managerUser.token,
@@ -796,7 +839,7 @@ describe('Document Processing Endpoints (E2E)', () => {
 
       if (uploadResponse.status === 201) {
         const newDocId = uploadResponse.body.id;
-        
+
         // Try to trigger OCR immediately (may fail if not in correct state)
         const response = await request(APP_URL)
           .post(`/api/v1/documents/${newDocId}/ocr/trigger`)
@@ -855,7 +898,7 @@ describe('Document Processing Endpoints (E2E)', () => {
       if (!documentId) return;
 
       const grantedUser = await createTestUser(RoleEnum.user, 'delete-user');
-      
+
       try {
         await createAccessGrant(
           managerUser.token,
@@ -898,12 +941,12 @@ describe('Document Processing Endpoints (E2E)', () => {
   describe.skip('PATCH /v1/documents/:documentId/fields', () => {
     // TODO: Implement endpoint per Phase 3 API design
     // These tests serve as specification for future implementation
-    
+
     it('should allow user with access grant to edit fields', async () => {
       if (!documentId) return;
 
       const grantedUser = await createTestUser(RoleEnum.user, 'fields-edit');
-      
+
       try {
         await createAccessGrant(
           managerUser.token,
@@ -980,7 +1023,7 @@ describe('Document Processing Endpoints (E2E)', () => {
   describe.skip('PATCH /v1/documents/:documentId', () => {
     // TODO: Implement endpoint per Phase 3 API design
     // These tests serve as specification for future implementation
-    
+
     it('should allow origin manager to update metadata', async () => {
       if (!documentId) return;
 
@@ -995,7 +1038,10 @@ describe('Document Processing Endpoints (E2E)', () => {
       if (response.status === 200) {
         expect(response.body).toHaveProperty('id', documentId);
         expect(response.body).toHaveProperty('fileName', 'updated-name.pdf');
-        expect(response.body).toHaveProperty('description', 'Updated description');
+        expect(response.body).toHaveProperty(
+          'description',
+          'Updated description',
+        );
         expect(response.body).toHaveProperty('updatedAt');
       } else {
         expect([400, 404, 501]).toContain(response.status);
@@ -1030,12 +1076,186 @@ describe('Document Processing Endpoints (E2E)', () => {
   });
 
   // ============================================================================
+  // User Self-Management Features
+  // ============================================================================
+  describe('User Self-Management', () => {
+    let selfManagingUser: TestUser;
+    let selfManagedDocId: string;
+    let manager: TestManager;
+
+    beforeAll(async () => {
+      selfManagingUser = await createTestUser(RoleEnum.user, 'self-managing');
+      manager = await createTestManager(adminToken);
+    }, 120000); // Increase timeout to 2 minutes for user creation (rate limiting)
+
+    describe('Upload without manager assignment', () => {
+      it('should allow user to upload document and self-manage', async () => {
+        const pdfBuffer = readPdfFile(getTestPdfPath());
+
+        const response = await request(APP_URL)
+          .post('/api/v1/documents/upload')
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .field('documentType', 'LAB_RESULT')
+          .attach('file', pdfBuffer, 'self-managed.pdf');
+
+        expect(response.status).toBe(201);
+        expect(response.body.originManagerId).toBeNull();
+        expect(response.body).toHaveProperty('id');
+
+        selfManagedDocId = response.body.id;
+      });
+    });
+
+    describe('View self-managed document', () => {
+      it('should allow user to view their self-managed document', async () => {
+        if (!selfManagedDocId) return;
+
+        const response = await request(APP_URL)
+          .get(`/api/v1/documents/${selfManagedDocId}`)
+          .auth(selfManagingUser.token, { type: 'bearer' });
+
+        expect(response.status).toBe(200);
+        expect(response.body.id).toBe(selfManagedDocId);
+        expect(response.body.originManagerId).toBeNull();
+      });
+
+      it('should reject other users from viewing self-managed document', async () => {
+        if (!selfManagedDocId) return;
+
+        const otherUser = await createTestUser(RoleEnum.user, 'other');
+
+        const response = await request(APP_URL)
+          .get(`/api/v1/documents/${selfManagedDocId}`)
+          .auth(otherUser.token, { type: 'bearer' });
+
+        expect([403, 404]).toContain(response.status);
+      });
+    });
+
+    describe('Trigger OCR on self-managed document', () => {
+      it('should allow user to trigger OCR on their self-managed document', async () => {
+        if (!selfManagedDocId) return;
+
+        const response = await request(APP_URL)
+          .post(`/api/v1/documents/${selfManagedDocId}/ocr/trigger`)
+          .auth(selfManagingUser.token, { type: 'bearer' });
+
+        // May return 202 (accepted) or 400 (document not in correct state)
+        expect([202, 400]).toContain(response.status);
+
+        if (response.status === 202) {
+          expect(response.body).toHaveProperty('message');
+        }
+      });
+
+      it('should reject other users from triggering OCR', async () => {
+        if (!selfManagedDocId) return;
+
+        const otherUser = await createTestUser(RoleEnum.user, 'other');
+
+        const response = await request(APP_URL)
+          .post(`/api/v1/documents/${selfManagedDocId}/ocr/trigger`)
+          .auth(otherUser.token, { type: 'bearer' });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    describe('Assign manager to self-managed document', () => {
+      it('should allow user to assign manager to their self-managed document', async () => {
+        if (!selfManagedDocId) return;
+
+        const response = await request(APP_URL)
+          .post(`/api/v1/documents/${selfManagedDocId}/assign-manager`)
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .send({ managerId: manager.id });
+
+        expect(response.status).toBe(200);
+        expect(response.body.originManagerId).toBe(manager.id);
+        expect(response.body.originManagerId).not.toBeNull();
+      });
+
+      it('should reject assigning manager twice (immutable)', async () => {
+        // Create new self-managed document
+        const pdfBuffer = readPdfFile(getTestPdfPath());
+        const uploadResponse = await request(APP_URL)
+          .post('/api/v1/documents/upload')
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .field('documentType', 'LAB_RESULT')
+          .attach('file', pdfBuffer, 'test.pdf');
+
+        const docId = uploadResponse.body.id;
+
+        // Assign manager first time
+        await request(APP_URL)
+          .post(`/api/v1/documents/${docId}/assign-manager`)
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .send({ managerId: manager.id })
+          .expect(200);
+
+        // Try to assign again
+        const response = await request(APP_URL)
+          .post(`/api/v1/documents/${docId}/assign-manager`)
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .send({ managerId: manager.id });
+
+        expect(response.status).toBe(400);
+        expect(response.body.message).toContain('already has a manager');
+      });
+
+      it('should reject other users from assigning manager', async () => {
+        // Create new self-managed document
+        const pdfBuffer = readPdfFile(getTestPdfPath());
+        const uploadResponse = await request(APP_URL)
+          .post('/api/v1/documents/upload')
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .field('documentType', 'LAB_RESULT')
+          .attach('file', pdfBuffer, 'test.pdf');
+
+        const docId = uploadResponse.body.id;
+        const otherUser = await createTestUser(RoleEnum.user, 'other');
+
+        const response = await request(APP_URL)
+          .post(`/api/v1/documents/${docId}/assign-manager`)
+          .auth(otherUser.token, { type: 'bearer' })
+          .send({ managerId: manager.id });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    describe('User with manager assignment uploads new document', () => {
+      it('should use assigned manager when user has manager assignment', async () => {
+        // Assign manager to user
+        await request(APP_URL)
+          .post(`/api/v1/users/${selfManagingUser.id}/manager-assignments`)
+          .auth(adminToken, { type: 'bearer' })
+          .send({ managerId: manager.userId });
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Upload new document - should use assigned manager
+        const pdfBuffer = readPdfFile(getTestPdfPath());
+        const response = await request(APP_URL)
+          .post('/api/v1/documents/upload')
+          .auth(selfManagingUser.token, { type: 'bearer' })
+          .field('documentType', 'PRESCRIPTION')
+          .attach('file', pdfBuffer, 'with-manager.pdf');
+
+        expect(response.status).toBe(201);
+        expect(response.body.originManagerId).toBe(manager.id);
+        expect(response.body.originManagerId).not.toBeNull();
+      });
+    });
+  });
+
+  // ============================================================================
   // POST /v1/documents/:documentId/ocr/retry (NOT IMPLEMENTED)
   // ============================================================================
   describe.skip('POST /v1/documents/:documentId/ocr/retry', () => {
     // TODO: Implement endpoint per Phase 3 API design
     // These tests serve as specification for future implementation
-    
+
     it('should allow origin manager to retry OCR on failed document', async () => {
       if (!documentId) return;
 

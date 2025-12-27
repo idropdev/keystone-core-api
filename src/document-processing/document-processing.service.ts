@@ -224,6 +224,21 @@ export class DocumentProcessingService {
   }
 
   /**
+   * Assign a manager to a self-managed document
+   */
+  async assignManagerToDocument(
+    documentId: string,
+    managerId: number,
+    actor: Actor,
+  ): Promise<Document> {
+    return this.domainService.assignManagerToDocument(
+      documentId,
+      managerId,
+      actor,
+    );
+  }
+
+  /**
    * Transform domain entity to response DTO
    * SECURITY: Only expose safe fields, never internal URIs
    */

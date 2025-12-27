@@ -73,10 +73,18 @@ export class AccessGrantDomainService {
     }
 
     // 2. Check if actor is origin manager (implicit access)
-    // Only managers can be origin managers
-    // NOTE: actorId is the User ID, but originManagerId is the Manager ID
-    // We need to resolve the Manager ID from the User ID
-    if (actorType === 'manager') {
+    // Handles both manager-managed and self-managed documents:
+    // - Self-managed: originManagerId IS NULL, user uploaded it (originUserContextId matches)
+    // - Manager-managed: originManagerId IS NOT NULL, manager ID matches
+    if (document.originManagerId === null) {
+      // Self-managed document: user acts as origin manager if they uploaded it
+      if (actorType === 'user' && document.originUserContextId === actorId) {
+        return true;
+      }
+    } else if (actorType === 'manager') {
+      // Manager-managed document: check if manager is origin manager
+      // NOTE: actorId is the User ID, but originManagerId is the Manager ID
+      // We need to resolve the Manager ID from the User ID
       const manager = await this.managerRepository.findByUserId(actorId);
       if (manager && document.originManagerId === manager.id) {
         return true;
@@ -136,8 +144,20 @@ export class AccessGrantDomainService {
     }
 
     // 3. Validate subject is not origin manager (they have implicit access)
-    // NOTE: dto.subjectId is the User ID, but originManagerId is the Manager ID
-    if (dto.subjectType === 'manager') {
+    // Check for both self-managed and manager-managed documents
+    if (document.originManagerId === null) {
+      // Self-managed: user who uploaded it is origin manager
+      if (
+        dto.subjectType === 'user' &&
+        document.originUserContextId === dto.subjectId
+      ) {
+        throw new BadRequestException(
+          'Cannot create grant for origin manager (they have implicit access)',
+        );
+      }
+    } else if (dto.subjectType === 'manager') {
+      // Manager-managed: check if manager is origin manager
+      // NOTE: dto.subjectId is the User ID, but originManagerId is the Manager ID
       const manager =
         await this.managerRepository.findByUserId(dto.subjectId);
       if (manager && document.originManagerId === manager.id) {
@@ -206,9 +226,16 @@ export class AccessGrantDomainService {
     }
 
     // Origin manager can revoke any grant
-    // NOTE: revoker.id is the User ID, but originManagerId is the Manager ID
+    // Handles both self-managed and manager-managed documents
     let isOriginManager = false;
-    if (revoker.type === 'manager') {
+    if (document.originManagerId === null) {
+      // Self-managed: user who uploaded it is origin manager
+      isOriginManager =
+        revoker.type === 'user' &&
+        document.originUserContextId === revoker.id;
+    } else if (revoker.type === 'manager') {
+      // Manager-managed: check if manager is origin manager
+      // NOTE: revoker.id is the User ID, but originManagerId is the Manager ID
       const manager =
         await this.managerRepository.findByUserId(revoker.id);
       if (manager && document.originManagerId === manager.id) {

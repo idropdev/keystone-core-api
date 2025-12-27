@@ -493,7 +493,7 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
       await delay(1000);
     });
 
-    it('should REJECT user without assigned manager from uploading', async () => {
+    it('should ALLOW user without assigned manager to upload document (self-managed)', async () => {
       // Create a user without manager assignment
       const unassignedUser = await createTestUser(RoleEnum.user, 'unassigned-user');
       await delay(1000);
@@ -502,12 +502,16 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
         '%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Root 1 0 R\n>>\n%%EOF',
       );
 
-      await request(APP_URL)
+      const response = await request(APP_URL)
         .post('/api/v1/documents/upload')
         .auth(unassignedUser.token, { type: 'bearer' })
         .field('documentType', DocumentType.LAB_RESULT)
-        .attach('file', pdfBuffer, 'test-document-unassigned.pdf')
-        .expect(400); // Should fail - no assigned manager
+        .attach('file', pdfBuffer, 'test-document-unassigned.pdf');
+
+      expect(response.status).toBe(201); // Should succeed - self-management allowed
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.originManagerId).toBeNull(); // Self-managed document
+      expect(response.body).toHaveProperty('documentType', DocumentType.LAB_RESULT);
     });
   });
 
