@@ -18,3 +18,8 @@ export abstract class ManagerInstanceRepositoryPort {
   abstract findAllVerified(): Promise<ManagerInstance[]>;
 }
 
+
+
+
+
+

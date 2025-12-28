@@ -12,3 +12,8 @@ export class VerifyManagerDto {
   status: 'verified';
 }
 
+
+
+
+
+

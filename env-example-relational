@@ -302,6 +302,22 @@ DOC_PROCESSING_SYNC_MAX_PAGES=15    # Documents with ≤15 pages use synchronous
 # ----------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------
+# ANYTHINGLLM SERVICE IDENTITY (Service-to-Service Authentication)
+# ----------------------------------------------------------------------------
+# Configuration for authenticating Keystone Core API requests to AnythingLLM
+# Uses GCP service account identity to mint OIDC ID tokens
+#
+# Service Account: keystone-doc-processing@anythingllm-dropdev-hybrid-v1.iam.gserviceaccount.com
+#
+# TODO: Move secrets to GCP Secret Manager in production
+ANYTHINGLLM_SERVICE_AUTH_MODE=gcp  # Options: gcp, local_jwt (local_jwt not yet implemented)
+ANYTHINGLLM_SERVICE_AUDIENCE=anythingllm-internal  # Must match ANYTHINGLLM_SERVICE_AUDIENCE in AnythingLLM
+# Base URL should include /api prefix if needed
+# Example: https://anythingllm.internal.example.com/api
+# Example (local): http://localhost:3001/api
+ANYTHINGLLM_BASE_URL=http://localhost:3001/api
+
+# ----------------------------------------------------------------------------
 # WORKER / BACKGROUND JOBS
 # ----------------------------------------------------------------------------
 WORKER_HOST=redis://redis:6379/1

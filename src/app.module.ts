@@ -12,6 +12,7 @@ import googleConfig from './auth-google/config/google.config';
 import appleConfig from './auth-apple/config/apple.config';
 import throttlerConfig from './config/throttler.config';
 import documentProcessingConfig from './document-processing/config/document-processing.config';
+import anythingllmConfig from './anythingllm/config/anythingllm.config';
 import path from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -66,6 +67,7 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
         appleConfig,
         throttlerConfig,
         documentProcessingConfig,
+        anythingllmConfig,
       ],
       envFilePath: ['.env'],
     }),

@@ -17,6 +17,7 @@
 - [Auth](auth.md)
 - [HIPAA Authentication](hipaa-authentication.md) ⭐ **Security Critical**
 - [Document Processing API](document-processing.md) ⭐ **PHI Handling**
+- [AnythingLLM Service Identity](anythingllm-service-identity-implementation.md) ⭐ **Service-to-Service Auth**
 - [Serialization](serialization.md)
 - [File uploading](file-uploading.md)
 

@@ -27,3 +27,8 @@ export class UpdateManagerProfileDto {
   operatingHours?: string;
 }
 
+
+
+
+
+
