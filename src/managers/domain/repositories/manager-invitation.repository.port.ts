@@ -12,3 +12,8 @@ export abstract class ManagerInvitationRepositoryPort {
   abstract delete(id: number): Promise<void>;
 }
 
+
+
+
+
+

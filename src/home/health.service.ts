@@ -1,5 +1,6 @@
 import { Injectable, Optional, Inject } from '@nestjs/common';
 import { GcpStorageAdapter } from '../document-processing/infrastructure/storage/gcp-storage.adapter';
+import { AnythingLLMHealthService } from '../anythingllm/services/anythingllm-health.service';
 
 /**
  * Health Check Service
@@ -13,6 +14,9 @@ export class HealthService {
     @Optional()
     @Inject(GcpStorageAdapter)
     private readonly gcpStorageAdapter?: GcpStorageAdapter,
+    @Optional()
+    @Inject(AnythingLLMHealthService)
+    private readonly anythingllmHealthService?: AnythingLLMHealthService,
   ) {}
 
   /**
@@ -35,6 +39,32 @@ export class HealthService {
 
     // Use the adapter's health check method
     return this.gcpStorageAdapter.healthCheck();
+  }
+
+  /**
+   * Check AnythingLLM connectivity and service identity authentication
+   * Verifies that Keystone can communicate with AnythingLLM using service identity
+   */
+  async checkAnythingLLMHealth(): Promise<{
+    status: 'healthy' | 'unhealthy' | 'degraded';
+    endpoint?: string;
+    reachable?: boolean;
+    authenticated?: boolean;
+    responseTime?: number;
+    error?: string;
+    timestamp?: string;
+  }> {
+    // If AnythingLLM health service is not available, return unhealthy
+    if (!this.anythingllmHealthService) {
+      return {
+        status: 'unhealthy',
+        error: 'AnythingLLM health service not available',
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // Use the AnythingLLM health service's health check method
+    return this.anythingllmHealthService.checkHealth();
   }
 }
 

@@ -54,4 +54,36 @@ export class HomeController {
   async gcpHealth() {
     return this.healthService.checkGcpHealth();
   }
+
+  @Get('health/anythingllm')
+  @ApiOperation({
+    summary: 'AnythingLLM Service Identity Health Check',
+    description:
+      'Check if Keystone can communicate with AnythingLLM using service identity authentication. Verifies token minting, connectivity, and authentication.',
+  })
+  @ApiOkResponse({
+    description: 'AnythingLLM health status',
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['healthy', 'unhealthy', 'degraded'],
+          example: 'healthy',
+        },
+        endpoint: {
+          type: 'string',
+          example: '/v1/admin/is-multi-user-mode',
+        },
+        reachable: { type: 'boolean', example: true },
+        authenticated: { type: 'boolean', example: true },
+        responseTime: { type: 'number', example: 123 },
+        error: { type: 'string', nullable: true },
+        timestamp: { type: 'string', example: '2025-01-27T10:30:00Z' },
+      },
+    },
+  })
+  async anythingllmHealth() {
+    return this.healthService.checkAnythingLLMHealth();
+  }
 }

@@ -8,10 +8,12 @@ import { FileConfig } from '../files/config/file-config.type';
 import { GoogleConfig } from '../auth-google/config/google-config.type';
 import { MailConfig } from '../mail/config/mail-config.type';
 import { ThrottlerConfig } from './throttler-config.type';
+import { AnythingLLMConfig } from '../anythingllm/config/anythingllm-config.type';
 
 export type AllConfigType = {
   app: AppConfig;
   apple: AppleConfig;
+  anythingllm: AnythingLLMConfig;
   auth: AuthConfig;
   database: DatabaseConfig;
   documentProcessing: DocumentProcessingConfig;

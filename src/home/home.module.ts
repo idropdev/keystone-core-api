@@ -4,12 +4,15 @@ import { HomeController } from './home.controller';
 import { HealthService } from './health.service';
 import { ConfigModule } from '@nestjs/config';
 import { DocumentProcessingModule } from '../document-processing/document-processing.module';
+import { AnythingLLMModule } from '../anythingllm/anythingllm.module';
 
 @Module({
   imports: [
     ConfigModule,
     // Import DocumentProcessingModule to access GcpStorageAdapter
     forwardRef(() => DocumentProcessingModule),
+    // Import AnythingLLMModule to access AnythingLLMHealthService
+    forwardRef(() => AnythingLLMModule),
   ],
   controllers: [HomeController],
   providers: [HomeService, HealthService],

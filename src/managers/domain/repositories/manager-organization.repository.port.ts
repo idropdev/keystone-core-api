@@ -15,3 +15,8 @@ export abstract class ManagerOrganizationRepositoryPort {
   abstract findAllVerified(): Promise<ManagerOrganization[]>;
 }
 
+
+
+
+
+
