@@ -56,3 +56,5 @@ storage/*
 *-diagnostic.sh
 *_DIAGNOSTIC.*
 *_VERIFICATION.*
+
+.cursor/*

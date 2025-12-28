@@ -27,6 +27,7 @@ import { HomeModule } from './home/home.module';
 import { ManagersModule } from './managers/managers.module';
 import { AccessControlModule } from './access-control/access-control.module';
 import { RevocationModule } from './revocation/revocation.module';
+import { AnythingLLMAdminModule } from './anythingllm/admin/anythingllm-admin.module';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { AllConfigType } from './config/config.type';
 import { SessionModule } from './session/session.module';
@@ -125,6 +126,7 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     ManagersModule,
     AccessControlModule,
     RevocationModule,
+    AnythingLLMAdminModule,
   ],
   providers: [
     // Apply rate limiting globally

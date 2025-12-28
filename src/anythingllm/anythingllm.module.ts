@@ -15,6 +15,7 @@ import { AnythingLLMHealthService } from './services/anythingllm-health.service'
   exports: [
     AnythingLLMClientService,
     AnythingLLMHealthService,
+    AnythingLLMServiceIdentityService,
   ],
 })
 export class AnythingLLMModule {}
