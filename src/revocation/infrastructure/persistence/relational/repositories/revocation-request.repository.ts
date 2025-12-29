@@ -7,13 +7,11 @@ import { RevocationRequestEntity } from '../entities/revocation-request.entity';
 
 /**
  * Relational Repository Implementation for RevocationRequest
- * 
+ *
  * Maps between domain entities and TypeORM entities.
  */
 @Injectable()
-export class RevocationRequestRelationalRepository
-  extends RevocationRequestRepositoryPort
-{
+export class RevocationRequestRelationalRepository extends RevocationRequestRepositoryPort {
   constructor(
     @InjectRepository(RevocationRequestEntity)
     private readonly repository: Repository<RevocationRequestEntity>,
@@ -100,14 +98,17 @@ export class RevocationRequestRelationalRepository
   /**
    * Map domain entity to TypeORM entity
    */
-  private toEntity(domain: Partial<RevocationRequest>): RevocationRequestEntity {
+  private toEntity(
+    domain: Partial<RevocationRequest>,
+  ): RevocationRequestEntity {
     const entity = new RevocationRequestEntity();
     entity.documentId = domain.documentId!;
     entity.requestedByType = domain.requestedByType!;
     entity.requestedById = domain.requestedById!;
     entity.requestType = domain.requestType!;
     entity.status = domain.status || 'pending';
-    entity.cascadeToSecondaryManagers = domain.cascadeToSecondaryManagers || false;
+    entity.cascadeToSecondaryManagers =
+      domain.cascadeToSecondaryManagers || false;
     entity.reviewNotes = domain.reviewNotes;
     entity.reviewedBy = domain.reviewedBy;
     entity.reviewedAt = domain.reviewedAt;
@@ -136,4 +137,3 @@ export class RevocationRequestRelationalRepository
     };
   }
 }
-

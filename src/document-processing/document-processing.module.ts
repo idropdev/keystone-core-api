@@ -27,7 +27,11 @@ import { UsersModule } from '../users/users.module';
 
     // Database
     // NOTE: ManagerEntity is needed for the originManager relationship
-    TypeOrmModule.forFeature([DocumentEntity, ExtractedFieldEntity, ManagerEntity]),
+    TypeOrmModule.forFeature([
+      DocumentEntity,
+      ExtractedFieldEntity,
+      ManagerEntity,
+    ]),
 
     // File upload
     MulterModule.register({

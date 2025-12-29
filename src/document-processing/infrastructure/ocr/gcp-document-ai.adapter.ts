@@ -154,15 +154,9 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         this.logger.warn(
           `[GCP DOCUMENT AI] No text extracted from document. This may indicate:`,
         );
-        this.logger.warn(
-          `  1. Document is image-only with no text layer`,
-        );
-        this.logger.warn(
-          `  2. OCR processing failed silently`,
-        );
-        this.logger.warn(
-          `  3. Document format is not supported`,
-        );
+        this.logger.warn(`  1. Document is image-only with no text layer`);
+        this.logger.warn(`  2. OCR processing failed silently`);
+        this.logger.warn(`  3. Document format is not supported`);
       } else {
         this.logger.log(
           `[GCP DOCUMENT AI] Successfully extracted ${fullText.length} characters of text (storing first ${extractedText.length} chars)`,
@@ -219,7 +213,9 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       const confidence =
         entities.length > 0
           ? entities.reduce((sum, e) => sum + e.confidence, 0) / entities.length
-          : fullText.length > 0 ? 0.8 : 0.0; // Default confidence if text extracted, 0 if no text
+          : fullText.length > 0
+            ? 0.8
+            : 0.0; // Default confidence if text extracted, 0 if no text
 
       this.logger.log(
         `[GCP DOCUMENT AI] Sync processing complete: ${fullText.length} chars of text extracted, ${entities.length} entities (via regex), confidence: ${confidence.toFixed(2)}`,
@@ -235,7 +231,7 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
     } catch (error: any) {
       const errorMessage = this.sanitizeError(error);
       this.logger.error(`Sync processing failed: ${errorMessage}`);
-      
+
       // Provide more specific error messages for common issues
       if (errorMessage.includes('NOT_FOUND')) {
         throw new Error(
@@ -252,8 +248,10 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
           'Invalid document format or GCS URI. Please verify document file and GCS configuration.',
         );
       }
-      
-      throw new Error(`Document OCR processing failed: ${errorMessage.substring(0, 150)}`);
+
+      throw new Error(
+        `Document OCR processing failed: ${errorMessage.substring(0, 150)}`,
+      );
     }
   }
 
@@ -301,7 +299,7 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         this.logger.error(
           `Failed to start batch processing request: ${errorMessage}`,
         );
-        
+
         // Provide specific error messages
         if (errorMessage.includes('NOT_FOUND')) {
           throw new Error(
@@ -318,16 +316,18 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
             'Invalid batch processing request. Please verify GCS URIs and document format.',
           );
         }
-        
-        throw new Error(`Failed to start batch processing: ${errorMessage.substring(0, 150)}`);
+
+        throw new Error(
+          `Failed to start batch processing: ${errorMessage.substring(0, 150)}`,
+        );
       }
 
       // Poll until complete (can take minutes for large documents)
       this.logger.debug('Waiting for batch operation to complete...');
-      
+
       try {
         const [result] = await operation.promise();
-        
+
         // Check if operation completed with errors
         if (result?.error) {
           const errorDetails = result.error;
@@ -342,31 +342,34 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
               details: errorDetails.details?.[0]?.toString().substring(0, 200),
             })}`,
           );
-          
+
           // Extract specific error codes if available
           if (errorDetails.code) {
-            if (errorDetails.code === 5) { // NOT_FOUND
+            if (errorDetails.code === 5) {
+              // NOT_FOUND
               throw new Error(
                 `GCP Document AI processor not found: projects/${this.projectId}/locations/${this.location}/processors/${this.processorId}. Please verify processor ID exists and is accessible.`,
               );
             }
-            if (errorDetails.code === 7) { // PERMISSION_DENIED
+            if (errorDetails.code === 7) {
+              // PERMISSION_DENIED
               throw new Error(
                 'GCP Document AI permission denied. Please verify service account has roles/documentai.apiUser and roles/storage.objectCreator roles.',
               );
             }
-            if (errorDetails.code === 3) { // INVALID_ARGUMENT
+            if (errorDetails.code === 3) {
+              // INVALID_ARGUMENT
               throw new Error(
                 `Invalid batch processing request. GCS URI: ${gcsUri.substring(0, 100)}... Please verify GCS URI is accessible and document format is supported.`,
               );
             }
           }
-          
+
           throw new Error(
             `Batch processing failed (code: ${errorDetails.code || 'unknown'}): ${errorMessage.substring(0, 200)}`,
           );
         }
-        
+
         // Check for partial failures in result
         if (result?.response?.status?.partialFailures?.length > 0) {
           const failures = result.response.status.partialFailures;
@@ -378,10 +381,8 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       } catch (operationError: any) {
         // Handle promise rejection (operation failed to complete)
         const errorMessage = this.sanitizeError(operationError);
-        this.logger.error(
-          `Batch operation promise rejected: ${errorMessage}`,
-        );
-        
+        this.logger.error(`Batch operation promise rejected: ${errorMessage}`);
+
         // Check if it's a known error
         if (
           errorMessage.includes('NOT_FOUND') ||
@@ -407,7 +408,7 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
             'Invalid batch processing request. Please verify GCS URIs and document format.',
           );
         }
-        
+
         throw new Error(
           `Batch processing operation failed: ${errorMessage.substring(0, 200)}`,
         );
@@ -421,21 +422,23 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       return results;
     } catch (error: any) {
       const errorMessage = this.sanitizeError(error);
-      
+
       // Don't log the same error twice if it was already logged
-      if (!errorMessage.includes('GCP Document AI configuration error') && 
-          !errorMessage.includes('Batch processing operation failed')) {
-        this.logger.error(
-          `Batch processing failed: ${errorMessage}`,
-        );
+      if (
+        !errorMessage.includes('GCP Document AI configuration error') &&
+        !errorMessage.includes('Batch processing operation failed')
+      ) {
+        this.logger.error(`Batch processing failed: ${errorMessage}`);
       }
-      
+
       // Re-throw with more context if it's not already a descriptive error
       if (error instanceof Error && error.message.includes('GCP Document AI')) {
         throw error;
       }
-      
-      throw new Error(`Document OCR batch processing failed: ${errorMessage.substring(0, 150)}`);
+
+      throw new Error(
+        `Document OCR batch processing failed: ${errorMessage.substring(0, 150)}`,
+      );
     }
   }
 
@@ -474,15 +477,9 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         this.logger.warn(
           `[GCP DOCUMENT AI] No text extracted from document. This may indicate:`,
         );
-        this.logger.warn(
-          `  1. Document is image-only with no text layer`,
-        );
-        this.logger.warn(
-          `  2. OCR processing failed silently`,
-        );
-        this.logger.warn(
-          `  3. Document format is not supported`,
-        );
+        this.logger.warn(`  1. Document is image-only with no text layer`);
+        this.logger.warn(`  2. OCR processing failed silently`);
+        this.logger.warn(`  3. Document format is not supported`);
       } else {
         this.logger.log(
           `[GCP DOCUMENT AI] Successfully extracted ${fullText.length} characters of text (storing first ${extractedText.length} chars)`,
@@ -533,7 +530,9 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         entities.length > 0
           ? entities.reduce((sum: number, e: any) => sum + e.confidence, 0) /
             entities.length
-          : fullText.length > 0 ? 0.8 : 0.0; // Default confidence if text extracted, 0 if no text
+          : fullText.length > 0
+            ? 0.8
+            : 0.0; // Default confidence if text extracted, 0 if no text
 
       this.logger.log(
         `[GCP DOCUMENT AI] Batch results parsed: ${fullText.length} chars of text extracted, ${entities.length} entities (via regex), confidence: ${confidence.toFixed(2)}`,
@@ -549,12 +548,13 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
       };
     } catch (error: any) {
       const errorMessage = this.sanitizeError(error);
-      this.logger.error(
-        `Failed to read batch results: ${errorMessage}`,
-      );
-      
+      this.logger.error(`Failed to read batch results: ${errorMessage}`);
+
       // Provide more specific error messages
-      if (errorMessage.includes('not found') || errorMessage.includes('NOT_FOUND')) {
+      if (
+        errorMessage.includes('not found') ||
+        errorMessage.includes('NOT_FOUND')
+      ) {
         throw new Error(
           'Batch processing result file not found. The batch operation may have failed or results may not be ready yet.',
         );
@@ -564,8 +564,10 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
           'Permission denied reading batch results from GCS. Please verify service account has storage.objectViewer role.',
         );
       }
-      
-      throw new Error(`Failed to read OCR results: ${errorMessage.substring(0, 150)}`);
+
+      throw new Error(
+        `Failed to read OCR results: ${errorMessage.substring(0, 150)}`,
+      );
     }
   }
 

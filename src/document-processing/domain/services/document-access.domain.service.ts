@@ -39,15 +39,15 @@ export interface PaginatedResult<T> {
 
 /**
  * DocumentAccessDomainService
- * 
+ *
  * Handles document access control and authorization.
- * 
+ *
  * Key Rules (from Phase 1):
  * - Origin Manager: Full custodial authority (implicit access, all operations)
  * - Secondary Manager: View-only if granted (via AccessGrant)
  * - User: View-only if granted (via AccessGrant)
  * - Admin: Hard-denied (no document access)
- * 
+ *
  * HIPAA Compliance:
  * - All access attempts logged (success and failure)
  * - No PHI in logs
@@ -66,7 +66,7 @@ export class DocumentAccessDomainService {
 
   /**
    * Get a document with access control enforcement
-   * 
+   *
    * @param documentId - Document UUID
    * @param actor - Actor requesting access
    * @returns Document if access granted
@@ -107,12 +107,12 @@ export class DocumentAccessDomainService {
 
   /**
    * List documents accessible to an actor
-   * 
+   *
    * Filtering Logic:
    * - Origin Manager: All documents where originManagerId = actor.id
    * - Other actors: Documents with active AccessGrants
    * - Admin: Empty list (hard deny)
-   * 
+   *
    * @param actor - Actor requesting list
    * @param options - Pagination and filtering options
    * @returns Paginated list of accessible documents
@@ -145,8 +145,7 @@ export class DocumentAccessDomainService {
 
     if (actor.type === 'manager') {
       // Get Manager ID from User ID
-      const manager =
-        await this.managerRepository.findByUserId(actor.id);
+      const manager = await this.managerRepository.findByUserId(actor.id);
       if (manager) {
         // Get all documents where originManagerId = manager.id
         // Note: This requires a new repository method or we fetch all and filter
@@ -206,13 +205,13 @@ export class DocumentAccessDomainService {
 
   /**
    * Check if an actor can perform an operation on a document
-   * 
+   *
    * Operation Authorization Matrix (from Phase 1):
    * - view: Origin manager (implicit), User/Manager with grant
    * - download: Origin manager (implicit), User/Manager with grant
    * - trigger-ocr: Origin manager ONLY
    * - delete: Origin manager ONLY
-   * 
+   *
    * @param documentId - Document UUID
    * @param operation - Operation to check
    * @param actor - Actor requesting operation
@@ -239,8 +238,7 @@ export class DocumentAccessDomainService {
     // We need to resolve the Manager ID from the User ID
     let isOriginManager = false;
     if (actor.type === 'manager') {
-      const manager =
-        await this.managerRepository.findByUserId(actor.id);
+      const manager = await this.managerRepository.findByUserId(actor.id);
       if (manager && document.originManagerId === manager.id) {
         isOriginManager = true;
       }
@@ -272,7 +270,7 @@ export class DocumentAccessDomainService {
 
   /**
    * Helper: Get documents by origin manager ID
-   * 
+   *
    * TODO: This should be a repository method
    * For now, this is a workaround that may not scale
    */
@@ -321,4 +319,3 @@ export class DocumentAccessDomainService {
     this.logDocumentAccess(documentId, actor, operation, false);
   }
 }
-

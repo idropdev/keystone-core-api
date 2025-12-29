@@ -12,4 +12,3 @@ export class ApproveRevocationRequestDto {
   @MaxLength(1000)
   reviewNotes?: string;
 }
-

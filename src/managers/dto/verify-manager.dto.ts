@@ -11,9 +11,3 @@ export class VerifyManagerDto {
   @IsNotEmpty()
   status: 'verified';
 }
-
-
-
-
-
-

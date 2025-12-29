@@ -17,5 +17,10 @@ export type DatabaseConfig = {
   // Logging configuration
   // Can be: false | true | 'all' | ['query', 'error', 'schema', 'warn', 'info', 'log'] | 'simple' | 'advanced'
   // false = no logging, true = all logging, 'all' = all logging, array = specific log types
-  logging?: boolean | 'all' | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[] | 'simple' | 'advanced';
+  logging?:
+    | boolean
+    | 'all'
+    | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[]
+    | 'simple'
+    | 'advanced';
 };

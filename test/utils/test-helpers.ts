@@ -36,10 +36,10 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Retry a request with rate limit handling
- * 
+ *
  * When a 429 is encountered, waits for the full rate limit TTL window to reset.
  * Rate limiting is IP-based, so all requests from the same test runner share limits.
- * 
+ *
  * Auth endpoints: 5 requests per 60 seconds (TTL = 60000ms)
  * Global endpoints: 10 requests per 60 seconds (TTL = 60000ms)
  */
@@ -54,7 +54,7 @@ async function retryOnRateLimit<T>(
   // Auth endpoints: 5 requests per 60s, Global: 10 requests per 60s
   const RATE_LIMIT_TTL_MS = 60000; // 60 seconds
   const RATE_LIMIT_BUFFER_MS = 5000; // 5 second buffer to ensure window has reset
-  
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       const result = await fn();
@@ -63,23 +63,30 @@ async function retryOnRateLimit<T>(
       }
       return result;
     } catch (error: any) {
-      const isRateLimit = error.status === 429 || (error.response && error.response.status === 429);
-      
+      const isRateLimit =
+        error.status === 429 ||
+        (error.response && error.response.status === 429);
+
       if (isRateLimit && i < maxRetries - 1) {
         // Rate limited - wait for the full TTL window to reset
         // This ensures the rate limit bucket has fully reset before retrying
         const waitTime = RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS; // Full window + buffer
         const waitSeconds = Math.round(waitTime / 1000);
-        console.log(`[RETRY] ${operation} rate limited (429), waiting ${waitSeconds}s (full TTL window) before retry ${i + 2}/${maxRetries}`);
+        console.log(
+          `[RETRY] ${operation} rate limited (429), waiting ${waitSeconds}s (full TTL window) before retry ${i + 2}/${maxRetries}`,
+        );
         await sleep(waitTime);
         continue;
       }
-      
+
       // Log non-rate-limit errors
       if (!isRateLimit) {
-        console.error(`[RETRY] ${operation} failed (non-rate-limit):`, error.message || error);
+        console.error(
+          `[RETRY] ${operation} failed (non-rate-limit):`,
+          error.message || error,
+        );
       }
-      
+
       throw error;
     }
   }
@@ -96,8 +103,10 @@ export async function createTestUser(
   const email = `${emailPrefix}.${Date.now()}.${Math.random().toString(36).substring(7)}@example.com`;
   const password = 'secret';
 
-  console.log(`[CREATE_USER] Starting user creation: ${emailPrefix} (${email})`);
-  
+  console.log(
+    `[CREATE_USER] Starting user creation: ${emailPrefix} (${email})`,
+  );
+
   // Register user with retry on rate limit
   // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const registerResponse = await retryOnRateLimit(
@@ -121,7 +130,9 @@ export async function createTestUser(
           `Registration failed: ${response.status} - ${JSON.stringify(response.body)}`,
         );
       }
-      console.log(`[CREATE_USER] Registration successful for ${emailPrefix}: ${response.status}`);
+      console.log(
+        `[CREATE_USER] Registration successful for ${emailPrefix}: ${response.status}`,
+      );
       return response;
     },
     5, // max retries
@@ -234,8 +245,10 @@ export async function createTestUser(
     token: loginResponse.body.token,
     roleId,
   };
-  
-  console.log(`[CREATE_USER] User creation completed for ${emailPrefix}: userId=${result.id}`);
+
+  console.log(
+    `[CREATE_USER] User creation completed for ${emailPrefix}: userId=${result.id}`,
+  );
   return result;
 }
 
@@ -273,7 +286,7 @@ export async function getAdminToken(): Promise<string> {
 /**
  * Create a test manager (requires admin token)
  * Creates a Manager for the manager user
- * 
+ *
  * NOTE: This attempts to create via API endpoints. If endpoints don't exist,
  * it will throw an error indicating they need to be implemented.
  */
@@ -283,15 +296,11 @@ export async function createTestManager(
   // Create manager invitation with identity fields
   const email = `manager-${Date.now()}@test.com`;
   const displayName = `Test Manager ${Date.now()}`;
-  const invitation = await createTestManagerInvitation(
-    adminToken,
-    email,
-    {
-      displayName,
-      address: '123 Test St, Austin, TX 78701',
-      phoneNumber: '+1-512-555-1234',
-    },
-  );
+  const invitation = await createTestManagerInvitation(adminToken, email, {
+    displayName,
+    address: '123 Test St, Austin, TX 78701',
+    phoneNumber: '+1-512-555-1234',
+  });
 
   // Accept invitation to create manager user and manager
   const password = 'TestPassword123!';
@@ -342,7 +351,7 @@ export function readPdfFile(filePath: string): Buffer {
 /**
  * Upload a test document
  * Note: originManagerId is determined automatically from the actor (manager or user's assigned manager)
- * 
+ *
  * @param token - JWT token for authentication
  * @param originManagerId - Manager instance ID (not used in request, but kept for reference)
  * @param documentType - Type of document (default: 'LAB_RESULT')
@@ -373,12 +382,12 @@ export async function uploadTestDocument(
       // Fallback to generated minimal PDF if test file doesn't exist
       pdfBuffer = Buffer.from(
         '%PDF-1.4\n' +
-        '1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n' +
-        '2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n' +
-        '3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n>>\nendobj\n' +
-        'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n' +
-        'trailer\n<<\n/Size 4\n/Root 1 0 R\n>>\n' +
-        'startxref\n181\n%%EOF',
+          '1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n' +
+          '2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n' +
+          '3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n>>\nendobj\n' +
+          'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n' +
+          'trailer\n<<\n/Size 4\n/Root 1 0 R\n>>\n' +
+          'startxref\n181\n%%EOF',
       );
       finalFileName = fileName || 'test-document.pdf';
     }
@@ -496,12 +505,10 @@ export async function acceptTestManagerInvitation(
   // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const loginResponse = await retryOnRateLimit(
     async () => {
-      const res = await request(APP_URL)
-        .post('/api/v1/auth/email/login')
-        .send({
-          email: response.body.user.email,
-          password: userData.password,
-        });
+      const res = await request(APP_URL).post('/api/v1/auth/email/login').send({
+        email: response.body.user.email,
+        password: userData.password,
+      });
 
       if (res.status === 429) {
         throw { status: 429 };
@@ -561,18 +568,24 @@ export async function verifyTestManager(
 /**
  * Get user info from token (for extracting actor info)
  */
-async function getUserInfoFromToken(token: string): Promise<{ id: number; roleId: RoleEnum }> {
+async function getUserInfoFromToken(
+  token: string,
+): Promise<{ id: number; roleId: RoleEnum }> {
   const response = await request(APP_URL)
     .get('/api/v1/auth/me')
     .auth(token, { type: 'bearer' });
 
   if (response.status !== 200) {
-    throw new Error(`Failed to get user info: ${response.status} - ${JSON.stringify(response.body)}`);
+    throw new Error(
+      `Failed to get user info: ${response.status} - ${JSON.stringify(response.body)}`,
+    );
   }
 
   const roleId = response.body.role?.id || response.body.roleId;
   if (!roleId) {
-    throw new Error(`Role ID not found in user info: ${JSON.stringify(response.body)}`);
+    throw new Error(
+      `Role ID not found in user info: ${JSON.stringify(response.body)}`,
+    );
   }
 
   return {
@@ -593,12 +606,16 @@ export async function createAccessGrant(
   subjectId: number,
   grantType: 'delegated' | 'derived' = 'delegated',
 ): Promise<{ grantId: number }> {
-  console.log(`[CREATE_ACCESS_GRANT] Creating grant: documentId=${documentId}, subjectType=${subjectType}, subjectId=${subjectId}, grantType=${grantType}`);
-  
+  console.log(
+    `[CREATE_ACCESS_GRANT] Creating grant: documentId=${documentId}, subjectType=${subjectType}, subjectId=${subjectId}, grantType=${grantType}`,
+  );
+
   // Get actor info from token to populate grantedByType and grantedById
   const userInfo = await getUserInfoFromToken(token);
-  console.log(`[CREATE_ACCESS_GRANT] User info: id=${userInfo.id}, roleId=${userInfo.roleId}`);
-  
+  console.log(
+    `[CREATE_ACCESS_GRANT] User info: id=${userInfo.id}, roleId=${userInfo.roleId}`,
+  );
+
   // Determine grantedByType from role
   let grantedByType: 'user' | 'manager';
   if (userInfo.roleId === RoleEnum.manager) {
@@ -622,9 +639,14 @@ export async function createAccessGrant(
       grantedById: userInfo.id,
     });
 
-  console.log(`[CREATE_ACCESS_GRANT] Response: status=${response.status}, body=${JSON.stringify(response.body)}`);
+  console.log(
+    `[CREATE_ACCESS_GRANT] Response: status=${response.status}, body=${JSON.stringify(response.body)}`,
+  );
 
-  if (response.status === 400 && response.body?.message?.includes('already exists')) {
+  if (
+    response.status === 400 &&
+    response.body?.message?.includes('already exists')
+  ) {
     // Grant already exists - this is OK, try to find the existing grant
     console.log(`[CREATE_ACCESS_GRANT] Grant already exists, this is OK`);
     // Return a mock grantId - the grant exists so access should work
@@ -637,11 +659,12 @@ export async function createAccessGrant(
     );
   }
 
-  console.log(`[CREATE_ACCESS_GRANT] Grant created successfully: grantId=${response.body.id}`);
-  
+  console.log(
+    `[CREATE_ACCESS_GRANT] Grant created successfully: grantId=${response.body.id}`,
+  );
+
   // Small delay to ensure grant is committed to database
   await sleep(500);
-  
+
   return { grantId: response.body.id };
 }
-

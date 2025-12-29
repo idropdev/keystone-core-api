@@ -1,5 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsEnum, IsString, IsNumber, IsBoolean, IsDateString, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsDateString,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { AuthEventType } from '../audit.service';
 
@@ -107,9 +116,3 @@ export class ListAuditEventsDto {
   @Max(1000)
   limit?: number = 100;
 }
-
-
-
-
-
-

@@ -1,4 +1,11 @@
-import { IsEnum, IsNumber, IsOptional, IsUUID, Min, Max } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -55,4 +62,3 @@ export class ListAccessGrantsDto {
   @IsOptional()
   limit?: number;
 }
-

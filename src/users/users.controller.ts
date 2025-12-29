@@ -280,7 +280,8 @@ export class UsersController {
     example: 456,
   })
   @ApiBadRequestResponse({
-    description: 'Invalid manager/user, duplicate assignment, or self-assignment',
+    description:
+      'Invalid manager/user, duplicate assignment, or self-assignment',
   })
   @ApiUnauthorizedResponse({
     description: 'Invalid or expired access token',
@@ -303,10 +304,11 @@ export class UsersController {
       userId,
       managerId: dto.managerId,
     };
-    const assignment = await this.userManagerAssignmentService.assignUserToManager(
-      assignmentDto,
-      req.user.id,
-    );
+    const assignment =
+      await this.userManagerAssignmentService.assignUserToManager(
+        assignmentDto,
+        req.user.id,
+      );
     return this.toAssignmentResponseDto(assignment);
   }
 
@@ -438,15 +440,19 @@ export class UsersController {
   private toAssignmentResponseDto(
     assignment: UserManagerAssignment,
   ): UserManagerAssignmentResponseDto {
-    return plainToClass(UserManagerAssignmentResponseDto, {
-      id: assignment.id,
-      userId: assignment.userId,
-      managerId: assignment.managerId,
-      assignedById: assignment.assignedById,
-      assignedAt: assignment.assignedAt,
-      status: assignment.deletedAt ? 'deleted' : 'active',
-    } as UserManagerAssignmentResponseDto, {
-      excludeExtraneousValues: true,
-    });
+    return plainToClass(
+      UserManagerAssignmentResponseDto,
+      {
+        id: assignment.id,
+        userId: assignment.userId,
+        managerId: assignment.managerId,
+        assignedById: assignment.assignedById,
+        assignedAt: assignment.assignedAt,
+        status: assignment.deletedAt ? 'deleted' : 'active',
+      } as UserManagerAssignmentResponseDto,
+      {
+        excludeExtraneousValues: true,
+      },
+    );
   }
 }

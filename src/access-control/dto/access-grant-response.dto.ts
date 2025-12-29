@@ -3,9 +3,9 @@ import { Expose } from 'class-transformer';
 
 /**
  * Access Grant Response DTO
- * 
+ *
  * Represents an access grant for a document.
- * 
+ *
  * HIPAA Compliance:
  * - No PHI in response
  * - Only IDs and metadata exposed
@@ -95,4 +95,3 @@ export class AccessGrantResponseDto {
   @Expose()
   revokedById?: number | null;
 }
-

@@ -1,10 +1,5 @@
 import { registerAs } from '@nestjs/config';
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUrl,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUrl } from 'class-validator';
 import { AnythingLLMConfig } from './anythingllm-config.type';
 import validateConfig from '../../utils/validate-config';
 
@@ -34,4 +29,3 @@ export default registerAs<AnythingLLMConfig>('anythingllm', () => {
     baseUrl: process.env.ANYTHINGLLM_BASE_URL || '',
   };
 });
-

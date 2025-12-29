@@ -89,6 +89,14 @@ export enum AuthEventType {
   UNAUTHORIZED_ACCESS_ATTEMPT = 'UNAUTHORIZED_ACCESS_ATTEMPT',
   ORIGIN_AUTHORITY_VIOLATION = 'ORIGIN_AUTHORITY_VIOLATION',
   PRIVILEGE_ESCALATION_ATTEMPT = 'PRIVILEGE_ESCALATION_ATTEMPT',
+  // AnythingLLM provisioning events
+  ANYTHINGLLM_USER_PROVISIONING_STARTED = 'ANYTHINGLLM_USER_PROVISIONING_STARTED',
+  ANYTHINGLLM_USER_PROVISIONING_SUCCEEDED = 'ANYTHINGLLM_USER_PROVISIONING_SUCCEEDED',
+  ANYTHINGLLM_USER_PROVISIONING_FAILED = 'ANYTHINGLLM_USER_PROVISIONING_FAILED',
+  ANYTHINGLLM_WORKSPACE_ASSIGNMENT_SUCCEEDED = 'ANYTHINGLLM_WORKSPACE_ASSIGNMENT_SUCCEEDED',
+  ANYTHINGLLM_WORKSPACE_ASSIGNMENT_FAILED = 'ANYTHINGLLM_WORKSPACE_ASSIGNMENT_FAILED',
+  ANYTHINGLLM_USER_SUSPENSION_SYNCED = 'ANYTHINGLLM_USER_SUSPENSION_SYNCED',
+  ANYTHINGLLM_USER_UNSUSPENSION_SYNCED = 'ANYTHINGLLM_USER_UNSUSPENSION_SYNCED',
 }
 
 /**
@@ -136,7 +144,10 @@ export class AuditService {
       } catch (error) {
         // In development, throw to catch issues early
         // In production, log warning but don't break the application
-        if (this.configService.get('app.nodeEnv', { infer: true }) !== 'production') {
+        if (
+          this.configService.get('app.nodeEnv', { infer: true }) !==
+          'production'
+        ) {
           throw error;
         }
         console.warn(
@@ -156,9 +167,7 @@ export class AuditService {
       success: data.success,
       // IP and User Agent for security monitoring (not PHI)
       ipAddress: data.ipAddress,
-      userAgent: data.userAgent
-        ? sanitizeUserAgent(data.userAgent)
-        : undefined,
+      userAgent: data.userAgent ? sanitizeUserAgent(data.userAgent) : undefined,
       errorType: data.errorMessage
         ? sanitizeErrorMessage(data.errorMessage)
         : undefined,
@@ -193,5 +202,4 @@ export class AuditService {
   logAuthEvents(events: AuthEventData[]): void {
     events.forEach((event) => this.logAuthEvent(event));
   }
-
 }

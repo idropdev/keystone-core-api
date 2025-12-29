@@ -1,7 +1,7 @@
 /**
  * Domain entity for AccessGrant
  * Represents document-level access permissions granted to users or managers
- * 
+ *
  * NOTE: Origin managers have implicit access (no AccessGrant needed)
  * All other access requires explicit AccessGrant records
  */
@@ -18,4 +18,3 @@ export class AccessGrant {
   revokedByType?: 'user' | 'manager'; // Who revoked (if applicable)
   revokedById?: number; // Who revoked (if applicable)
 }
-

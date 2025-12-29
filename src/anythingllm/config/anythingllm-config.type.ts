@@ -3,4 +3,3 @@ export type AnythingLLMConfig = {
   serviceAudience: string;
   baseUrl: string;
 };
-

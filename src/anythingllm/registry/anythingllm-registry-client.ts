@@ -86,8 +86,8 @@ export class AnythingLLMRegistryClient {
     // Build URL path with parameter substitution
     const path = this.buildPath(endpoint.path, options.params);
 
-    // Log call intent (HIPAA-compliant: no tokens, no PHI)
-    this.logger.log(
+    // Log call intent moved to DEBUG level for HIPAA compliance
+    this.logger.debug(
       `[Registry] Calling ${endpoint.method} ${path} | EndpointId: ${endpointId} | RequestId: ${requestId}`,
     );
 
@@ -135,7 +135,8 @@ export class AnythingLLMRegistryClient {
         }
       }
 
-      this.logger.log(
+      // Success logging moved to DEBUG level for HIPAA compliance
+      this.logger.debug(
         `[Registry] Success ${endpoint.method} ${path} | Status: ${response.status} | RequestId: ${requestId}`,
       );
 
@@ -176,10 +177,7 @@ export class AnythingLLMRegistryClient {
    * @param params - Parameter values to substitute
    * @returns Built URL path
    */
-  private buildPath(
-    pathTemplate: string,
-    params?: PathParams,
-  ): string {
+  private buildPath(pathTemplate: string, params?: PathParams): string {
     if (!params) {
       return pathTemplate;
     }

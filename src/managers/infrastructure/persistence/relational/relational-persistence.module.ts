@@ -8,12 +8,7 @@ import { ManagerRelationalRepository } from './repositories/manager.repository';
 import { ManagerRepositoryPort } from '../../../domain/repositories/manager.repository.port';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      ManagerEntity,
-      ManagerInvitationEntity,
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([ManagerEntity, ManagerInvitationEntity])],
   providers: [
     ManagerInvitationRelationalRepository,
     {

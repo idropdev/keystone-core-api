@@ -19,4 +19,3 @@ import { AnythingLLMHealthService } from './services/anythingllm-health.service'
   ],
 })
 export class AnythingLLMModule {}
-

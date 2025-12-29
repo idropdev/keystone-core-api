@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, IsOptional, IsNumber, ValidateIf } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsNumber,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateManagerInvitationDto {
   @ApiProperty({
@@ -40,7 +47,8 @@ export class CreateManagerInvitationDto {
 
   @ApiProperty({
     example: 30.2672,
-    description: 'Latitude (required if address not provided, must provide both lat and long)',
+    description:
+      'Latitude (required if address not provided, must provide both lat and long)',
     required: false,
   })
   @IsNumber()
@@ -51,7 +59,8 @@ export class CreateManagerInvitationDto {
 
   @ApiProperty({
     example: -97.7431,
-    description: 'Longitude (required if address not provided, must provide both lat and long)',
+    description:
+      'Longitude (required if address not provided, must provide both lat and long)',
     required: false,
   })
   @IsNumber()

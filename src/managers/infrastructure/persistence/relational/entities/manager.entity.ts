@@ -48,7 +48,12 @@ export class ManagerEntity extends EntityRelationalHelper {
   @Column({ name: 'phone_number', type: 'varchar', length: 50, nullable: true })
   phoneNumber?: string;
 
-  @Column({ name: 'operating_hours', type: 'varchar', length: 500, nullable: true })
+  @Column({
+    name: 'operating_hours',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
   operatingHours?: string;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
@@ -79,4 +84,3 @@ export class ManagerEntity extends EntityRelationalHelper {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
 }
-

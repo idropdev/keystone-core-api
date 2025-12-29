@@ -13,4 +13,3 @@ export class ManagerInstance {
   phone?: string;
   operatingHours?: string;
 }
-

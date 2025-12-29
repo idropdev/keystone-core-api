@@ -11,9 +11,3 @@ export class SuspendManagerDto {
   @MaxLength(500)
   reason: string;
 }
-
-
-
-
-
-

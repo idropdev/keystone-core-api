@@ -9,7 +9,6 @@ import {
 } from 'typeorm';
 import { EntityRelationalHelper } from '../../../../../utils/relational-entity-helper';
 import { DocumentEntity } from '../../../../../document-processing/infrastructure/persistence/relational/entities/document.entity';
-import { UserEntity } from '../../../../../users/infrastructure/persistence/relational/entities/user.entity';
 
 @Entity({
   name: 'access_grants',
@@ -73,4 +72,3 @@ export class AccessGrantEntity extends EntityRelationalHelper {
   @Column({ name: 'revoked_by_id', type: 'integer', nullable: true })
   revokedById?: number;
 }
-

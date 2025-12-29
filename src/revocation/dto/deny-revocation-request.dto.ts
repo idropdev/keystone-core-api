@@ -12,4 +12,3 @@ export class DenyRevocationRequestDto {
   @MaxLength(1000)
   reviewNotes?: string;
 }
-

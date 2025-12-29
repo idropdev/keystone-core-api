@@ -4,23 +4,23 @@ import { AllConfigType } from '../../config/config.type';
 
 /**
  * GCP Cloud Logging Client
- * 
+ *
  * Forwards audit events to GCP Cloud Logging for HIPAA-compliant retention.
- * 
+ *
  * HIPAA Requirements:
  * - Logs encrypted at rest (GCP default)
  * - Retention: 7 years (configured in GCP)
  * - Access-controlled via IAM
  * - Immutable (cannot be modified once written)
- * 
+ *
  * Implementation Notes:
  * - Async, non-blocking forward (doesn't block request)
  * - Retry logic with exponential backoff
  * - Graceful degradation (if Cloud Logging fails, logs to console)
- * 
+ *
  * TODO: Install @google-cloud/logging package:
  *   npm install @google-cloud/logging
- * 
+ *
  * TODO: Configure GCP project and credentials
  * TODO: Set up log retention policy in GCP (7 years)
  */
@@ -77,9 +77,9 @@ export class CloudLoggingClient implements OnModuleInit {
 
   /**
    * Write audit event to GCP Cloud Logging
-   * 
+   *
    * This is async and non-blocking. Failures are logged but don't break the application.
-   * 
+   *
    * @param logEntry - Structured log entry (already sanitized)
    */
   async writeLog(logEntry: Record<string, any>): Promise<void> {
@@ -114,15 +114,13 @@ export class CloudLoggingClient implements OnModuleInit {
         `Failed to write to GCP Cloud Logging: ${error.message}`,
       );
       // Fallback to console logging
-      console.error(
-        `[AUDIT_FALLBACK] ${JSON.stringify(logEntry)}`,
-      );
+      console.error(`[AUDIT_FALLBACK] ${JSON.stringify(logEntry)}`);
     }
   }
 
   /**
    * Get log severity based on event type
-   * 
+   *
    * Maps event types to Cloud Logging severity levels:
    * - INFO: Normal operations
    * - WARNING: Unusual but expected (retries, denials)
@@ -159,7 +157,7 @@ export class CloudLoggingClient implements OnModuleInit {
 
   /**
    * Batch write multiple log entries
-   * 
+   *
    * More efficient than individual writes for high-volume scenarios.
    */
   async writeLogs(logEntries: Record<string, any>[]): Promise<void> {
@@ -172,4 +170,3 @@ export class CloudLoggingClient implements OnModuleInit {
     await Promise.allSettled(writePromises);
   }
 }
-

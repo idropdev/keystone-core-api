@@ -18,12 +18,19 @@ async function bootstrap() {
   // Configure NestJS logger to reduce verbose output in development
   // Options: ['log', 'error', 'warn', 'debug', 'verbose', 'fatal']
   // In development: show errors and warnings only (exclude 'log', 'debug', 'verbose')
-  const loggerOptions: ('error' | 'warn' | 'verbose' | 'debug' | 'log' | 'fatal')[] = 
-    process.env.NODE_ENV === 'production' 
-      ? ['error', 'warn'] 
+  const loggerOptions: (
+    | 'error'
+    | 'warn'
+    | 'verbose'
+    | 'debug'
+    | 'log'
+    | 'fatal'
+  )[] =
+    process.env.NODE_ENV === 'production'
+      ? ['error', 'warn']
       : ['error', 'warn']; // Clean output - only errors and warnings
-  
-  const app = await NestFactory.create(AppModule, { 
+
+  const app = await NestFactory.create(AppModule, {
     cors: true,
     logger: loggerOptions,
   });

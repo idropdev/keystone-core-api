@@ -54,14 +54,14 @@ export interface AcceptInvitationData {
 
 /**
  * Domain Service for Manager Onboarding
- * 
+ *
  * Handles the complete manager onboarding lifecycle:
  * 1. Admin invites manager (with identity fields)
  * 2. Manager accepts invitation
  * 3. Manager creates profile
  * 4. Manager created with pending verification status
  * 5. Admin verifies manager
- * 
+ *
  * HIPAA Requirement: Managers cannot access documents until verified
  */
 @Injectable()
@@ -85,7 +85,7 @@ export class ManagerOnboardingDomainService {
 
   /**
    * Invite a manager (Admin only)
-   * 
+   *
    * Creates a ManagerInvitation with a secure, one-time token and manager identity fields
    */
   async inviteManager(data: InviteManagerData): Promise<ManagerInvitation> {
@@ -102,8 +102,9 @@ export class ManagerOnboardingDomainService {
     }
 
     // Check for existing pending invitation
-    const existingInvitation =
-      await this.invitationRepository.findByEmail(data.email);
+    const existingInvitation = await this.invitationRepository.findByEmail(
+      data.email,
+    );
     if (existingInvitation && existingInvitation.status === 'pending') {
       throw new BadRequestException(
         'An invitation already exists for this email address',
@@ -165,7 +166,7 @@ export class ManagerOnboardingDomainService {
 
   /**
    * Accept invitation and create manager profile
-   * 
+   *
    * Creates User (role = manager) and Manager (status = pending)
    */
   async acceptInvitation(
@@ -204,7 +205,12 @@ export class ManagerOnboardingDomainService {
     });
 
     // Validate required user data
-    if (!data.user || !data.user.password || !data.user.firstName || !data.user.lastName) {
+    if (
+      !data.user ||
+      !data.user.password ||
+      !data.user.firstName ||
+      !data.user.lastName
+    ) {
       throw new BadRequestException(
         'Missing required user data: password, firstName, and lastName are required',
       );
@@ -224,7 +230,8 @@ export class ManagerOnboardingDomainService {
 
     // Create Manager with identity from invitation
     const manager = new Manager();
-    manager.userId = typeof user.id === 'number' ? user.id : parseInt(String(user.id), 10);
+    manager.userId =
+      typeof user.id === 'number' ? user.id : parseInt(String(user.id), 10);
     manager.displayName = invitation.displayName;
     manager.legalName = invitation.legalName;
     manager.address = invitation.address;
@@ -282,7 +289,7 @@ export class ManagerOnboardingDomainService {
     status: string;
   }> {
     const invitation = await this.invitationRepository.findByToken(token);
-    
+
     if (!invitation) {
       throw new NotFoundException('Invalid or expired invitation token');
     }
@@ -310,13 +317,10 @@ export class ManagerOnboardingDomainService {
 
   /**
    * Verify manager (Admin only)
-   * 
+   *
    * Sets manager verification_status = 'verified'
    */
-  async verifyManager(
-    adminId: number,
-    managerId: number,
-  ): Promise<Manager> {
+  async verifyManager(adminId: number, managerId: number): Promise<Manager> {
     this.logger.log(
       `[VERIFY MANAGER] Starting verification: adminId=${adminId}, managerId=${managerId}`,
     );
@@ -326,20 +330,18 @@ export class ManagerOnboardingDomainService {
       this.logger.error(
         `[VERIFY MANAGER] ❌ Manager not found: managerId=${managerId}`,
       );
-      throw new NotFoundException(
-        `Manager with ID ${managerId} not found`,
-      );
+      throw new NotFoundException(`Manager with ID ${managerId} not found`);
     }
 
     this.logger.debug(
       `[VERIFY MANAGER] Manager found: managerId=${manager.id}, ` +
-      `userId=${manager.userId}, verificationStatus="${manager.verificationStatus}"`,
+        `userId=${manager.userId}, verificationStatus="${manager.verificationStatus}"`,
     );
 
     this.logger.log(
       `[VERIFY MANAGER] Current manager state: managerId=${manager.id}, ` +
-      `displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", ` +
-      `verifiedAt=${manager.verifiedAt || 'null'}, verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
+        `displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", ` +
+        `verifiedAt=${manager.verifiedAt || 'null'}, verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
     );
 
     // Allow re-verification if status is 'suspended' (manager was suspended then re-verified)
@@ -355,14 +357,14 @@ export class ManagerOnboardingDomainService {
     if (manager.verificationStatus === 'suspended') {
       this.logger.log(
         `[VERIFY MANAGER] Re-verifying suspended manager: managerId=${manager.id}, ` +
-        `currentStatus="suspended", will change to "verified"`,
+          `currentStatus="suspended", will change to "verified"`,
       );
     }
 
     // Update manager verification status
     this.logger.log(
       `[VERIFY MANAGER] Updating manager verification status: managerId=${manager.id}, ` +
-      `from "${manager.verificationStatus}" → "verified", verifiedByAdminId=${adminId}`,
+        `from "${manager.verificationStatus}" → "verified", verifiedByAdminId=${adminId}`,
     );
     await this.managerRepository.update(manager.id, {
       verificationStatus: 'verified',
@@ -386,15 +388,15 @@ export class ManagerOnboardingDomainService {
 
     this.logger.log(
       `[VERIFY MANAGER] Manager reloaded after update: managerId=${updatedManager.id}, ` +
-      `verificationStatus="${updatedManager.verificationStatus}", ` +
-      `verifiedAt=${updatedManager.verifiedAt || 'null'}, ` +
-      `verifiedByAdminId=${updatedManager.verifiedByAdminId || 'null'}`,
+        `verificationStatus="${updatedManager.verificationStatus}", ` +
+        `verifiedAt=${updatedManager.verifiedAt || 'null'}, ` +
+        `verifiedByAdminId=${updatedManager.verifiedByAdminId || 'null'}`,
     );
 
     if (updatedManager.verificationStatus !== 'verified') {
       this.logger.error(
         `[VERIFY MANAGER] ❌ VERIFICATION FAILED: Manager ${manager.id} verification status update failed. ` +
-        `Expected 'verified', got '${updatedManager.verificationStatus}'`,
+          `Expected 'verified', got '${updatedManager.verificationStatus}'`,
       );
       throw new Error(
         `Failed to update manager verification status. Current status: ${updatedManager.verificationStatus}`,
@@ -403,8 +405,8 @@ export class ManagerOnboardingDomainService {
 
     this.logger.log(
       `[VERIFY MANAGER] ✅ SUCCESS: Manager ${manager.id} successfully verified. ` +
-      `Status: "${updatedManager.verificationStatus}", verifiedAt: ${updatedManager.verifiedAt}, ` +
-      `verifiedByAdminId: ${updatedManager.verifiedByAdminId}`,
+        `Status: "${updatedManager.verificationStatus}", verifiedAt: ${updatedManager.verifiedAt}, ` +
+        `verifiedByAdminId: ${updatedManager.verifiedByAdminId}`,
     );
 
     // Audit log
@@ -419,16 +421,14 @@ export class ManagerOnboardingDomainService {
       },
     });
 
-    this.logger.log(
-      `Manager ${managerId} verified by admin ${adminId}`,
-    );
+    this.logger.log(`Manager ${managerId} verified by admin ${adminId}`);
 
     return updatedManager;
   }
 
   /**
    * Suspend manager (Admin only)
-   * 
+   *
    * Disables all access, prevents new documents
    */
   async suspendManager(
@@ -445,15 +445,13 @@ export class ManagerOnboardingDomainService {
       this.logger.error(
         `[SUSPEND MANAGER] ❌ Manager not found: managerId=${managerId}`,
       );
-      throw new NotFoundException(
-        `Manager with ID ${managerId} not found`,
-      );
+      throw new NotFoundException(`Manager with ID ${managerId} not found`);
     }
 
     this.logger.log(
       `[SUSPEND MANAGER] Current manager state: managerId=${manager.id}, ` +
-      `displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", ` +
-      `will change to "suspended"`,
+        `displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", ` +
+        `will change to "suspended"`,
     );
 
     // Update manager verification status to suspended
@@ -465,7 +463,7 @@ export class ManagerOnboardingDomainService {
     const updatedManager = await this.managerRepository.findById(manager.id);
     this.logger.log(
       `[SUSPEND MANAGER] Manager updated: managerId=${updatedManager?.id}, ` +
-      `verificationStatus="${updatedManager?.verificationStatus}"`,
+        `verificationStatus="${updatedManager?.verificationStatus}"`,
     );
 
     // Audit log
@@ -495,7 +493,7 @@ export class ManagerOnboardingDomainService {
 
   /**
    * Generate secure invitation token
-   * 
+   *
    * Uses crypto.randomBytes for cryptographically secure token generation
    */
   private generateInvitationToken(): string {

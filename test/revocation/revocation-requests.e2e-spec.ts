@@ -24,10 +24,7 @@ describe('Revocation Request Endpoints (E2E)', () => {
     otherUser = await createTestUser(RoleEnum.user, 'other-user');
 
     // Upload a document as manager
-    const result = await uploadTestDocument(
-      managerUser.token,
-      managerUser.id,
-    );
+    const result = await uploadTestDocument(managerUser.token, managerUser.id);
     documentId = result.documentId;
 
     // Grant access to regular user
@@ -170,7 +167,10 @@ describe('Revocation Request Endpoints (E2E)', () => {
     });
 
     it('should reject non-origin manager from approving requests', async () => {
-      const otherManager = await createTestUser(RoleEnum.manager, 'other-manager');
+      const otherManager = await createTestUser(
+        RoleEnum.manager,
+        'other-manager',
+      );
       await request(APP_URL)
         .patch(`/api/v1/revocation-requests/${requestId}`)
         .auth(otherManager.token, { type: 'bearer' })
@@ -243,4 +243,3 @@ describe('Revocation Request Endpoints (E2E)', () => {
     });
   });
 });
-

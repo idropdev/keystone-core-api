@@ -103,9 +103,3 @@ export class AcceptInvitationDto {
   @Type(() => ManagerProfileDto)
   managerProfile: ManagerProfileDto;
 }
-
-
-
-
-
-

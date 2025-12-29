@@ -7,9 +7,7 @@ import { AccessGrant } from '../../../../domain/entities/access-grant.entity';
 import { NullableType } from '../../../../../utils/types/nullable.type';
 
 @Injectable()
-export class AccessGrantRelationalRepository
-  implements AccessGrantRepository
-{
+export class AccessGrantRelationalRepository implements AccessGrantRepository {
   constructor(
     @InjectRepository(AccessGrantEntity)
     private readonly repository: Repository<AccessGrantEntity>,
@@ -113,4 +111,3 @@ export class AccessGrantRelationalRepository
     };
   }
 }
-

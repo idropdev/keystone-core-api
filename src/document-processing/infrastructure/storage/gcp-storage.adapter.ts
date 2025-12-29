@@ -47,7 +47,7 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
     // Initialize Storage with explicit credentials if GOOGLE_APPLICATION_CREDENTIALS is set
     // This ensures signed URLs work (requires service account with client_email)
     let credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    
+
     // If ADC file is specified but service account key exists in same directory, prefer service account key
     if (credentialsPath && fs.existsSync(credentialsPath)) {
       try {
@@ -56,7 +56,10 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         // If it's ADC, check for service account key in same directory
         if (keyJson.type === 'authorized_user') {
           const adcDir = path.dirname(credentialsPath);
-          const serviceAccountKeyPath = path.join(adcDir, 'keystone-sa-key.json');
+          const serviceAccountKeyPath = path.join(
+            adcDir,
+            'keystone-sa-key.json',
+          );
           if (fs.existsSync(serviceAccountKeyPath)) {
             credentialsPath = serviceAccountKeyPath;
             this.logger.log(
@@ -68,13 +71,16 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         // If parsing fails, continue with original path
       }
     }
-    
+
     // Get project ID from env (needed for ADC when project can't be auto-detected)
-    const projectId = process.env.GCP_PROJECT_ID ||
+    const projectId =
+      process.env.GCP_PROJECT_ID ||
       process.env.GOOGLE_CLOUD_PROJECT ||
-      this.configService.get('documentProcessing.gcp.projectId', { infer: true }) ||
+      this.configService.get('documentProcessing.gcp.projectId', {
+        infer: true,
+      }) ||
       process.env.GCLOUD_PROJECT;
-    
+
     if (credentialsPath) {
       // Verify the file exists and is readable
       if (!fs.existsSync(credentialsPath)) {
@@ -94,10 +100,12 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
             }
           }
         } catch (err) {
-          this.logger.warn(`⚠️  Could not parse credentials file: ${credentialsPath}`);
+          this.logger.warn(
+            `⚠️  Could not parse credentials file: ${credentialsPath}`,
+          );
         }
       }
-      
+
       this.storage = new Storage({
         keyFilename: credentialsPath,
         projectId: projectId || undefined,
@@ -162,11 +170,14 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
 
       // Step 1: Verify we can authenticate and get project ID
       let detectedProjectId: string | null = null;
-      const configuredProjectId = process.env.GCP_PROJECT_ID ||
+      const configuredProjectId =
+        process.env.GCP_PROJECT_ID ||
         process.env.GOOGLE_CLOUD_PROJECT ||
-        this.configService.get('documentProcessing.gcp.projectId', { infer: true }) ||
+        this.configService.get('documentProcessing.gcp.projectId', {
+          infer: true,
+        }) ||
         process.env.GCLOUD_PROJECT;
-      
+
       try {
         detectedProjectId = await this.storage.getProjectId();
         this.logger.log(`   ✅ Project ID: ${detectedProjectId}`);
@@ -186,15 +197,13 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
           this.logger.warn(
             `   ⚠️  Could not auto-detect project ID, using configured: ${configuredProjectId}`,
           );
-          this.logger.warn(
-            `   Error: ${(error as Error).message}`,
-          );
+          this.logger.warn(`   Error: ${(error as Error).message}`);
           // Storage was already initialized with projectId in constructor, so continue
           detectedProjectId = configuredProjectId;
         } else {
           this.logger.error(
             `⚠️  Could not get project ID and no configured project ID found. ` +
-            `Set GCP_PROJECT_ID or DOC_PROCESSING_GCP_PROJECT_ID in .env.`,
+              `Set GCP_PROJECT_ID or DOC_PROCESSING_GCP_PROJECT_ID in .env.`,
           );
           this.logger.error(`   Error: ${(error as Error).message}`);
           // Continue without project ID - it may work if credentials have it embedded
@@ -204,18 +213,24 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       // Step 2: Skip bucket listing check - we don't need storage.buckets.list permission
       // roles/storage.objectAdmin is sufficient for object operations (upload/download/delete)
       // We'll verify access to the specific bucket we need instead (Step 3)
-      this.logger.log('   ✅ Credentials configured (skipping bucket list check - not required)');
+      this.logger.log(
+        '   ✅ Credentials configured (skipping bucket list check - not required)',
+      );
 
       // Step 3: Skip bucket metadata check - roles/storage.objectAdmin doesn't include bucket.get permission
       // This is fine - we'll verify access when we actually use the bucket (upload/download operations)
       // The service account has objectAdmin role which is sufficient for object operations
-      this.logger.log(`   ✅ Bucket configured: ${this.bucketName} (access will be verified on first use)`);
+      this.logger.log(
+        `   ✅ Bucket configured: ${this.bucketName} (access will be verified on first use)`,
+      );
 
       this.authVerified = true;
       this.logger.log('✅ GCP authentication verification completed');
     } catch (error) {
       this.authVerified = false;
-      this.logger.error('⚠️  GCP authentication verification encountered errors');
+      this.logger.error(
+        '⚠️  GCP authentication verification encountered errors',
+      );
       this.logger.error(`   Error: ${(error as Error).message}`);
       // Don't throw - log errors but allow app to start
       // This way we can debug credential issues without blocking startup
@@ -234,7 +249,12 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
    * Health check: Verify bucket is accessible
    * Used by GET /health/gcp endpoint
    */
-  async healthCheck(): Promise<{ status: string; bucket: string; accessible: boolean; error?: string }> {
+  async healthCheck(): Promise<{
+    status: string;
+    bucket: string;
+    accessible: boolean;
+    error?: string;
+  }> {
     try {
       const [exists] = await this.bucket.exists();
       if (!exists) {
@@ -295,14 +315,19 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
             this.logger.error(
               '   This file may be user credentials, not a service account key.',
             );
-          } else if (keyJson.type === 'service_account' && keyJson.client_email) {
+          } else if (
+            keyJson.type === 'service_account' &&
+            keyJson.client_email
+          ) {
             this.logger.log(
               `✅ Service account credentials validated: ${keyJson.client_email}`,
             );
           } else {
             // It's ADC (user credentials) - that's fine, just log it
             // Note: Constructor already handles preferring service account key if available
-            this.logger.log('✅ Application Default Credentials (ADC) file found');
+            this.logger.log(
+              '✅ Application Default Credentials (ADC) file found',
+            );
           }
         }
       } catch (error) {
@@ -354,7 +379,7 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       return gcsUri;
     } catch (error) {
       const errorDetails = error as any;
-      
+
       // Log comprehensive error details
       this.logger.error(
         `❌ Failed to upload file for document ${metadata.documentId} to bucket ${this.bucketName}`,
@@ -362,19 +387,27 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       this.logger.error(`  Operation: storeRaw (upload)`);
       this.logger.error(`  Bucket: ${this.bucketName}`);
       this.logger.error(`  Object key: ${objectKey}`);
-      this.logger.error(`  File size: ${(metadata.contentLength / 1024).toFixed(2)} KB`);
+      this.logger.error(
+        `  File size: ${(metadata.contentLength / 1024).toFixed(2)} KB`,
+      );
       this.logger.error(`  MIME type: ${metadata.mimeType}`);
-      
+
       // Log error details
       this.logger.error(`  Error code: ${errorDetails?.code || 'unknown'}`);
-      this.logger.error(`  Error message: ${errorDetails?.message || String(error)}`);
+      this.logger.error(
+        `  Error message: ${errorDetails?.message || String(error)}`,
+      );
       if (errorDetails?.response) {
-        this.logger.error(`  HTTP status: ${errorDetails.response?.statusCode || 'unknown'}`);
+        this.logger.error(
+          `  HTTP status: ${errorDetails.response?.statusCode || 'unknown'}`,
+        );
       }
       if (errorDetails?.errors) {
-        this.logger.error(`  GCP API errors: ${JSON.stringify(errorDetails.errors)}`);
+        this.logger.error(
+          `  GCP API errors: ${JSON.stringify(errorDetails.errors)}`,
+        );
       }
-      
+
       // Log credential info
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
       this.logger.error(`  Credentials path: ${credentialsPath || 'not set'}`);
@@ -385,20 +418,29 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
             const keyJson = JSON.parse(keyContent);
             if (keyJson.client_email) {
               this.logger.error(`  Service account: ${keyJson.client_email}`);
-              this.logger.error(`  Project ID from key: ${keyJson.project_id || 'not found'}`);
+              this.logger.error(
+                `  Project ID from key: ${keyJson.project_id || 'not found'}`,
+              );
             } else {
-              this.logger.error(`  ⚠️  Credentials file does not contain client_email (may be ADC)`);
+              this.logger.error(
+                `  ⚠️  Credentials file does not contain client_email (may be ADC)`,
+              );
             }
           } else {
-            this.logger.error(`  ❌ Credentials file does not exist: ${credentialsPath}`);
+            this.logger.error(
+              `  ❌ Credentials file does not exist: ${credentialsPath}`,
+            );
           }
         } catch (err) {
-          this.logger.error(`  ⚠️  Could not read credentials file: ${(err as Error).message}`);
+          this.logger.error(
+            `  ⚠️  Could not read credentials file: ${(err as Error).message}`,
+          );
         }
       }
-      
+
       // Log project ID
-      const projectId = process.env.GCP_PROJECT_ID ||
+      const projectId =
+        process.env.GCP_PROJECT_ID ||
         process.env.GOOGLE_CLOUD_PROJECT ||
         process.env.GCLOUD_PROJECT;
       this.logger.error(`  Configured project ID: ${projectId || 'not set'}`);
@@ -456,17 +498,21 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       return gcsUri;
     } catch (error) {
       const errorDetails = error as any;
-      
+
       // Log comprehensive error details
       this.logger.error(
         `❌ Failed to store processed output for document ${metadata.documentId} to bucket ${this.bucketName}`,
       );
       this.logger.error(`  Operation: storeProcessed`);
       this.logger.error(`  Bucket: ${this.bucketName}`);
-      this.logger.error(`  Object key: ${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`);
+      this.logger.error(
+        `  Object key: ${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`,
+      );
       this.logger.error(`  Error code: ${errorDetails?.code || 'unknown'}`);
-      this.logger.error(`  Error message: ${errorDetails?.message || String(error)}`);
-      
+      this.logger.error(
+        `  Error message: ${errorDetails?.message || String(error)}`,
+      );
+
       // Log credential info
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
       this.logger.error(`  Credentials path: ${credentialsPath || 'not set'}`);
@@ -586,7 +632,9 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         expires: Date.now() + expiresIn * 1000,
       });
 
-      this.logger.debug(`Successfully generated signed URL (expires in ${expiresIn}s)`);
+      this.logger.debug(
+        `Successfully generated signed URL (expires in ${expiresIn}s)`,
+      );
 
       return url;
     } catch (error) {
@@ -595,7 +643,7 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       this.logger.error(
         `  Error code: ${errorDetails?.code || 'unknown'}, Error message: ${errorDetails?.message || String(error)}`,
       );
-      
+
       // Log credential info
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
       if (credentialsPath) {
@@ -611,7 +659,9 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
             );
           }
         } catch (err) {
-          this.logger.error(`  ⚠️  Could not read credentials file: ${(err as Error).message}`);
+          this.logger.error(
+            `  ⚠️  Could not read credentials file: ${(err as Error).message}`,
+          );
         }
       } else {
         this.logger.error(`  ⚠️  GOOGLE_APPLICATION_CREDENTIALS not set`);
@@ -668,7 +718,7 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
     const errorMessage = error?.message || errorStr;
     const errorCode = error?.code;
     const errorSubtype = error?.error_subtype;
-    
+
     // Log full error details for debugging
     this.logger.debug(
       `Detecting auth error - Code: ${errorCode}, Subtype: ${errorSubtype}, Message: ${errorMessage.substring(0, 500)}`,
@@ -763,10 +813,10 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
     // Check for other common auth errors (but exclude retention policy 403s)
     if (
       errorCode === 401 ||
-      (errorCode === 403 && 
-       !errorMessage.includes('retention policy') &&
-       !errorMessage.includes('object retention') &&
-       !errorMessage.includes('cannot be deleted or overwritten'))
+      (errorCode === 403 &&
+        !errorMessage.includes('retention policy') &&
+        !errorMessage.includes('object retention') &&
+        !errorMessage.includes('cannot be deleted or overwritten'))
     ) {
       const remediation = `Verify GCP authentication:
    1. Check GOOGLE_APPLICATION_CREDENTIALS env var (if using service account)
@@ -781,13 +831,13 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         remediation,
       };
     }
-    
+
     // Also check for credential loading errors
     if (
       errorMessage.includes('Could not load the default credentials') ||
       errorMessage.includes('unauthorized') ||
-      (errorMessage.includes('permission denied') && 
-       !errorMessage.includes('retention'))
+      (errorMessage.includes('permission denied') &&
+        !errorMessage.includes('retention'))
     ) {
       const remediation = `Verify GCP authentication:
    1. Check GOOGLE_APPLICATION_CREDENTIALS env var (if using service account)

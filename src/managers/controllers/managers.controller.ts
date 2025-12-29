@@ -45,7 +45,7 @@ export class ManagersController {
   @ApiOperation({
     summary: 'Get My Manager Profile',
     description:
-      'Get the current manager\'s profile and verification status. Requires verified manager.',
+      "Get the current manager's profile and verification status. Requires verified manager.",
   })
   @ApiOkResponse({
     description: 'Manager profile retrieved successfully',
@@ -83,15 +83,12 @@ export class ManagersController {
   @ApiForbiddenResponse({
     description: 'Insufficient permissions. Verified manager role required.',
   })
-  async updateMyProfile(
-    @Request() req,
-    @Body() dto: UpdateManagerProfileDto,
-  ) {
+  async updateMyProfile(@Request() req, @Body() dto: UpdateManagerProfileDto) {
     const logger = new Logger(ManagersController.name);
-    
+
     logger.log(
       `[UPDATE MY PROFILE] Request received: userId=${req.user?.id}, roleId=${req.user?.role?.id}, ` +
-      `updates=${JSON.stringify(dto)}`,
+        `updates=${JSON.stringify(dto)}`,
     );
 
     const actor = extractActorFromRequest(req);

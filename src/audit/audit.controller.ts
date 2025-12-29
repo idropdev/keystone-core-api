@@ -30,15 +30,15 @@ import { extractActorFromRequest } from '../document-processing/utils/actor-extr
 
 /**
  * Audit Controller
- * 
+ *
  * Provides endpoints for querying audit events.
- * 
+ *
  * HIPAA Compliance:
  * - All queries are logged (who accessed audit logs)
  * - Only admins and origin managers can query
  * - Users and secondary managers are denied
  * - No PHI in responses (only IDs and metadata)
- * 
+ *
  * Authorization:
  * - GET /v1/audit/events: Admin or Origin Manager only
  * - GET /v1/audit/events/:id: Admin or Origin Manager only
@@ -64,7 +64,8 @@ export class AuditController {
   })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired access token' })
   @ApiForbiddenResponse({
-    description: 'Insufficient permissions. Admin or origin manager role required.',
+    description:
+      'Insufficient permissions. Admin or origin manager role required.',
   })
   @ApiBadRequestResponse({ description: 'Invalid query parameters' })
   async listEvents(
@@ -104,7 +105,8 @@ export class AuditController {
   })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired access token' })
   @ApiForbiddenResponse({
-    description: 'Insufficient permissions. Admin or origin manager role required.',
+    description:
+      'Insufficient permissions. Admin or origin manager role required.',
   })
   @ApiBadRequestResponse({ description: 'Invalid event ID' })
   async getEvent(
@@ -115,4 +117,3 @@ export class AuditController {
     return this.auditQueryService.getEvent(eventId, actor);
   }
 }
-

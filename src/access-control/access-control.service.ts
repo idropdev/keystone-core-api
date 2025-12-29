@@ -1,6 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  Inject,
+} from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
-import { AccessGrantDomainService, Actor } from './domain/services/access-grant.domain.service';
+import {
+  AccessGrantDomainService,
+  Actor,
+} from './domain/services/access-grant.domain.service';
 import { DocumentAccessDomainService } from '../document-processing/domain/services/document-access.domain.service';
 import { CreateAccessGrantDto } from './dto/create-access-grant.dto';
 import { ListAccessGrantsDto } from './dto/list-access-grants.dto';
@@ -12,12 +19,12 @@ import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.r
 
 /**
  * Access Control Service (Application Layer)
- * 
+ *
  * Thin facade over AccessGrantDomainService that handles:
  * - DTO transformations (domain → response DTO)
  * - Pagination formatting
  * - Authorization checks at application layer
- * 
+ *
  * Business logic lives in domain service.
  */
 @Injectable()
@@ -31,7 +38,7 @@ export class AccessControlService {
 
   /**
    * Create an access grant
-   * 
+   *
    * @param dto - Grant creation data
    * @param actor - Actor creating the grant
    * @returns Created access grant as DTO
@@ -48,7 +55,7 @@ export class AccessControlService {
 
   /**
    * Revoke an access grant
-   * 
+   *
    * @param grantId - Grant ID to revoke
    * @param actor - Actor revoking the grant
    */
@@ -58,11 +65,11 @@ export class AccessControlService {
 
   /**
    * List access grants with filtering and pagination
-   * 
+   *
    * Authorization:
    * - If documentId provided: actor must be origin manager OR grant subject
    * - If no documentId: return actor's own grants only
-   * 
+   *
    * @param query - Query parameters (documentId, subjectType, subjectId, page, limit)
    * @param actor - Actor requesting the list
    * @returns Paginated list of access grants
@@ -116,15 +123,16 @@ export class AccessControlService {
       if (!isOriginManager) {
         grants = grants.filter(
           (grant) =>
-            grant.subjectType === actor.type &&
-            grant.subjectId === actor.id,
+            grant.subjectType === actor.type && grant.subjectId === actor.id,
         );
       }
     } else {
       // List actor's own grants
       // Type assertion: admins are already filtered out in controller
       if (actor.type === 'admin') {
-        throw new ForbiddenException('Admins do not have document-level access');
+        throw new ForbiddenException(
+          'Admins do not have document-level access',
+        );
       }
       grants = await this.accessGrantDomainService.getActiveGrantsForSubject(
         actor.type as 'user' | 'manager',
@@ -151,7 +159,7 @@ export class AccessControlService {
 
   /**
    * Get actor's active grants (my-grants endpoint)
-   * 
+   *
    * @param actor - Actor requesting their grants
    * @param query - Optional pagination parameters
    * @returns Paginated list of actor's active grants
@@ -185,14 +193,14 @@ export class AccessControlService {
 
   /**
    * Transform domain entity to response DTO
-   * 
+   *
    * Normalizes undefined optional fields to null for consistent JSON serialization
    */
   private toResponseDto(grant: AccessGrant): AccessGrantResponseDto {
     const dto = plainToClass(AccessGrantResponseDto, grant, {
       excludeExtraneousValues: true,
     });
-    
+
     // Normalize undefined to null for optional fields (JSON doesn't have undefined)
     // This ensures consistent API responses and matches the documentation
     return {
@@ -203,4 +211,3 @@ export class AccessControlService {
     };
   }
 }
-

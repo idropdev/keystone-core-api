@@ -13,4 +13,3 @@ export class RevokeAccessGrantDto {
   @IsNotEmpty()
   revokedById: number;
 }
-

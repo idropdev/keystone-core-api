@@ -39,14 +39,17 @@ export class AnythingLLMClientService {
     // Get service identity token
     let token: string;
     try {
-      this.logger.debug(`Minting service identity token for AnythingLLM request to ${endpoint}`);
+      // Token minting logging moved to DEBUG level for HIPAA compliance
+      this.logger.debug(
+        `Minting service identity token for AnythingLLM request to ${endpoint}`,
+      );
       token = await this.serviceIdentityService.getIdToken();
-      this.logger.debug(`Service identity token minted successfully`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      // Error logging: HIPAA-compliant, no endpoint details that might contain PHI
       this.logger.error(
-        `Failed to mint service identity token for AnythingLLM request to ${endpoint}: ${errorMessage}`,
+        `Failed to mint service identity token for AnythingLLM request: ${errorMessage}`,
       );
       throw new Error(`Failed to mint service identity token: ${errorMessage}`);
     }
@@ -62,46 +65,14 @@ export class AnythingLLMClientService {
     // Generate request ID
     const requestId = randomUUID();
 
-    // Log token metadata (without exposing the token value)
-    let tokenMetadata: any = null;
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const header = JSON.parse(
-          Buffer.from(parts[0], 'base64url').toString('utf-8'),
-        );
-        const payload = JSON.parse(
-          Buffer.from(parts[1], 'base64url').toString('utf-8'),
-        );
-        tokenMetadata = {
-          email: payload.email || payload.azp || 'unknown',
-          aud: payload.aud,
-          exp: payload.exp,
-          tokenLength: token.length,
-          tokenPrefix: token.substring(0, 20) + '...',
-        };
-        
-        // Log full token structure being sent (for debugging)
-        this.logger.warn(
-          `[AnythingLLM Request] Token being sent - Header: ${JSON.stringify(header)} | Payload Claims: ${JSON.stringify(payload)}`,
-        );
-      }
-    } catch (decodeError) {
-      this.logger.warn(
-        `[AnythingLLM Request] Could not decode token for logging: ${decodeError instanceof Error ? decodeError.message : 'Unknown error'}`,
-      );
-    }
+    // REMOVED: Token metadata logging for HIPAA compliance and security
+    // Token structure, headers, payloads, and service account emails should never be logged
 
-    // Log outgoing request (HIPAA-compliant: no tokens, no PHI)
-    if (tokenMetadata) {
-      this.logger.warn(
-        `[AnythingLLM Request] ${method} ${url} | RequestId: ${requestId} | Token Service Account: ${tokenMetadata.email} | Token Audience: ${tokenMetadata.aud} | Token Length: ${tokenMetadata.tokenLength} bytes`,
-      );
-    } else {
-      this.logger.warn(
-        `[AnythingLLM Request] ${method} ${url} | RequestId: ${requestId}`,
-      );
-    }
+    // Request logging moved to DEBUG level for HIPAA compliance
+    // Only log method and endpoint, no tokens or service account details
+    this.logger.debug(
+      `[AnythingLLM Request] ${method} ${endpoint} | RequestId: ${requestId}`,
+    );
 
     try {
       // Build headers for request
@@ -113,14 +84,8 @@ export class AnythingLLMClientService {
         ...((options.headers as Record<string, string>) || {}),
       };
 
-      // Log all headers being sent (without the token value)
-      const headersForLogging = { ...requestHeaders };
-      if (headersForLogging.Authorization) {
-        headersForLogging.Authorization = `Bearer <REDACTED-${token.length} chars>`;
-      }
-      this.logger.warn(
-        `[AnythingLLM Request] Headers being sent: ${JSON.stringify(headersForLogging)}`,
-      );
+      // REMOVED: Header logging for HIPAA compliance
+      // Headers should not be logged in production
 
       // Make request with service identity headers
       const response = await fetch(url, {
@@ -130,23 +95,29 @@ export class AnythingLLMClientService {
 
       const duration = Date.now() - startTime;
 
-      // Log response (HIPAA-compliant: no tokens, no PHI)
+      // Response logging: only log errors at ERROR level, success at DEBUG level
       if (response.ok) {
-        this.logger.warn(
-          `[AnythingLLM Response] ${method} ${url} | Status: ${response.status} | Duration: ${duration}ms | RequestId: ${requestId}`,
+        // Success responses moved to DEBUG level for HIPAA compliance
+        this.logger.debug(
+          `[AnythingLLM Response] ${method} ${endpoint} | Status: ${response.status} | Duration: ${duration}ms | RequestId: ${requestId}`,
         );
       } else {
-        // Get response body for error details
+        // Error responses: log at ERROR level but sanitize error body for HIPAA compliance
         let errorBody = '';
         try {
           const text = await response.clone().text();
-          errorBody = text.substring(0, 200); // Limit to 200 chars
+          // Sanitize error body: remove potential PHI, limit length
+          const sanitized = text
+            .substring(0, 100)
+            .replace(/[^\w\s\-.,:;!?]/g, '');
+          errorBody = sanitized || 'No error details';
         } catch {
           // Ignore if we can't read the body
+          errorBody = 'Unable to read error response';
         }
 
-        this.logger.warn(
-          `[AnythingLLM Response] ${method} ${url} | Status: ${response.status} | Duration: ${duration}ms | RequestId: ${requestId} | Error: ${errorBody || 'No error details'}`,
+        this.logger.error(
+          `[AnythingLLM Response] ${method} ${endpoint} | Status: ${response.status} | Duration: ${duration}ms | RequestId: ${requestId} | Error: ${errorBody}`,
         );
       }
 
@@ -155,11 +126,11 @@ export class AnythingLLMClientService {
       const duration = Date.now() - startTime;
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      // Error logging: HIPAA-compliant, use endpoint instead of full URL
       this.logger.error(
-        `[AnythingLLM Error] ${method} ${url} | Duration: ${duration}ms | RequestId: ${requestId} | Error: ${errorMessage}`,
+        `[AnythingLLM Error] ${method} ${endpoint} | Duration: ${duration}ms | RequestId: ${requestId} | Error: ${errorMessage}`,
       );
       throw error;
     }
   }
 }
-

@@ -26,9 +26,3 @@ export class UpdateManagerProfileDto {
   @IsString()
   operatingHours?: string;
 }
-
-
-
-
-
-

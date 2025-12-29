@@ -44,15 +44,15 @@ import { RoleEnum } from '../roles/roles.enum';
 
 /**
  * Revocation Request Controller
- * 
+ *
  * Handles revocation request workflow endpoints.
- * 
+ *
  * HIPAA Compliance:
  * - All endpoints protected by JWT authentication
  * - Authorization enforced (origin manager for approve/deny, requester for cancel)
  * - All workflow steps audit logged
  * - No PHI in responses
- * 
+ *
  * Authorization Rules:
  * - Create: Any user/manager with document access
  * - List: Origin manager (all requests) or requester (own requests)
@@ -89,7 +89,8 @@ export class RevocationController {
     description: 'Invalid or expired access token',
   })
   @ApiForbiddenResponse({
-    description: 'Requester does not have access to the document or admin attempting access',
+    description:
+      'Requester does not have access to the document or admin attempting access',
   })
   @ApiNotFoundResponse({
     description: 'Document not found',
@@ -348,4 +349,3 @@ export class RevocationController {
     await this.revocationDomainService.cancelRequest(requestId, actor);
   }
 }
-

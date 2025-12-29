@@ -138,7 +138,8 @@ export class UpstreamError extends Error {
     try {
       const body = await response.text();
       const json = JSON.parse(body);
-      message = json.error || json.message || `Upstream error: ${response.status}`;
+      message =
+        json.error || json.message || `Upstream error: ${response.status}`;
     } catch {
       message = `Upstream error: ${response.status} ${response.statusText}`;
     }

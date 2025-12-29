@@ -12,12 +12,12 @@ import { Actor } from '../access-control/domain/services/access-grant.domain.ser
 
 /**
  * Revocation Service (Application Layer)
- * 
+ *
  * Thin facade over RevocationRequestDomainService that handles:
  * - DTO transformations (domain → response DTO)
  * - Pagination formatting
  * - Authorization checks at application layer
- * 
+ *
  * Business logic lives in domain service.
  */
 @Injectable()
@@ -47,7 +47,7 @@ export class RevocationService {
 
   /**
    * List revocation requests with filtering and pagination
-   * 
+   *
    * Authorization:
    * - If documentId provided: actor must be origin manager OR requester
    * - If no documentId: return actor's own requests only
@@ -81,13 +81,14 @@ export class RevocationService {
 
       // Filter by request type if provided
       if (query.requestType) {
-        requests = requests.filter((req) => req.requestType === query.requestType);
+        requests = requests.filter(
+          (req) => req.requestType === query.requestType,
+        );
       }
 
       // If actor is not origin manager, filter to only their own requests
       const isOriginManager =
-        actor.type === 'manager' &&
-        document.originManagerId === actor.id;
+        actor.type === 'manager' && document.originManagerId === actor.id;
 
       if (!isOriginManager) {
         requests = requests.filter(
@@ -100,7 +101,9 @@ export class RevocationService {
       // List actor's own requests
       // Type assertion: admins are already filtered out in controller
       if (actor.type === 'admin') {
-        throw new ForbiddenException('Admins do not have document-level access');
+        throw new ForbiddenException(
+          'Admins do not have document-level access',
+        );
       }
       requests = await this.revocationDomainService.listRequestsByRequester(
         actor.type as 'user' | 'manager',
@@ -112,7 +115,9 @@ export class RevocationService {
         requests = requests.filter((req) => req.status === query.status);
       }
       if (query.requestType) {
-        requests = requests.filter((req) => req.requestType === query.requestType);
+        requests = requests.filter(
+          (req) => req.requestType === query.requestType,
+        );
       }
     }
 
@@ -128,7 +133,7 @@ export class RevocationService {
 
   /**
    * Get revocation request by ID
-   * 
+   *
    * Authorization: actor must be origin manager OR requester
    */
   async getRequest(
@@ -144,8 +149,7 @@ export class RevocationService {
     );
 
     const isOriginManager =
-      actor.type === 'manager' &&
-      document.originManagerId === actor.id;
+      actor.type === 'manager' && document.originManagerId === actor.id;
 
     const isRequester =
       request.requestedByType === actor.type &&
@@ -169,4 +173,3 @@ export class RevocationService {
     });
   }
 }
-

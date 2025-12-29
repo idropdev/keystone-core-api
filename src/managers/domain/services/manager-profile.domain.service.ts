@@ -21,10 +21,10 @@ export interface UpdateManagerProfileData {
 
 /**
  * Domain Service for Manager Profile Management
- * 
+ *
  * Handles manager self-service profile updates with restrictions:
  * - Cannot update verification status
- * 
+ *
  * HIPAA Requirement: Only verified managers can update profile
  */
 @Injectable()
@@ -39,7 +39,7 @@ export class ManagerProfileDomainService {
 
   /**
    * Update manager profile (Manager self-service, verified only)
-   * 
+   *
    * Restrictions:
    * - Only verified managers can update
    * - Cannot update verification status
@@ -50,25 +50,23 @@ export class ManagerProfileDomainService {
   ): Promise<Manager> {
     const manager = await this.managerRepository.findById(managerId);
     if (!manager) {
-      throw new NotFoundException(
-        `Manager with ID ${managerId} not found`,
-      );
+      throw new NotFoundException(`Manager with ID ${managerId} not found`);
     }
 
     // Verify manager is verified
     this.logger.log(
       `[UPDATE PROFILE] Verification check: managerId=${managerId}, ` +
-      `displayName="${manager.displayName}", ` +
-      `verificationStatus="${manager.verificationStatus}", ` +
-      `verifiedAt=${manager.verifiedAt || 'null'}, ` +
-      `verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
+        `displayName="${manager.displayName}", ` +
+        `verificationStatus="${manager.verificationStatus}", ` +
+        `verifiedAt=${manager.verifiedAt || 'null'}, ` +
+        `verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
     );
 
     if (manager.verificationStatus !== 'verified') {
       this.logger.warn(
         `[UPDATE PROFILE] ❌ FORBIDDEN (403): Manager ${managerId} attempted to update profile but manager is not verified. ` +
-        `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
-        `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
+          `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
+          `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
       );
       throw new ForbiddenException(
         'Manager must be verified before updating profile',
@@ -124,9 +122,7 @@ export class ManagerProfileDomainService {
       },
     });
 
-    this.logger.log(
-      `Manager profile updated for manager ${managerId}`,
-    );
+    this.logger.log(`Manager profile updated for manager ${managerId}`);
 
     return manager;
   }
@@ -137,9 +133,7 @@ export class ManagerProfileDomainService {
   async getManagerProfile(managerId: number): Promise<Manager> {
     const manager = await this.managerRepository.findById(managerId);
     if (!manager) {
-      throw new NotFoundException(
-        `Manager with ID ${managerId} not found`,
-      );
+      throw new NotFoundException(`Manager with ID ${managerId} not found`);
     }
 
     return manager;

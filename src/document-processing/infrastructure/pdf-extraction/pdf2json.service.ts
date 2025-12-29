@@ -90,7 +90,7 @@ export class Pdf2JsonService {
     const originalConsoleError = console.error;
     const originalConsoleLog = console.log;
     const suppressedMessages: string[] = [];
-    
+
     // Intercept console.error to suppress pdf2json's verbose output
     console.error = (...args: any[]) => {
       const message = args.join(' ');
@@ -137,36 +137,42 @@ export class Pdf2JsonService {
         // Restore console functions
         console.error = originalConsoleError;
         console.log = originalConsoleLog;
-        
+
         const error = errData.parserError;
         const errorMessage = error?.message || String(error);
-        
+
         // Determine error type for better handling
         let errorType: 'XRef' | 'Parse' | 'Unknown' = 'Unknown';
-        if (errorMessage.includes('Invalid XRef stream header') || errorMessage.includes('XRef')) {
+        if (
+          errorMessage.includes('Invalid XRef stream header') ||
+          errorMessage.includes('XRef')
+        ) {
           errorType = 'XRef';
-        } else if (errorMessage.includes('Parse') || errorMessage.includes('parse')) {
+        } else if (
+          errorMessage.includes('Parse') ||
+          errorMessage.includes('parse')
+        ) {
           errorType = 'Parse';
         }
-        
+
         // Log a clean, structured error message (suppressed verbose stack traces from library)
         this.logger.warn(
           `[PDF2JSON] PDF parsing failed: ${errorType} error - ${errorMessage.substring(0, 200)}`,
         );
-        
+
         if (suppressedMessages.length > 0) {
           this.logger.debug(
             `[PDF2JSON] Suppressed ${suppressedMessages.length} verbose error message(s) from pdf2json library`,
           );
         }
-        
+
         // Wrap error in custom error class for better error handling
         const wrappedError = new PdfParseError(
           `PDF parsing failed: ${errorMessage.substring(0, 200)}`,
           error,
           errorType,
         );
-        
+
         // Reject with wrapped error (will be handled by caller's fallback logic)
         reject(wrappedError);
       });
@@ -175,7 +181,7 @@ export class Pdf2JsonService {
         // Restore console functions on success
         console.error = originalConsoleError;
         console.log = originalConsoleLog;
-        
+
         this.logger.log(
           `[PDF2JSON] parse done: pages=${pdfData.Pages?.length}`,
         );
@@ -194,24 +200,26 @@ export class Pdf2JsonService {
         // Ensure console functions are restored even on error
         console.error = originalConsoleError;
         console.log = originalConsoleLog;
-        
+
         // If error is already wrapped, re-throw it
         if (err instanceof PdfParseError) {
           throw err;
         }
-        
+
         // Otherwise, wrap it
         const errorMessage = err?.message || String(err);
-        const errorType: 'XRef' | 'Parse' | 'Unknown' = errorMessage.includes('XRef')
+        const errorType: 'XRef' | 'Parse' | 'Unknown' = errorMessage.includes(
+          'XRef',
+        )
           ? 'XRef'
           : errorMessage.includes('Parse') || errorMessage.includes('parse')
             ? 'Parse'
             : 'Unknown';
-        
+
         this.logger.warn(
           `[PDF2JSON] Parse failed: ${errorType} error - ${errorMessage.substring(0, 200)}`,
         );
-        
+
         throw new PdfParseError(
           `PDF parsing failed: ${errorMessage.substring(0, 200)}`,
           err,

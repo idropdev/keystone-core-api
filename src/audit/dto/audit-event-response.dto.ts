@@ -42,7 +42,12 @@ export class AuditEventResponseDto {
     enum: ['document', 'access_grant', 'revocation_request', 'user', 'manager'],
     example: 'document',
   })
-  targetType?: 'document' | 'access_grant' | 'revocation_request' | 'user' | 'manager';
+  targetType?:
+    | 'document'
+    | 'access_grant'
+    | 'revocation_request'
+    | 'user'
+    | 'manager';
 
   @ApiPropertyOptional({
     description: 'Target ID',
@@ -128,4 +133,3 @@ export class AuditEventResponseDto {
   })
   metadata?: Record<string, any>;
 }
-

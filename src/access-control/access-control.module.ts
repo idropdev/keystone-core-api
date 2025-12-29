@@ -29,7 +29,10 @@ import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.r
     AccessControlService,
   ],
   controllers: [AccessControlController],
-  exports: [AccessGrantRepository, AccessGrantDomainService, AccessControlService],
+  exports: [
+    AccessGrantRepository,
+    AccessGrantDomainService,
+    AccessControlService,
+  ],
 })
 export class AccessControlModule {}
-

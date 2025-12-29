@@ -11,20 +11,20 @@ import {
 
 /**
  * Revocation Request Entity (Database)
- * 
+ *
  * Represents a workflow request to revoke access to a document.
- * 
+ *
  * Workflow States:
  * - pending: Request created, awaiting origin manager approval
  * - approved: Origin manager approved, access revoked
  * - denied: Origin manager denied the request
  * - cancelled: Requester cancelled the request
- * 
+ *
  * Request Types:
  * - self_revocation: User/Manager requesting to revoke their own access
  * - user_revocation: Manager requesting to revoke a user's access
  * - manager_revocation: Manager requesting to revoke another manager's access
- * 
+ *
  * HIPAA Compliance:
  * - No PHI stored in this entity
  * - All mutations audit logged
@@ -34,7 +34,9 @@ import {
 @Index(['documentId', 'status'])
 @Index(['requestedByType', 'requestedById'])
 @Index(['status', 'createdAt'])
-@Check(`"requestType" IN ('self_revocation', 'user_revocation', 'manager_revocation')`)
+@Check(
+  `"requestType" IN ('self_revocation', 'user_revocation', 'manager_revocation')`,
+)
 @Check(`"status" IN ('pending', 'approved', 'denied', 'cancelled')`)
 @Check(`"requestedByType" IN ('user', 'manager')`)
 export class RevocationRequestEntity {
@@ -81,4 +83,3 @@ export class RevocationRequestEntity {
   @DeleteDateColumn({ name: 'deleted_at', nullable: true })
   deletedAt?: Date; // Soft delete (for cancelled requests)
 }
-

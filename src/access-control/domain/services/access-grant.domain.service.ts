@@ -27,14 +27,14 @@ export interface Actor {
 
 /**
  * AccessGrantDomainService
- * 
+ *
  * Handles access grant creation, revocation, and access resolution.
- * 
+ *
  * Key Rules:
  * - Origin manager has implicit access (no AccessGrant needed)
  * - All other access requires explicit AccessGrant
  * - Access resolution: origin manager OR active AccessGrant
- * 
+ *
  * HIPAA Compliance:
  * - No PHI in logs
  * - All access decisions audited
@@ -51,11 +51,11 @@ export class AccessGrantDomainService {
 
   /**
    * Check if an actor has access to a document
-   * 
+   *
    * Access Resolution Logic:
    * 1. If actor is origin manager → implicit access (return true)
    * 2. Otherwise → check for active AccessGrant
-   * 
+   *
    * @param documentId - Document UUID
    * @param actorType - 'user' | 'manager' | 'admin'
    * @param actorId - User/Manager ID
@@ -100,12 +100,12 @@ export class AccessGrantDomainService {
 
   /**
    * Create a new access grant
-   * 
+   *
    * Validation:
    * - Document must exist
    * - Grantor must have authority (origin manager or user with delegated grant)
    * - Subject cannot be origin manager (they have implicit access)
-   * 
+   *
    * @param dto - Grant creation data
    * @param grantor - Actor creating the grant
    * @returns Created AccessGrant
@@ -138,8 +138,7 @@ export class AccessGrantDomainService {
     // 3. Validate subject is not origin manager (they have implicit access)
     // NOTE: dto.subjectId is the User ID, but originManagerId is the Manager ID
     if (dto.subjectType === 'manager') {
-      const manager =
-        await this.managerRepository.findByUserId(dto.subjectId);
+      const manager = await this.managerRepository.findByUserId(dto.subjectId);
       if (manager && document.originManagerId === manager.id) {
         throw new BadRequestException(
           'Cannot create grant for origin manager (they have implicit access)',
@@ -178,11 +177,11 @@ export class AccessGrantDomainService {
 
   /**
    * Revoke an access grant
-   * 
+   *
    * Validation:
    * - Grant must exist and be active
    * - Revoker must have authority (origin manager or grant creator)
-   * 
+   *
    * @param grantId - Grant ID to revoke
    * @param revoker - Actor revoking the grant
    */
@@ -209,8 +208,7 @@ export class AccessGrantDomainService {
     // NOTE: revoker.id is the User ID, but originManagerId is the Manager ID
     let isOriginManager = false;
     if (revoker.type === 'manager') {
-      const manager =
-        await this.managerRepository.findByUserId(revoker.id);
+      const manager = await this.managerRepository.findByUserId(revoker.id);
       if (manager && document.originManagerId === manager.id) {
         isOriginManager = true;
       }
@@ -218,8 +216,7 @@ export class AccessGrantDomainService {
 
     // Grant creator can revoke their own grants (for delegated grants)
     const isGrantCreator =
-      grant.grantedByType === revoker.type &&
-      grant.grantedById === revoker.id;
+      grant.grantedByType === revoker.type && grant.grantedById === revoker.id;
 
     if (!isOriginManager && !isGrantCreator) {
       throw new ForbiddenException(
@@ -240,7 +237,7 @@ export class AccessGrantDomainService {
 
   /**
    * Get all active grants for a document
-   * 
+   *
    * @param documentId - Document UUID
    * @returns Array of active AccessGrants
    */
@@ -250,7 +247,7 @@ export class AccessGrantDomainService {
 
   /**
    * Get all active grants for a subject
-   * 
+   *
    * @param subjectType - 'user' | 'manager'
    * @param subjectId - User/Manager ID
    * @returns Array of active AccessGrants
@@ -264,7 +261,7 @@ export class AccessGrantDomainService {
 
   /**
    * Get a specific grant by ID
-   * 
+   *
    * @param grantId - Grant ID
    * @returns AccessGrant or null
    */
@@ -272,4 +269,3 @@ export class AccessGrantDomainService {
     return this.accessGrantRepository.findById(grantId);
   }
 }
-

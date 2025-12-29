@@ -16,7 +16,7 @@ import { RoleEnum } from '../../src/roles/roles.enum';
 
 /**
  * Comprehensive Document Processing Full Workflow E2E Tests
- * 
+ *
  * Tests the complete end-to-end functionality of the document processing system:
  * 1. User creation and authentication
  * 2. Document upload
@@ -25,7 +25,7 @@ import { RoleEnum } from '../../src/roles/roles.enum';
  * 5. Field extraction and retrieval
  * 6. Manager assignment and access control
  * 7. Full workflow scenarios
- * 
+ *
  * This test suite validates the intelligent PDF processing system that uses:
  * - pdf2json for direct text extraction (fast, free)
  * - pdf-parse fallback for XRef errors
@@ -108,7 +108,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(response.body).toHaveProperty('fileSize');
       expect(response.body).toHaveProperty('mimeType', 'application/pdf');
       expect(response.body).toHaveProperty('originManagerId', manager.id);
-      expect(response.body).toHaveProperty('description', 'Test lab result for workflow testing');
+      expect(response.body).toHaveProperty(
+        'description',
+        'Test lab result for workflow testing',
+      );
       expect(response.body).toHaveProperty('createdAt');
 
       // Store documentId for subsequent tests
@@ -135,7 +138,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
       // Users automatically get Manager records when created (auto-verified)
       // This test validates that the expected default behavior works correctly
       const testUser = await createTestUser(RoleEnum.user, 'upload-test-user');
-      
+
       // Wait to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -233,7 +236,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(response.body).toHaveProperty('fileSize');
       expect(response.body).toHaveProperty('mimeType', 'application/pdf');
       expect(response.body).toHaveProperty('originManagerId', manager.id);
-      expect(response.body).toHaveProperty('description', 'Test lab result for workflow testing');
+      expect(response.body).toHaveProperty(
+        'description',
+        'Test lab result for workflow testing',
+      );
       expect(response.body).toHaveProperty('createdAt');
     });
 
@@ -281,7 +287,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
         // Handle rate limiting
         if (response.status === 429) {
-          console.log(`[LIST DOCUMENTS] Rate limited on page ${page}, waiting before retry...`);
+          console.log(
+            `[LIST DOCUMENTS] Rate limited on page ${page}, waiting before retry...`,
+          );
           await new Promise((resolve) => setTimeout(resolve, 65000));
           response = await request(APP_URL)
             .get(`/api/v1/documents?page=${page}&limit=20`)
@@ -296,11 +304,11 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
         const pageDocumentIds = response.body.data.map((doc: any) => doc.id);
         allDocumentIds = [...allDocumentIds, ...pageDocumentIds];
-        
+
         console.log(
           `[LIST DOCUMENTS] Page ${page}: Found ${pageDocumentIds.length} documents. Looking for: ${documentId}`,
         );
-        
+
         if (pageDocumentIds.includes(documentId)) {
           found = true;
           console.log(`[LIST DOCUMENTS] Document found on page ${page}`);
@@ -425,7 +433,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Check status multiple times to see progression
       // Note: OCR processing may be fast or async, so we check a few times
-      let previousStatus: string | null = null;
+      const previousStatus: string | null = null;
       const maxAttempts = 10;
       const delayMs = 3000; // 3 seconds between checks (to avoid rate limiting)
 
@@ -495,11 +503,11 @@ describe('Document Processing Full Workflow (E2E)', () => {
       if (response.status === 429) {
         console.log('[PROGRESS CHECK] Rate limited, waiting before retry...');
         await new Promise((resolve) => setTimeout(resolve, 65000)); // Wait full rate limit window
-        
+
         const retryResponse = await request(APP_URL)
           .get(`/api/v1/documents/${documentId}/status`)
           .auth(managerUser.token, { type: 'bearer' });
-        
+
         expect(retryResponse.status).toBe(200);
         expect(retryResponse.body).toHaveProperty('status');
 
@@ -712,7 +720,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
       }
 
       // Create a new user without access grant
-      const unauthorizedUser = await createTestUser(RoleEnum.user, 'unauthorized-user');
+      const unauthorizedUser = await createTestUser(
+        RoleEnum.user,
+        'unauthorized-user',
+      );
 
       const response = await request(APP_URL)
         .get(`/api/v1/documents/${documentId}`)
@@ -775,7 +786,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
       console.log('[FULL WORKFLOW] Step 1: Uploading document...');
       // Wait before upload to ensure rate limit bucket has reset
       await new Promise((resolve) => setTimeout(resolve, 3000));
-      
+
       const pdfBuffer = readPdfFile(getTestPdfPath());
       const uploadResponse = await request(APP_URL)
         .post('/api/v1/documents/upload')
@@ -802,7 +813,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Handle rate limiting
       if (detailsResponse.status === 429) {
-        console.log('[FULL WORKFLOW] Rate limited on document details, waiting 65s...');
+        console.log(
+          '[FULL WORKFLOW] Rate limited on document details, waiting 65s...',
+        );
         await new Promise((resolve) => setTimeout(resolve, 65000));
         detailsResponse = await request(APP_URL)
           .get(`/api/v1/documents/${workflowDocumentId}`)
@@ -811,7 +824,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       expect(detailsResponse.status).toBe(200);
       expect(detailsResponse.body).toHaveProperty('id', workflowDocumentId);
-      expect(detailsResponse.body).toHaveProperty('originManagerId', manager.id);
+      expect(detailsResponse.body).toHaveProperty(
+        'originManagerId',
+        manager.id,
+      );
       console.log(
         `[FULL WORKFLOW] Document details verified: ${detailsResponse.body.fileName}`,
       );
@@ -894,7 +910,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Step 6: Verify access control
       console.log('[FULL WORKFLOW] Step 6: Verifying access control...');
-      
+
       // Create access grant for regular user
       try {
         await createAccessGrant(
@@ -912,7 +928,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
           .auth(regularUser.token, { type: 'bearer' });
 
         expect(userAccessResponse.status).toBe(200);
-        expect(userAccessResponse.body).toHaveProperty('id', workflowDocumentId);
+        expect(userAccessResponse.body).toHaveProperty(
+          'id',
+          workflowDocumentId,
+        );
         console.log('[FULL WORKFLOW] User access grant verified');
       } catch (error) {
         console.warn(
@@ -932,7 +951,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(downloadResponse.body.downloadUrl).toMatch(/^https?:\/\//);
       console.log('[FULL WORKFLOW] Download URL generated successfully');
 
-      console.log('[FULL WORKFLOW] ✅ Full workflow test completed successfully!');
+      console.log(
+        '[FULL WORKFLOW] ✅ Full workflow test completed successfully!',
+      );
     }, 180000); // 3 minute timeout for full workflow
   });
 
@@ -978,23 +999,23 @@ describe('Document Processing Full Workflow (E2E)', () => {
   // ============================================================================
   /**
    * Tests the flexibility of the access control system:
-   * 
+   *
    * 1. User as Origin Manager:
    *    - Users upload documents using their auto-created Manager records
    *    - User becomes the origin manager (via their Manager record)
    *    - User can grant access to other managers while retaining origin manager abilities
    *    - Granted managers get view access but cannot manage (cannot trigger OCR, etc.)
-   * 
+   *
    * 2. Manager-to-Manager Sharing:
    *    - Managers can grant access to other managers directly (no user in the middle)
    *    - Only origin manager retains full management capabilities
    *    - Secondary managers get view-only access
-   * 
+   *
    * 3. Multiple Manager Access:
    *    - Origin manager can grant access to multiple managers simultaneously
    *    - Origin manager always retains full authority regardless of grants created
    *    - Each granted manager gets independent view access
-   * 
+   *
    * Key Principle: originManagerId is immutable - once set at upload, it never changes.
    * Access grants provide view access but cannot transfer origin manager authority.
    */
@@ -1007,7 +1028,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
     beforeAll(async () => {
       // Create a user who will upload a document
       userAsManager = await createTestUser(RoleEnum.user, 'owner-user');
-      
+
       // Create two managers for testing access grants
       manager1 = await createTestManager(adminToken);
       manager2 = await createTestManager(adminToken);
@@ -1029,9 +1050,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('originManagerId');
       expect(response.body).toHaveProperty('documentType', 'LAB_RESULT');
-      
+
       userDocumentId = response.body.id;
-      
+
       // User's Manager record becomes the origin manager
       // The user should be able to view and manage this document
       const documentResponse = await request(APP_URL)
@@ -1080,7 +1101,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
         .auth(manager1.token, { type: 'bearer' });
 
       expect([400, 403]).toContain(ocrTriggerResponse.status);
-      expect(ocrTriggerResponse.body.message).toContain('Only the origin manager');
+      expect(ocrTriggerResponse.body.message).toContain(
+        'Only the origin manager',
+      );
 
       // User (origin manager) should still be able to trigger OCR
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -1094,7 +1117,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
     it('should allow manager (origin manager) to grant access to another manager directly (no user in middle)', async () => {
       // Wait 65 seconds to avoid rate limiting (60s rate limit window + 5s buffer)
-      console.log('[MANAGER-TO-MANAGER TEST] Waiting 65s to avoid rate limiting...');
+      console.log(
+        '[MANAGER-TO-MANAGER TEST] Waiting 65s to avoid rate limiting...',
+      );
       await new Promise((resolve) => setTimeout(resolve, 65000));
 
       // Manager1 uploads a document (becomes origin manager)
@@ -1108,7 +1133,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       expect(uploadResponse.status).toBe(201);
       const managerDocumentId = uploadResponse.body.id;
-      expect(uploadResponse.body).toHaveProperty('originManagerId', manager1.id);
+      expect(uploadResponse.body).toHaveProperty(
+        'originManagerId',
+        manager1.id,
+      );
 
       // Wait before creating grant
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -1253,7 +1281,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
         const verifyAccess = await request(APP_URL)
           .get(`/api/v1/documents/${userDocumentId}`)
           .auth(manager1.token, { type: 'bearer' });
-        
+
         if (verifyAccess.status === 200) {
           // Access grant is valid but download failed - might be document processing issue
           console.warn(
@@ -1292,7 +1320,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
     it('should return 404 for non-existent document', async () => {
       const fakeId = '00000000-0000-0000-0000-000000000000';
-      
+
       let response = await request(APP_URL)
         .get(`/api/v1/documents/${fakeId}`)
         .auth(managerUser.token, { type: 'bearer' });
@@ -1311,14 +1339,16 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
     it('should reject invalid UUID format', async () => {
       const invalidId = 'not-a-uuid';
-      
+
       let response = await request(APP_URL)
         .get(`/api/v1/documents/${invalidId}`)
         .auth(managerUser.token, { type: 'bearer' });
 
       // Handle rate limiting
       if (response.status === 429) {
-        console.log('[UUID VALIDATION TEST] Rate limited, waiting before retry...');
+        console.log(
+          '[UUID VALIDATION TEST] Rate limited, waiting before retry...',
+        );
         await new Promise((resolve) => setTimeout(resolve, 65000));
         response = await request(APP_URL)
           .get(`/api/v1/documents/${invalidId}`)
@@ -1345,7 +1375,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       for (let i = 0; i < endpoints.length; i++) {
         const endpoint = endpoints[i];
-        
+
         // Delay between requests to avoid rate limiting
         if (i > 0) {
           await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -1364,9 +1394,10 @@ describe('Document Processing Full Workflow (E2E)', () => {
         }
 
         expect(response.status).toBe(403);
-        expect(response.body.message).toContain('Admins do not have document-level access');
+        expect(response.body.message).toContain(
+          'Admins do not have document-level access',
+        );
       }
     }, 120000); // Extended timeout for rate limit handling
   });
 });
-

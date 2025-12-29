@@ -45,4 +45,3 @@ export abstract class AccessGrantRepository {
     revokedById: number,
   ): Promise<void>;
 }
-

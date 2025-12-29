@@ -40,4 +40,3 @@ export abstract class UserManagerAssignmentRepository {
    */
   abstract exists(userId: number, managerId: number): Promise<boolean>;
 }
-

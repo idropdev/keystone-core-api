@@ -10,16 +10,7 @@ export abstract class ManagerInstanceRepositoryPort {
     organizationId: number,
   ): Promise<ManagerInstance[]>;
   abstract save(instance: ManagerInstance): Promise<ManagerInstance>;
-  abstract update(
-    id: number,
-    updates: Partial<ManagerInstance>,
-  ): Promise<void>;
+  abstract update(id: number, updates: Partial<ManagerInstance>): Promise<void>;
   abstract delete(id: number): Promise<void>;
   abstract findAllVerified(): Promise<ManagerInstance[]>;
 }
-
-
-
-
-
-

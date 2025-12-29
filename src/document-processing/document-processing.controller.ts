@@ -148,10 +148,10 @@ export class DocumentProcessingController {
     @Body() dto: UploadDocumentDto,
   ): Promise<DocumentResponseDto> {
     const logger = new Logger(DocumentProcessingController.name);
-    
+
     logger.log(
       `[UPLOAD DOCUMENT] Request received: userId=${req.user?.id}, roleId=${req.user?.role?.id}, ` +
-      `documentType=${dto.documentType}, fileName=${file?.originalname || 'none'}, fileSize=${file?.size || 0}`,
+        `documentType=${dto.documentType}, fileName=${file?.originalname || 'none'}, fileSize=${file?.size || 0}`,
     );
 
     if (!file) {

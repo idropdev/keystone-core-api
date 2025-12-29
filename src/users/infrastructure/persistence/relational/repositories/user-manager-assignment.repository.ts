@@ -74,7 +74,7 @@ export class UserManagerAssignmentRelationalRepository
     // The save() method should commit immediately. If issues persist in tests,
     // ensure test setup properly commits transactions
     const saved = await this.repository.save(entity);
-    
+
     return this.toDomain(saved);
   }
 
@@ -111,4 +111,3 @@ export class UserManagerAssignmentRelationalRepository
     };
   }
 }
-

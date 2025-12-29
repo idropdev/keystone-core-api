@@ -1,26 +1,26 @@
 /**
  * PHI Sanitizer Utility
- * 
+ *
  * HIPAA Compliance: Ensures no Protected Health Information (PHI) is logged.
- * 
+ *
  * PHI Exclusion Rules:
  * - ❌ Never log: document contents, OCR text, extracted field values, user names, emails, addresses
  * - ✅ Always log: documentId, userId, managerId, eventType, timestamp, success, action
  * - ✅ Optional metadata: fileSize, documentType, grantType (non-PHI metadata only)
- * 
+ *
  * This utility provides functions to sanitize data before logging to ensure HIPAA compliance.
  */
 
 /**
  * Sanitize error messages to remove PHI and sensitive data
- * 
+ *
  * Removes:
  * - Email addresses
  * - Tokens (Bearer tokens, API keys)
  * - SSN patterns
  * - Long numbers (potential medical record numbers)
  * - Phone numbers
- * 
+ *
  * @param error - Error message to sanitize
  * @returns Sanitized error message (max 500 chars)
  */
@@ -40,7 +40,10 @@ export function sanitizeErrorMessage(error: string): string {
   // Remove tokens
   sanitized = sanitized.replace(/Bearer\s+[^\s]+/gi, 'Bearer [TOKEN_REDACTED]');
   sanitized = sanitized.replace(/token[:\s]+[^\s]+/gi, 'token: [REDACTED]');
-  sanitized = sanitized.replace(/api[_-]?key[:\s]+[^\s]+/gi, 'api_key: [REDACTED]');
+  sanitized = sanitized.replace(
+    /api[_-]?key[:\s]+[^\s]+/gi,
+    'api_key: [REDACTED]',
+  );
 
   // Remove SSN patterns (XXX-XX-XXXX)
   sanitized = sanitized.replace(/\d{3}-\d{2}-\d{4}/g, '[SSN_REDACTED]');
@@ -67,11 +70,11 @@ export function sanitizeErrorMessage(error: string): string {
 
 /**
  * Sanitize user agent string
- * 
+ *
  * Truncates to 200 characters to prevent excessive logging.
  * User agent strings don't typically contain PHI, but truncation prevents
  * potential information leakage.
- * 
+ *
  * @param userAgent - User agent string
  * @returns Sanitized user agent (max 200 chars)
  */
@@ -86,14 +89,14 @@ export function sanitizeUserAgent(userAgent: string): string {
 
 /**
  * Sanitize metadata object to remove PHI
- * 
+ *
  * Removes:
  * - Field values (fieldValue, editedValue, ocrText, extractedText)
  * - User names (userName, patientName, firstName, lastName)
  * - Email addresses
  * - Phone numbers
  * - Any nested objects that might contain PHI
- * 
+ *
  * Keeps:
  * - Field keys (identifiers like "patient_name")
  * - Counts (fieldCount, entityCount)
@@ -101,7 +104,7 @@ export function sanitizeUserAgent(userAgent: string): string {
  * - Status values
  * - Document types (categories, not content)
  * - File sizes (bytes, not PHI)
- * 
+ *
  * @param metadata - Metadata object to sanitize
  * @returns Sanitized metadata object (no PHI)
  */
@@ -190,10 +193,10 @@ export function sanitizeMetadata(
 
 /**
  * Validate that metadata does not contain PHI
- * 
+ *
  * Performs a final check to ensure no PHI slipped through.
  * Throws an error if PHI is detected (should never happen in production).
- * 
+ *
  * @param metadata - Metadata to validate
  * @throws Error if PHI is detected
  */
@@ -228,4 +231,3 @@ export function validateNoPhi(metadata: Record<string, any>): void {
 
   checkValue(metadata);
 }
-

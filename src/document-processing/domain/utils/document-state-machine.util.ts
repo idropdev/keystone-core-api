@@ -3,9 +3,9 @@ import { DocumentStatus } from '../enums/document-status.enum';
 
 /**
  * Document State Machine Utility
- * 
+ *
  * Enforces valid state transitions according to Phase 2 design.
- * 
+ *
  * Valid Transitions:
  * - UPLOADED → STORED (automatic, system)
  * - UPLOADED → ERROR (automatic, system)
@@ -40,7 +40,7 @@ export class DocumentStateMachine {
 
   /**
    * Check if a state transition is valid
-   * 
+   *
    * @param fromStatus - Current document status
    * @param toStatus - Target document status
    * @returns true if transition is valid, false otherwise
@@ -69,7 +69,7 @@ export class DocumentStateMachine {
 
   /**
    * Validate a state transition and throw if invalid
-   * 
+   *
    * @param fromStatus - Current document status
    * @param toStatus - Target document status
    * @throws BadRequestException if transition is invalid
@@ -88,7 +88,7 @@ export class DocumentStateMachine {
 
   /**
    * Get all valid target states for a given source state
-   * 
+   *
    * @param fromStatus - Source document status
    * @returns Array of valid target states
    */
@@ -98,7 +98,7 @@ export class DocumentStateMachine {
 
   /**
    * Check if a state is terminal (no transitions allowed)
-   * 
+   *
    * @param status - Document status
    * @returns true if status is terminal
    */
@@ -108,7 +108,7 @@ export class DocumentStateMachine {
 
   /**
    * Check if a state allows processing
-   * 
+   *
    * @param status - Document status
    * @returns true if status allows OCR processing
    */
@@ -122,7 +122,7 @@ export class DocumentStateMachine {
 
   /**
    * Check if a state allows retry
-   * 
+   *
    * @param status - Document status
    * @returns true if status allows retry
    */
@@ -130,4 +130,3 @@ export class DocumentStateMachine {
     return status === DocumentStatus.FAILED;
   }
 }
-

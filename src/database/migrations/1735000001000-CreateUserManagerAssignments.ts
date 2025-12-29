@@ -152,4 +152,3 @@ export class CreateUserManagerAssignments1735000001000
     await queryRunner.dropTable('user_manager_assignments', true);
   }
 }
-

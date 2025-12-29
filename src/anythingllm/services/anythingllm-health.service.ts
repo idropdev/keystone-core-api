@@ -11,9 +11,7 @@ import { AnythingLLMClientService } from './anythingllm-client.service';
 export class AnythingLLMHealthService {
   private readonly logger = new Logger(AnythingLLMHealthService.name);
 
-  constructor(
-    private readonly anythingllmClient: AnythingLLMClientService,
-  ) {}
+  constructor(private readonly anythingllmClient: AnythingLLMClientService) {}
 
   /**
    * Check AnythingLLM connectivity and service identity authentication
@@ -83,7 +81,7 @@ export class AnythingLLMHealthService {
       }
 
       // Try to parse response to verify it's valid JSON
-      const data = await response.json().catch(() => null);
+      await response.json().catch(() => null);
 
       this.logger.warn(
         `[AnythingLLM Health Check] Health check successful: Status ${response.status} | Response time: ${responseTime}ms`,
@@ -134,4 +132,3 @@ export class AnythingLLMHealthService {
     }
   }
 }
-

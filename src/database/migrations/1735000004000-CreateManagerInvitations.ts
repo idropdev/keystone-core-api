@@ -158,9 +158,3 @@ export class CreateManagerInvitations1735000004000
     await queryRunner.dropTable('manager_invitations', true);
   }
 }
-
-
-
-
-
-

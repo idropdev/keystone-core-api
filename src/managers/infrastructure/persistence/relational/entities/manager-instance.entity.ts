@@ -47,13 +47,22 @@ export class ManagerInstanceEntity extends EntityRelationalHelper {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
 
-  @Column({ name: 'display_name', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'display_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   displayName?: string;
 
   @Column({ name: 'phone', type: 'varchar', length: 50, nullable: true })
   phone?: string;
 
-  @Column({ name: 'operating_hours', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'operating_hours',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   operatingHours?: string;
 }
-

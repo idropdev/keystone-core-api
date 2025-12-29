@@ -41,10 +41,7 @@ export interface RetryPolicy {
 /**
  * Endpoint definition shape
  */
-export interface EndpointDefinition<
-  TRequest = unknown,
-  TResponse = unknown,
-> {
+export interface EndpointDefinition<TRequest = unknown, TResponse = unknown> {
   /** Unique identifier for the endpoint */
   id: string;
   /** HTTP method */

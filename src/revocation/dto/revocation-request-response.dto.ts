@@ -3,9 +3,9 @@ import { Expose } from 'class-transformer';
 
 /**
  * Revocation Request Response DTO
- * 
+ *
  * Represents a revocation request workflow state.
- * 
+ *
  * HIPAA Compliance:
  * - No PHI in response
  * - Only IDs and metadata exposed
@@ -98,4 +98,3 @@ export class RevocationRequestResponseDto {
   @Expose()
   updatedAt: Date;
 }
-

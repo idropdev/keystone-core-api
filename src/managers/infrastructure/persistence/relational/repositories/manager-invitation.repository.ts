@@ -50,10 +50,7 @@ export class ManagerInvitationRelationalRepository
     return this.toDomain(saved);
   }
 
-  async update(
-    id: number,
-    updates: Partial<ManagerInvitation>,
-  ): Promise<void> {
+  async update(id: number, updates: Partial<ManagerInvitation>): Promise<void> {
     await this.repository.update(id, updates);
   }
 

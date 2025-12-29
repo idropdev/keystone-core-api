@@ -1,4 +1,10 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsBoolean, IsUUID } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsUUID,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRevocationRequestDto {
@@ -28,4 +34,3 @@ export class CreateRevocationRequestDto {
   @IsOptional()
   cascadeToSecondaryManagers?: boolean;
 }
-

@@ -72,10 +72,7 @@ export class AdminManagersController {
     description: 'Insufficient permissions. Admin role required.',
   })
   @ApiBadRequestResponse({ description: 'Invalid request body' })
-  async inviteManager(
-    @Request() req,
-    @Body() dto: CreateManagerInvitationDto,
-  ) {
+  async inviteManager(@Request() req, @Body() dto: CreateManagerInvitationDto) {
     const actor = extractActorFromRequest(req);
     if (actor.type !== 'admin') {
       throw new Error('Admin role required');
@@ -136,10 +133,10 @@ export class AdminManagersController {
     @Body() dto: VerifyManagerDto,
   ) {
     const logger = new Logger(AdminManagersController.name);
-    
+
     logger.log(
       `[VERIFY MANAGER] Request received: adminId=${req.user?.id}, managerId=${id}, ` +
-      `status=${dto.status}`,
+        `status=${dto.status}`,
     );
 
     const actor = extractActorFromRequest(req);
@@ -151,7 +148,7 @@ export class AdminManagersController {
     }
 
     const result = await this.onboardingService.verifyManager(actor.id, id);
-    
+
     logger.log(
       `[VERIFY MANAGER] ✅ Verification completed: managerId=${id}, resultId=${result.id}`,
     );

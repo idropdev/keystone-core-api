@@ -10,9 +10,3 @@ export class CreateManagerOrganizationDto {
   @IsNotEmpty()
   name: string;
 }
-
-
-
-
-
-

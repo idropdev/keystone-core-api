@@ -5,16 +5,18 @@ import { JwtPayloadType } from '../../auth/strategies/types/jwt-payload.type';
 
 /**
  * Extract actor from request
- * 
+ *
  * Actor type is determined by role:
  * - RoleEnum.admin (1) → 'admin'
  * - RoleEnum.manager (3) → 'manager'
  * - RoleEnum.user (2) → 'user'
- * 
+ *
  * @param req - Express request with user from JWT
  * @returns Actor object with type and id
  */
-export function extractActorFromRequest(req: Request & { user?: JwtPayloadType }): Actor {
+export function extractActorFromRequest(
+  req: Request & { user?: JwtPayloadType },
+): Actor {
   const userId = req.user?.id;
   const roleId = req.user?.role?.id;
 
@@ -37,4 +39,3 @@ export function extractActorFromRequest(req: Request & { user?: JwtPayloadType }
     id: Number(userId),
   };
 }
-

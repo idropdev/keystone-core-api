@@ -1,10 +1,6 @@
 import request from 'supertest';
 import { APP_URL } from '../utils/constants';
-import {
-  createTestUser,
-  getAdminToken,
-  TestUser,
-} from '../utils/test-helpers';
+import { createTestUser, getAdminToken, TestUser } from '../utils/test-helpers';
 import { RoleEnum } from '../../src/roles/roles.enum';
 
 describe('Manager Assignment Endpoints (E2E)', () => {
@@ -108,7 +104,9 @@ describe('Manager Assignment Endpoints (E2E)', () => {
   describe('DELETE /v1/users/:userId/manager-assignments/:managerId', () => {
     it('should allow admin to remove assignment', async () => {
       await request(APP_URL)
-        .delete(`/api/v1/users/${regularUser.id}/manager-assignments/${managerUser.id}`)
+        .delete(
+          `/api/v1/users/${regularUser.id}/manager-assignments/${managerUser.id}`,
+        )
         .auth(adminToken, { type: 'bearer' })
         .expect(204);
     });
@@ -122,15 +120,11 @@ describe('Manager Assignment Endpoints (E2E)', () => {
         .expect(201);
 
       await request(APP_URL)
-        .delete(`/api/v1/users/${regularUser.id}/manager-assignments/${managerUser.id}`)
+        .delete(
+          `/api/v1/users/${regularUser.id}/manager-assignments/${managerUser.id}`,
+        )
         .auth(regularUser.token, { type: 'bearer' })
         .expect(403);
     });
   });
 });
-
-
-
-
-
-

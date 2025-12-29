@@ -1,4 +1,9 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsString, IsUUID } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateAccessGrantDto {
   @IsUUID()
@@ -25,4 +30,3 @@ export class CreateAccessGrantDto {
   @IsNotEmpty()
   grantedById: number;
 }
-

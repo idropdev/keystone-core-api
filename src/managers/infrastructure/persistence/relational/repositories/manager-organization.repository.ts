@@ -65,10 +65,10 @@ export class ManagerOrganizationRelationalRepository
 
     this.logger.log(
       `[FIND BY ID] Organization retrieved (raw SQL): id=${domain.id}, ` +
-      `name="${domain.name}", verificationStatus="${domain.verificationStatus}", ` +
-      `verifiedAt=${domain.verifiedAt ? domain.verifiedAt.toISOString() : 'null'}, ` +
-      `verifiedById=${domain.verifiedById || 'null'}, ` +
-      `updatedAt=${domain.updatedAt ? domain.updatedAt.toISOString() : 'null'}`,
+        `name="${domain.name}", verificationStatus="${domain.verificationStatus}", ` +
+        `verifiedAt=${domain.verifiedAt ? domain.verifiedAt.toISOString() : 'null'}, ` +
+        `verifiedById=${domain.verifiedById || 'null'}, ` +
+        `updatedAt=${domain.updatedAt ? domain.updatedAt.toISOString() : 'null'}`,
     );
 
     return domain;
@@ -82,9 +82,7 @@ export class ManagerOrganizationRelationalRepository
     return entity ? this.toDomain(entity) : null;
   }
 
-  async save(
-    organization: ManagerOrganization,
-  ): Promise<ManagerOrganization> {
+  async save(organization: ManagerOrganization): Promise<ManagerOrganization> {
     const entity = this.toEntity(organization);
     const saved = await this.repository.save(entity);
     return this.toDomain(saved);
@@ -111,8 +109,8 @@ export class ManagerOrganizationRelationalRepository
 
     this.logger.debug(
       `[UPDATE] Existing organization: id=${existing.id}, name="${existing.name}", ` +
-      `verificationStatus="${existing.verificationStatus}", verifiedAt=${existing.verifiedAt || 'null'}, ` +
-      `verifiedById=${existing.verifiedById || 'null'}`,
+        `verificationStatus="${existing.verificationStatus}", verifiedAt=${existing.verifiedAt || 'null'}, ` +
+        `verifiedById=${existing.verifiedById || 'null'}`,
     );
 
     // Apply updates directly to the entity properties
@@ -150,8 +148,8 @@ export class ManagerOrganizationRelationalRepository
 
     this.logger.log(
       `[UPDATE] Organization saved successfully: organizationId=${id}, ` +
-      `verificationStatus="${existing.verificationStatus}", verifiedAt=${existing.verifiedAt || 'null'}, ` +
-      `verifiedById=${existing.verifiedById || 'null'}`,
+        `verificationStatus="${existing.verificationStatus}", verifiedAt=${existing.verifiedAt || 'null'}, ` +
+        `verifiedById=${existing.verifiedById || 'null'}`,
     );
   }
 
@@ -183,9 +181,7 @@ export class ManagerOrganizationRelationalRepository
     };
   }
 
-  private toEntity(
-    domain: ManagerOrganization,
-  ): ManagerOrganizationEntity {
+  private toEntity(domain: ManagerOrganization): ManagerOrganizationEntity {
     const entity = new ManagerOrganizationEntity();
     entity.id = domain.id;
     entity.name = domain.name;
@@ -195,4 +191,3 @@ export class ManagerOrganizationRelationalRepository
     return entity;
   }
 }
-

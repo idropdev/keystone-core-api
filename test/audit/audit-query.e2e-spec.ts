@@ -20,10 +20,7 @@ describe('Audit Query Endpoints (E2E)', () => {
     regularUser = await createTestUser(RoleEnum.user, 'user');
 
     // Upload a document to generate audit events
-    const result = await uploadTestDocument(
-      managerUser.token,
-      managerUser.id,
-    );
+    const result = await uploadTestDocument(managerUser.token, managerUser.id);
     documentId = result.documentId;
   });
 
@@ -160,9 +157,3 @@ describe('Audit Query Endpoints (E2E)', () => {
     });
   });
 });
-
-
-
-
-
-

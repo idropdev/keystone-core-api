@@ -23,7 +23,7 @@ describe('Access Grant Endpoints (E2E)', () => {
   // Increase timeout to handle rate limiting and manager creation (can take 65+ seconds per user creation)
   beforeAll(async () => {
     adminToken = await getAdminToken();
-    
+
     // Create a proper Manager entity (not just a user with manager role)
     // This creates both the User and Manager entities, and verifies the manager
     manager = await createTestManager(adminToken);
@@ -33,7 +33,7 @@ describe('Access Grant Endpoints (E2E)', () => {
       token: manager.token,
       roleId: RoleEnum.manager,
     };
-    
+
     regularUser = await createTestUser(RoleEnum.user, 'user');
     otherUser = await createTestUser(RoleEnum.user, 'other-user');
 
@@ -92,7 +92,7 @@ describe('Access Grant Endpoints (E2E)', () => {
         token: otherManagerEntity.token,
         roleId: RoleEnum.manager,
       };
-      
+
       // Get user info to populate grantedByType and grantedById
       const userInfoResponse = await request(APP_URL)
         .get('/api/v1/auth/me')
@@ -135,7 +135,7 @@ describe('Access Grant Endpoints (E2E)', () => {
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data.length).toBeGreaterThan(0);
-      
+
       // Verify the grant we created is in the list
       const grant = response.body.data.find((g: any) => g.id === grantId);
       expect(grant).toBeDefined();
@@ -161,7 +161,7 @@ describe('Access Grant Endpoints (E2E)', () => {
 
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
-      
+
       // Should include the grant created for this user
       const userGrant = response.body.data.find(
         (g: any) => g.subjectType === 'user' && g.subjectId === regularUser.id,
@@ -212,8 +212,10 @@ describe('Access Grant Endpoints (E2E)', () => {
         .query({ documentId })
         .auth(managerUser.token, { type: 'bearer' })
         .expect(200);
-      
-      const grantBefore = beforeResponse.body.data.find((g: any) => g.id === grantToRevoke);
+
+      const grantBefore = beforeResponse.body.data.find(
+        (g: any) => g.id === grantToRevoke,
+      );
       expect(grantBefore).toBeDefined();
       expect(grantBefore.revokedAt).toBeNull();
 
@@ -229,8 +231,10 @@ describe('Access Grant Endpoints (E2E)', () => {
         .query({ documentId })
         .auth(managerUser.token, { type: 'bearer' })
         .expect(200);
-      
-      const grantAfter = afterResponse.body.data.find((g: any) => g.id === grantToRevoke);
+
+      const grantAfter = afterResponse.body.data.find(
+        (g: any) => g.id === grantToRevoke,
+      );
       // Revoked grants may not appear in active grants list, or may have revokedAt set
       if (grantAfter) {
         expect(grantAfter.revokedAt).toBeDefined();
@@ -253,7 +257,7 @@ describe('Access Grant Endpoints (E2E)', () => {
         token: otherManagerEntity.token,
         roleId: RoleEnum.manager,
       };
-      
+
       await request(APP_URL)
         .delete(`/api/v1/access-grants/${grantId}`)
         .auth(otherManagerUser.token, { type: 'bearer' })
@@ -261,4 +265,3 @@ describe('Access Grant Endpoints (E2E)', () => {
     }, 120000); // Increase timeout to 120 seconds for manager creation
   });
 });
-

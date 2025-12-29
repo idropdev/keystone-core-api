@@ -40,7 +40,12 @@ describe('Auth Module', () => {
           firstName: newUserFirstName,
           lastName: newUserLastName,
         })
-        .expect(204);
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body).toHaveProperty('user');
+          expect(body.user).toHaveProperty('id');
+          expect(body.user.email).toBe(newUserEmail);
+        });
     });
 
     describe('Login', () => {

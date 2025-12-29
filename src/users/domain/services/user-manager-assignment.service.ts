@@ -14,15 +14,15 @@ import { AuditService, AuthEventType } from '../../../audit/audit.service';
 
 /**
  * UserManagerAssignmentService
- * 
+ *
  * Handles user-manager assignment relationships.
- * 
+ *
  * Key Rules:
  * - Manager must have role 'manager' (RoleEnum.manager = 3)
  * - User cannot be assigned to themselves
  * - Assignments are soft-deleted (not hard deleted)
  * - All assignment changes are audit logged
- * 
+ *
  * HIPAA Compliance:
  * - No PHI in logs
  * - All assignment changes audited
@@ -39,13 +39,13 @@ export class UserManagerAssignmentService {
 
   /**
    * Assign a user to a manager
-   * 
+   *
    * Validation:
    * - Manager must exist and have role 'manager'
    * - User must exist
    * - User cannot be assigned to themselves
    * - Assignment must not already exist
-   * 
+   *
    * @param dto - Assignment creation data
    * @param assignedById - ID of user creating the assignment (admin)
    * @returns Created UserManagerAssignment
@@ -97,9 +97,7 @@ export class UserManagerAssignmentService {
       this.logger.warn(
         `[ASSIGN USER TO MANAGER] Self-assignment attempt: userId=${dto.userId}`,
       );
-      throw new BadRequestException(
-        'User cannot be assigned to themselves',
-      );
+      throw new BadRequestException('User cannot be assigned to themselves');
     }
 
     // 5. Check if assignment already exists
@@ -150,7 +148,7 @@ export class UserManagerAssignmentService {
 
   /**
    * Remove assignment between user and manager
-   * 
+   *
    * @param userId - User ID
    * @param managerId - Manager ID
    * @param removedById - ID of user removing the assignment (admin)
@@ -191,7 +189,7 @@ export class UserManagerAssignmentService {
 
   /**
    * Check if a manager is assigned to a user
-   * 
+   *
    * @param managerId - Manager ID
    * @param userId - User ID
    * @returns true if assignment exists, false otherwise
@@ -210,21 +208,20 @@ export class UserManagerAssignmentService {
 
   /**
    * Get all user IDs assigned to a manager
-   * 
+   *
    * @param managerId - Manager ID
    * @returns Array of user IDs
    */
   async getAssignedUserIds(managerId: number): Promise<number[]> {
-    const assignments = await this.assignmentRepository.findByManagerId(
-      managerId,
-    );
+    const assignments =
+      await this.assignmentRepository.findByManagerId(managerId);
 
     return assignments.map((assignment) => assignment.userId);
   }
 
   /**
    * Get all manager IDs assigned to a user
-   * 
+   *
    * @param userId - User ID
    * @returns Array of manager IDs
    */
@@ -232,7 +229,7 @@ export class UserManagerAssignmentService {
     this.logger.debug(
       `[GET ASSIGNED MANAGER IDS] Querying assignments for userId=${userId}`,
     );
-    
+
     const assignments = await this.assignmentRepository.findByUserId(userId);
 
     this.logger.debug(
@@ -245,8 +242,10 @@ export class UserManagerAssignmentService {
       (assignment) => !assignment.deletedAt,
     );
 
-    const managerIds = activeAssignments.map((assignment) => assignment.managerId);
-    
+    const managerIds = activeAssignments.map(
+      (assignment) => assignment.managerId,
+    );
+
     this.logger.log(
       `[GET ASSIGNED MANAGER IDS] Returning ${managerIds.length} active manager ID(s) for userId=${userId}: [${managerIds.join(', ')}]`,
     );
@@ -256,7 +255,7 @@ export class UserManagerAssignmentService {
 
   /**
    * Get all assignments for a manager
-   * 
+   *
    * @param managerId - Manager ID
    * @returns Array of UserManagerAssignments
    */
@@ -268,14 +267,11 @@ export class UserManagerAssignmentService {
 
   /**
    * Get all assignments for a user
-   * 
+   *
    * @param userId - User ID
    * @returns Array of UserManagerAssignments
    */
-  async getAssignmentsByUser(
-    userId: number,
-  ): Promise<UserManagerAssignment[]> {
+  async getAssignmentsByUser(userId: number): Promise<UserManagerAssignment[]> {
     return this.assignmentRepository.findByUserId(userId);
   }
 }
-

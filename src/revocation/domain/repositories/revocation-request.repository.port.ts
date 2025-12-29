@@ -2,7 +2,7 @@ import { RevocationRequest } from '../entities/revocation-request.entity';
 
 /**
  * Repository Port for RevocationRequest (Hexagonal Architecture)
- * 
+ *
  * Defines the interface for persistence operations on revocation requests.
  * Implementations can be swapped (relational, document, in-memory) without changing domain logic.
  */
@@ -10,7 +10,9 @@ export abstract class RevocationRequestRepositoryPort {
   /**
    * Create a new revocation request
    */
-  abstract create(request: Omit<RevocationRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<RevocationRequest>;
+  abstract create(
+    request: Omit<RevocationRequest, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<RevocationRequest>;
 
   /**
    * Find revocation request by ID
@@ -33,7 +35,9 @@ export abstract class RevocationRequestRepositoryPort {
   /**
    * Find pending requests for a document (for origin manager review)
    */
-  abstract findPendingByDocumentId(documentId: string): Promise<RevocationRequest[]>;
+  abstract findPendingByDocumentId(
+    documentId: string,
+  ): Promise<RevocationRequest[]>;
 
   /**
    * Update revocation request (for status changes, review notes, etc.)
@@ -48,4 +52,3 @@ export abstract class RevocationRequestRepositoryPort {
    */
   abstract softDelete(id: number): Promise<void>;
 }
-

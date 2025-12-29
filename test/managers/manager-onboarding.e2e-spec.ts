@@ -19,7 +19,7 @@ import { DocumentType } from '../../src/document-processing/domain/enums/documen
 
 /**
  * Comprehensive E2E Test Suite for Manager Onboarding Lifecycle
- * 
+ *
  * Tests all possible conditions:
  * - Manager invitation workflow (mocked - no email required)
  * - Manager acceptance and profile creation
@@ -189,7 +189,10 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
       expect(response.body.user).toHaveProperty('email', invitation1.email);
       expect(response.body.manager).toHaveProperty('id');
       expect(response.body.manager).toHaveProperty('displayName');
-      expect(response.body.manager).toHaveProperty('verificationStatus', 'pending');
+      expect(response.body.manager).toHaveProperty(
+        'verificationStatus',
+        'pending',
+      );
 
       managerUser1 = response.body.user;
       manager1 = response.body.manager;
@@ -472,7 +475,10 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
 
       // Verify assignment was created
       expect(assignmentResponse.body).toHaveProperty('userId', regularUser.id);
-      expect(assignmentResponse.body).toHaveProperty('managerId', managerUser1.id); // User ID
+      expect(assignmentResponse.body).toHaveProperty(
+        'managerId',
+        managerUser1.id,
+      ); // User ID
 
       // Wait longer to ensure database transaction is committed
       await delay(1000);
@@ -495,7 +501,10 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
 
     it('should REJECT user without assigned manager from uploading', async () => {
       // Create a user without manager assignment
-      const unassignedUser = await createTestUser(RoleEnum.user, 'unassigned-user');
+      const unassignedUser = await createTestUser(
+        RoleEnum.user,
+        'unassigned-user',
+      );
       await delay(1000);
 
       const pdfBuffer = Buffer.from(
@@ -587,7 +596,7 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
               email,
               password: 'Password123!',
             });
-          
+
           if (loginResponse.status === 200) {
             break;
           } else if (loginResponse.status === 429 && i < 4) {
@@ -595,7 +604,9 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
             await delay(backoffMs);
             continue;
           } else {
-            lastError = new Error(`Login failed with status ${loginResponse.status}`);
+            lastError = new Error(
+              `Login failed with status ${loginResponse.status}`,
+            );
             if (i < 4) {
               await delay(15000 * (i + 1));
               continue;
@@ -611,7 +622,7 @@ describe('Manager Onboarding Lifecycle (E2E)', () => {
           throw error;
         }
       }
-      
+
       if (!loginResponse || loginResponse.status !== 200) {
         throw lastError || new Error('Login failed after all retries');
       }

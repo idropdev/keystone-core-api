@@ -8,25 +8,28 @@ import {
 import { RevocationRequestRepositoryPort } from '../repositories/revocation-request.repository.port';
 import { RevocationRequest } from '../entities/revocation-request.entity';
 import { DocumentRepositoryPort } from '../../../document-processing/domain/ports/document.repository.port';
-import { AccessGrantDomainService, Actor } from '../../../access-control/domain/services/access-grant.domain.service';
+import {
+  AccessGrantDomainService,
+  Actor,
+} from '../../../access-control/domain/services/access-grant.domain.service';
 import { AuditService } from '../../../audit/audit.service';
 import { AuthEventType } from '../../../audit/audit.service';
 
 /**
  * Revocation Request Domain Service
- * 
+ *
  * Handles the workflow for revoking document access:
  * 1. Create request (any user/manager with access)
  * 2. Approve request (only origin manager)
  * 3. Deny request (only origin manager)
  * 4. Cancel request (requester only)
- * 
+ *
  * State Machine:
  * - pending → approved (origin manager)
  * - pending → denied (origin manager)
  * - pending → cancelled (requester)
  * - approved/denied/cancelled → (terminal states, no transitions)
- * 
+ *
  * HIPAA Compliance:
  * - All workflow steps audit logged
  * - No PHI in logs
@@ -44,17 +47,17 @@ export class RevocationRequestDomainService {
 
   /**
    * Create a revocation request
-   * 
+   *
    * Validation:
    * - Document must exist
    * - Requester must have access to the document
    * - Cannot create duplicate pending request for same document/subject
-   * 
+   *
    * Request Types:
    * - self_revocation: Requester revoking their own access
    * - user_revocation: Manager revoking a user's access
    * - manager_revocation: Manager revoking another manager's access
-   * 
+   *
    * @param documentId - Document UUID
    * @param requestType - Type of revocation request
    * @param cascadeToSecondaryManagers - If true, revoke secondary manager grants when approved
@@ -91,9 +94,8 @@ export class RevocationRequestDomainService {
     }
 
     // 4. Check for existing pending request (prevent duplicates)
-    const existingPending = await this.revocationRepository.findPendingByDocumentId(
-      documentId,
-    );
+    const existingPending =
+      await this.revocationRepository.findPendingByDocumentId(documentId);
     const duplicate = existingPending.find(
       (req) =>
         req.requestedByType === actor.type &&
@@ -139,17 +141,17 @@ export class RevocationRequestDomainService {
 
   /**
    * Approve a revocation request (origin manager only)
-   * 
+   *
    * Validation:
    * - Request must exist and be in 'pending' status
    * - Actor must be origin manager
    * - Document must exist
-   * 
+   *
    * Actions:
    * - Revoke access grants for the subject
    * - If cascadeToSecondaryManagers: revoke secondary manager grants
    * - Update request status to 'approved'
-   * 
+   *
    * @param requestId - Revocation request ID
    * @param reviewNotes - Optional notes from origin manager
    * @param actor - Actor approving (must be origin manager)
@@ -176,9 +178,7 @@ export class RevocationRequestDomainService {
     // 3. Validate document exists
     const document = await this.documentRepository.findById(request.documentId);
     if (!document) {
-      throw new NotFoundException(
-        `Document ${request.documentId} not found`,
-      );
+      throw new NotFoundException(`Document ${request.documentId} not found`);
     }
 
     // 4. Validate actor is origin manager
@@ -222,11 +222,11 @@ export class RevocationRequestDomainService {
 
   /**
    * Deny a revocation request (origin manager only)
-   * 
+   *
    * Validation:
    * - Request must exist and be in 'pending' status
    * - Actor must be origin manager
-   * 
+   *
    * @param requestId - Revocation request ID
    * @param reviewNotes - Optional notes from origin manager
    * @param actor - Actor denying (must be origin manager)
@@ -253,9 +253,7 @@ export class RevocationRequestDomainService {
     // 3. Validate document exists
     const document = await this.documentRepository.findById(request.documentId);
     if (!document) {
-      throw new NotFoundException(
-        `Document ${request.documentId} not found`,
-      );
+      throw new NotFoundException(`Document ${request.documentId} not found`);
     }
 
     // 4. Validate actor is origin manager
@@ -290,11 +288,11 @@ export class RevocationRequestDomainService {
 
   /**
    * Cancel a revocation request (requester only)
-   * 
+   *
    * Validation:
    * - Request must exist and be in 'pending' status
    * - Actor must be the requester
-   * 
+   *
    * @param requestId - Revocation request ID
    * @param actor - Actor cancelling (must be requester)
    * @returns Updated revocation request (soft deleted)
@@ -372,4 +370,3 @@ export class RevocationRequestDomainService {
     );
   }
 }
-

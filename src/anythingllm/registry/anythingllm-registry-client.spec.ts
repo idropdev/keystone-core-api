@@ -82,9 +82,9 @@ describe('AnythingLLMRegistryClient', () => {
     });
 
     it('should throw error for unknown endpoint ID', async () => {
-      await expect(
-        service.call('unknown.endpoint' as any),
-      ).rejects.toThrow('Unknown endpoint ID: unknown.endpoint');
+      await expect(service.call('unknown.endpoint' as any)).rejects.toThrow(
+        'Unknown endpoint ID: unknown.endpoint',
+      );
     });
 
     it('should call with unsubstituted path params if not provided', async () => {
@@ -133,7 +133,11 @@ describe('AnythingLLMRegistryClient', () => {
     });
 
     it('should pass body for POST requests', async () => {
-      const requestBody = { username: 'test', password: 'pass123', role: 'default' };
+      const requestBody = {
+        username: 'test',
+        password: 'pass123',
+        role: 'default',
+      };
 
       await service.call(AnythingLLMAdminEndpointIds.CREATE_USER, {
         body: requestBody,

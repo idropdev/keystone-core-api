@@ -13,4 +13,3 @@ export class CreateUserManagerAssignmentDto {
   @IsOptional()
   assignedById?: number;
 }
-

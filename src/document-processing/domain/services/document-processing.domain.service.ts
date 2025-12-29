@@ -80,7 +80,7 @@ export class DocumentProcessingDomainService {
 
   /**
    * Upload document and initiate processing
-   * 
+   *
    * Origin Manager Assignment:
    * - If actor is a manager → they become the origin manager
    * - If actor is a user → get their assigned manager (must have one assigned)
@@ -135,8 +135,8 @@ export class DocumentProcessingDomainService {
         if (manager.verificationStatus !== 'verified') {
           this.logger.warn(
             `[DOCUMENT UPLOAD] ❌ FORBIDDEN (403): Manager ${actor.id} attempted to upload but manager is not verified. ` +
-            `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
-            `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
+              `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
+              `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
           );
           throw new ForbiddenException(
             'Manager must be verified before uploading documents. Please contact an administrator.',
@@ -181,7 +181,8 @@ export class DocumentProcessingDomainService {
         this.logger.debug(
           `[DOCUMENT UPLOAD] Looking up Manager for manager User ID: ${managerUserId}`,
         );
-        const manager = await this.managerRepository.findByUserId(managerUserId);
+        const manager =
+          await this.managerRepository.findByUserId(managerUserId);
 
         if (!manager) {
           this.logger.error(
@@ -208,8 +209,8 @@ export class DocumentProcessingDomainService {
         if (manager.verificationStatus !== 'verified') {
           this.logger.warn(
             `[DOCUMENT UPLOAD] ❌ FORBIDDEN (403): User ${actor.id} attempted to upload with unverified manager. ` +
-            `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
-            `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
+              `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
+              `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
           );
           throw new ForbiddenException(
             'Assigned manager must be verified before uploading documents. Please contact an administrator.',
@@ -506,7 +507,7 @@ export class DocumentProcessingDomainService {
                 pdfParseError?.message ||
                 String(pdfParseError) ||
                 'Unknown pdf-parse error';
-              
+
               // Check for specific constructor error (known issue with malformed PDFs)
               const isConstructorError = errorMessage.includes(
                 'Class constructors cannot be invoked without',
@@ -598,7 +599,8 @@ export class DocumentProcessingDomainService {
 
       // Update document with results
       // Validate state transition before updating
-      const currentDocument = await this.documentRepository.findById(documentId);
+      const currentDocument =
+        await this.documentRepository.findById(documentId);
       if (currentDocument) {
         DocumentStateMachine.validateTransition(
           currentDocument.status,
@@ -934,12 +936,12 @@ export class DocumentProcessingDomainService {
 
   /**
    * Trigger OCR processing (origin manager only)
-   * 
+   *
    * Authority Rules (from Phase 2):
    * - Only origin manager can trigger OCR
    * - Document must be in STORED, PROCESSED, or FAILED state
    * - Re-processing allowed (PROCESSED → PROCESSING)
-   * 
+   *
    * @param documentId - Document UUID
    * @param actor - Actor requesting OCR trigger (must be origin manager)
    * @throws ForbiddenException if actor is not origin manager
@@ -947,7 +949,7 @@ export class DocumentProcessingDomainService {
    */
   /**
    * Trigger OCR processing for a document
-   * 
+   *
    * HIPAA Requirement: Only verified origin managers can trigger OCR
    */
   async triggerOcr(documentId: string, actor: Actor): Promise<void> {
@@ -959,9 +961,7 @@ export class DocumentProcessingDomainService {
 
     // 2. Validate actor is origin manager and verified
     if (actor.type !== 'manager') {
-      throw new ForbiddenException(
-        'Only managers can trigger OCR processing',
-      );
+      throw new ForbiddenException('Only managers can trigger OCR processing');
     }
 
     // Find Manager for this manager user

@@ -6,7 +6,9 @@ import { ManagerOrganization } from '../entities/manager-organization.entity';
 export abstract class ManagerOrganizationRepositoryPort {
   abstract findById(id: number): Promise<ManagerOrganization | null>;
   abstract findByName(name: string): Promise<ManagerOrganization | null>;
-  abstract save(organization: ManagerOrganization): Promise<ManagerOrganization>;
+  abstract save(
+    organization: ManagerOrganization,
+  ): Promise<ManagerOrganization>;
   abstract update(
     id: number,
     updates: Partial<ManagerOrganization>,
@@ -14,9 +16,3 @@ export abstract class ManagerOrganizationRepositoryPort {
   abstract delete(id: number): Promise<void>;
   abstract findAllVerified(): Promise<ManagerOrganization[]>;
 }
-
-
-
-
-
-

@@ -94,4 +94,3 @@ export class ManagerInstanceRelationalRepository
     return entity;
   }
 }
-

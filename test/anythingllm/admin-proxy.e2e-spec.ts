@@ -47,7 +47,9 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
     if (!serviceToken) {
       console.log('Skipping test - TEST_SERVICE_TOKEN not set');
       console.log('To generate a token, run:');
-      console.log('  node -e "require(\'google-auth-library\').GoogleAuth().getIdTokenClient(\'anythingllm-internal\').then(c => c.idTokenProvider.fetchIdToken(\'anythingllm-internal\').then(console.log))"');
+      console.log(
+        "  node -e \"require('google-auth-library').GoogleAuth().getIdTokenClient('anythingllm-internal').then(c => c.idTokenProvider.fetchIdToken('anythingllm-internal').then(console.log))\"",
+      );
       return false;
     }
     return true;
@@ -57,14 +59,18 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
    * Helper to get a mock user JWT token for rejection tests
    */
   function getMockUserJwt(): string {
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
-      sub: 'user-123',
-      role: 'default',
-      iss: 'keystone',
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    })).toString('base64url');
+    const header = Buffer.from(
+      JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
+    ).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: 'user-123',
+        role: 'default',
+        iss: 'keystone',
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url');
     const signature = 'fake-signature';
     return `${header}.${payload}.${signature}`;
   }
@@ -78,7 +84,7 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
 
   afterAll(async () => {
     if (!canRunAuthenticatedTests()) return;
-    
+
     // Cleanup created users
     for (const userId of createdUserIds) {
       try {
@@ -151,7 +157,7 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
       const response = await request(app)
         .get('/api/anythingllm/admin/is-multi-user-mode')
         .set('Authorization', `Bearer ${mockUserToken}`);
-      
+
       // Should be 401 or 403
       expect([401, 403]).toContain(response.status);
     });

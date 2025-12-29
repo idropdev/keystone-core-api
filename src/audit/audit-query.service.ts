@@ -8,14 +8,14 @@ import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-
 
 /**
  * Audit Query Service
- * 
+ *
  * Provides query capabilities for audit events.
- * 
+ *
  * Current Implementation:
  * - Queries from GCP Cloud Logging (via CloudLoggingClient)
  * - TODO: Add PostgreSQL storage for faster queries
  * - TODO: Implement hybrid query (PostgreSQL for recent, Cloud Logging for archive)
- * 
+ *
  * Authorization:
  * - Admins: Can query all events
  * - Origin Managers: Can query events for their documents only
@@ -25,13 +25,11 @@ import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-
 export class AuditQueryService {
   private readonly logger = new Logger(AuditQueryService.name);
 
-  constructor(
-    private readonly cloudLoggingClient: CloudLoggingClient,
-  ) {}
+  constructor(private readonly cloudLoggingClient: CloudLoggingClient) {}
 
   /**
    * Query audit events with filtering and pagination
-   * 
+   *
    * @param query - Query parameters (filters, pagination)
    * @param actor - Actor making the query (for authorization)
    * @returns Paginated list of audit events
@@ -51,11 +49,11 @@ export class AuditQueryService {
     // For now, return empty results with a note that database storage is required
     // Once PostgreSQL storage is implemented, query from database
     // For Cloud Logging queries, use Cloud Logging API with filters
-    
+
     this.logger.warn(
       'Audit query endpoint called but database storage not yet implemented. ' +
-      'Audit events are currently only logged to console/Cloud Logging. ' +
-      'To enable querying, implement PostgreSQL storage for audit events.',
+        'Audit events are currently only logged to console/Cloud Logging. ' +
+        'To enable querying, implement PostgreSQL storage for audit events.',
     );
 
     // TODO: When PostgreSQL storage is implemented:
@@ -76,7 +74,7 @@ export class AuditQueryService {
 
   /**
    * Get a specific audit event by ID
-   * 
+   *
    * @param eventId - Audit event ID
    * @param actor - Actor making the query (for authorization)
    * @returns Audit event details
@@ -102,9 +100,3 @@ export class AuditQueryService {
     );
   }
 }
-
-
-
-
-
-

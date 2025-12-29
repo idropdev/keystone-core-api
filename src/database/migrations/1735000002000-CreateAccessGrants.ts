@@ -191,4 +191,3 @@ export class CreateAccessGrants1735000002000 implements MigrationInterface {
     await queryRunner.dropTable('access_grants', true);
   }
 }
-

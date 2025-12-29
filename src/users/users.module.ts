@@ -13,6 +13,7 @@ import { DatabaseConfig } from '../database/config/database-config.type';
 import databaseConfig from '../database/config/database.config';
 import { FilesModule } from '../files/files.module';
 import { AuditModule } from '../audit/audit.module';
+import { AnythingLLMProvisioningModule } from '../anythingllm/provisioning/anythingllm-provisioning.module';
 
 // <database-block>
 const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
@@ -27,6 +28,7 @@ const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
     infrastructurePersistenceModule,
     FilesModule,
     AuditModule,
+    AnythingLLMProvisioningModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, UserManagerAssignmentService],

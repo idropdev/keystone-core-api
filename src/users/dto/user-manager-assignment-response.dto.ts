@@ -3,9 +3,9 @@ import { Expose } from 'class-transformer';
 
 /**
  * User Manager Assignment Response DTO
- * 
+ *
  * Represents a user-manager assignment relationship.
- * 
+ *
  * HIPAA Compliance:
  * - No PHI in response
  * - Only IDs and metadata exposed
@@ -53,4 +53,3 @@ export class UserManagerAssignmentResponseDto {
   @Expose()
   status: 'active' | 'deleted';
 }
-

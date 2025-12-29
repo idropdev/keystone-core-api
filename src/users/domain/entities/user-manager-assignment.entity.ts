@@ -13,4 +13,3 @@ export class UserManagerAssignment {
   updatedAt: Date;
   deletedAt?: Date;
 }
-

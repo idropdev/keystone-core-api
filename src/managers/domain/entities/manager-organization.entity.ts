@@ -12,4 +12,3 @@ export class ManagerOrganization {
   updatedAt: Date;
   deletedAt?: Date;
 }
-

@@ -41,9 +41,7 @@ describe('AnythingLLMClientService', () => {
       ],
     }).compile();
 
-    service = module.get<AnythingLLMClientService>(
-      AnythingLLMClientService,
-    );
+    service = module.get<AnythingLLMClientService>(AnythingLLMClientService);
   });
 
   afterEach(() => {
@@ -88,7 +86,9 @@ describe('AnythingLLMClientService', () => {
 
       expect(url).toBe(`${mockBaseUrl}${mockEndpoint}`);
       expect(options.headers).toBeDefined();
-      expect((options.headers as any).Authorization).toBe(`Bearer ${mockToken}`);
+      expect((options.headers as any).Authorization).toBe(
+        `Bearer ${mockToken}`,
+      );
     });
 
     it('should add required headers', async () => {
@@ -179,9 +179,9 @@ describe('AnythingLLMClientService', () => {
         new Error(errorMessage),
       );
 
-      await expect(
-        service.callAnythingLLM(mockEndpoint),
-      ).rejects.toThrow(`Failed to mint service identity token: ${errorMessage}`);
+      await expect(service.callAnythingLLM(mockEndpoint)).rejects.toThrow(
+        `Failed to mint service identity token: ${errorMessage}`,
+      );
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -200,4 +200,3 @@ describe('AnythingLLMClientService', () => {
     });
   });
 });
-

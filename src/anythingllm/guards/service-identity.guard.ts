@@ -74,7 +74,7 @@ export class ServiceIdentityGuard implements CanActivate {
 
       if (tokenType === 'service_identity') {
         // Validate service identity token
-        const isValid = await this.validateServiceIdentityToken(token, requestId);
+        const isValid = this.validateServiceIdentityToken(token, requestId);
         if (!isValid) {
           throw new UnauthorizedException('Invalid service identity token');
         }
@@ -120,9 +120,9 @@ export class ServiceIdentityGuard implements CanActivate {
    * - sub: User ID
    * - role: User role
    */
-  private async identifyTokenType(
+  private identifyTokenType(
     token: string,
-  ): Promise<'service_identity' | 'user_jwt' | 'unknown'> {
+  ): 'service_identity' | 'user_jwt' | 'unknown' {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) {
@@ -156,7 +156,6 @@ export class ServiceIdentityGuard implements CanActivate {
       }
 
       // Check for user JWT indicators (application-issued tokens)
-      const jwtSecret = this.configService.get('auth.secret', { infer: true });
       const jwtIssuer = this.configService.get('app.name', { infer: true });
 
       // If it has user-like claims and isn't GCP, it's likely a user JWT
@@ -186,10 +185,10 @@ export class ServiceIdentityGuard implements CanActivate {
    * 2. Check token expiration
    * 3. Validate audience claim
    */
-  private async validateServiceIdentityToken(
+  private validateServiceIdentityToken(
     token: string,
     requestId: string,
-  ): Promise<boolean> {
+  ): boolean {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) {

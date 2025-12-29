@@ -78,11 +78,16 @@ export default registerAs<DatabaseConfig>('database', () => {
   // Parse logging configuration from environment
   // Options: false | true | 'all' | 'error' | 'warn' | 'query' | 'schema' | 'info' | 'log' | 'simple' | 'advanced'
   // Or comma-separated list: 'error,warn' or 'query,error'
-  let logging: boolean | 'all' | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[] | 'simple' | 'advanced' = false;
-  
+  let logging:
+    | boolean
+    | 'all'
+    | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[]
+    | 'simple'
+    | 'advanced' = false;
+
   if (process.env.DATABASE_LOGGING) {
     const loggingValue = process.env.DATABASE_LOGGING.toLowerCase().trim();
-    
+
     if (loggingValue === 'true' || loggingValue === 'all') {
       logging = true;
     } else if (loggingValue === 'false') {
@@ -99,12 +104,22 @@ export default registerAs<DatabaseConfig>('database', () => {
       logging = 'advanced';
     } else {
       // Comma-separated list: 'error,warn' or 'query,error'
-      const logTypes = loggingValue.split(',').map(t => t.trim()) as ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[];
-      logging = logTypes.filter(t => ['query', 'error', 'schema', 'warn', 'info', 'log'].includes(t));
+      const logTypes = loggingValue.split(',').map((t) => t.trim()) as (
+        | 'query'
+        | 'error'
+        | 'schema'
+        | 'warn'
+        | 'info'
+        | 'log'
+      )[];
+      logging = logTypes.filter((t) =>
+        ['query', 'error', 'schema', 'warn', 'info', 'log'].includes(t),
+      );
     }
   } else {
     // Default: only log errors in production, all queries in development
-    logging = process.env.NODE_ENV !== 'production' ? ['error', 'warn'] : ['error'];
+    logging =
+      process.env.NODE_ENV !== 'production' ? ['error', 'warn'] : ['error'];
   }
 
   return {

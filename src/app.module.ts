@@ -127,6 +127,8 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     AccessControlModule,
     RevocationModule,
     AnythingLLMAdminModule,
+    // Import provisioning module via AnythingLLMAdminModule or directly
+    // Note: AnythingLLMProvisioningModule is imported by UsersModule
   ],
   providers: [
     // Apply rate limiting globally

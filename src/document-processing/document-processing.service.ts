@@ -1,4 +1,9 @@
-import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
 import { DocumentAccessDomainService } from './domain/services/document-access.domain.service';
@@ -55,10 +60,7 @@ export class DocumentProcessingService {
   /**
    * Get document with access control (uses DocumentAccessDomainService)
    */
-  async getDocument(
-    documentId: string,
-    actor: Actor,
-  ): Promise<Document> {
+  async getDocument(documentId: string, actor: Actor): Promise<Document> {
     return this.accessService.getDocument(documentId, actor);
   }
 

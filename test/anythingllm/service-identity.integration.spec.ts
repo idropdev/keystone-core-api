@@ -68,9 +68,7 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
       if (fs.existsSync(adcPath)) {
         hasCredentials = true;
         credentialSource = 'ADC (Application Default Credentials)';
-        console.log(
-          `✅ Found GCP credentials via ADC: ${adcPath}`,
-        );
+        console.log(`✅ Found GCP credentials via ADC: ${adcPath}`);
       }
     }
 
@@ -78,7 +76,9 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
       console.warn('⚠️  No GCP credentials found. Skipping integration tests.');
       console.warn('   Configure credentials using one of:');
       console.warn('   1. GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json');
-      console.warn('   2. GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=service-account@project.iam.gserviceaccount.com');
+      console.warn(
+        '   2. GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=service-account@project.iam.gserviceaccount.com',
+      );
       console.warn('   3. gcloud auth application-default login (for ADC)');
       console.warn('   Or set SKIP_GCP_TESTS=true to suppress this warning.');
       return;
@@ -283,7 +283,9 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
         );
         const hasADC = fs.existsSync(adcPath);
         expect(hasADC).toBe(true);
-        console.log(`✅ Using Application Default Credentials (ADC): ${adcPath}`);
+        console.log(
+          `✅ Using Application Default Credentials (ADC): ${adcPath}`,
+        );
       }
 
       // Service should successfully mint token regardless of credential source
@@ -301,4 +303,3 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
     });
   });
 });
-

@@ -58,4 +58,3 @@ export class UserManagerAssignmentEntity extends EntityRelationalHelper {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
 }
-

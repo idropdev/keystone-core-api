@@ -237,4 +237,3 @@ export class CreateManagerRoleAndEntities1735000000000
     // await queryRunner.query(`DELETE FROM role WHERE id = 3;`);
   }
 }
-

@@ -73,10 +73,7 @@ export class AddOriginManagerToDocuments1735000003000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop indexes
-    await queryRunner.dropIndex(
-      'documents',
-      'IDX_documents_origin_manager_id',
-    );
+    await queryRunner.dropIndex('documents', 'IDX_documents_origin_manager_id');
 
     // Drop foreign keys (they will be automatically dropped when columns are removed)
     const table = await queryRunner.getTable('documents');
@@ -99,4 +96,3 @@ export class AddOriginManagerToDocuments1735000003000
     await queryRunner.dropColumn('documents', 'origin_manager_id');
   }
 }
-

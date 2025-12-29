@@ -101,7 +101,7 @@ export class RefactorManagerArchitecture1766781429000
     // Check which columns already exist (from AddManagerInstanceProfileFields migration)
     const instanceTable = await queryRunner.getTable('manager_instances');
     const existingColumns = instanceTable?.columns.map((col) => col.name) || [];
-    
+
     const hasDisplayName = existingColumns.includes('display_name');
     const hasPhone = existingColumns.includes('phone');
     const hasPhoneNumber = existingColumns.includes('phone_number');
@@ -332,7 +332,10 @@ export class RefactorManagerArchitecture1766781429000
       (fk) => fk.columnNames.indexOf('organization_id') !== -1,
     );
     if (instanceOrgForeignKey) {
-      await queryRunner.dropForeignKey('manager_instances', instanceOrgForeignKey);
+      await queryRunner.dropForeignKey(
+        'manager_instances',
+        instanceOrgForeignKey,
+      );
     }
 
     // Drop the unique index that includes organization_id
@@ -449,4 +452,3 @@ export class RefactorManagerArchitecture1766781429000
     await queryRunner.dropColumn('manager_instances', 'display_name');
   }
 }
-

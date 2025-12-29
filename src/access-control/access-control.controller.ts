@@ -17,7 +17,6 @@ import { AuthGuard } from '@nestjs/passport';
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiOkResponse,
   ApiCreatedResponse,
   ApiBearerAuth,
@@ -40,15 +39,15 @@ import { InfinityPaginationResponse } from '../utils/dto/infinity-pagination-res
 
 /**
  * Access Control Controller
- * 
+ *
  * Handles access grant creation, listing, and revocation.
- * 
+ *
  * HIPAA Compliance:
  * - All endpoints protected by JWT authentication
  * - Authorization enforced (origin manager or grant subject)
  * - All mutations audit logged
  * - No PHI in responses
- * 
+ *
  * Authorization Rules:
  * - Create: Origin manager or user with delegated grant authority
  * - List: Origin manager (all grants) or grant subject (own grants)
@@ -80,7 +79,8 @@ export class AccessControlController {
     description: 'Invalid or expired access token',
   })
   @ApiForbiddenResponse({
-    description: 'Actor does not have authority to create grants for this document',
+    description:
+      'Actor does not have authority to create grants for this document',
   })
   @ApiNotFoundResponse({
     description: 'Document not found',
@@ -102,7 +102,7 @@ export class AccessControlController {
   @ApiOperation({
     summary: 'List Access Grants',
     description:
-      'List access grants with optional filtering. If documentId is provided, returns grants for that document (origin manager sees all, others see own grants). If no documentId, returns actor\'s own grants.',
+      "List access grants with optional filtering. If documentId is provided, returns grants for that document (origin manager sees all, others see own grants). If no documentId, returns actor's own grants.",
   })
   @ApiQuery({
     name: 'documentId',
@@ -219,7 +219,7 @@ export class AccessControlController {
     example: 20,
   })
   @ApiOkResponse({
-    description: 'Paginated list of actor\'s active grants',
+    description: "Paginated list of actor's active grants",
     type: InfinityPaginationResponse(AccessGrantResponseDto),
   })
   @ApiUnauthorizedResponse({
@@ -241,4 +241,3 @@ export class AccessControlController {
     return this.accessControlService.getMyGrants(actor, query);
   }
 }
-
