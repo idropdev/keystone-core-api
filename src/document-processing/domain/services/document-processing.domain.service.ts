@@ -95,7 +95,7 @@ export class DocumentProcessingDomainService {
   ): Promise<Document> {
     try {
       // 1. Determine originManagerId
-      let originManagerId: number;
+      let originManagerId: number | null;
       let originUserContextId: number | undefined;
 
       if (actor.type === 'manager') {
@@ -153,7 +153,7 @@ export class DocumentProcessingDomainService {
           `[DOCUMENT UPLOAD] User upload initiated: userId=${actor.id}, documentType=${documentType}`,
         );
 
-        // User uploads → get their assigned manager's User ID, then find ManagerInstance
+        // User uploads → check if they have assigned managers
         this.logger.debug(
           `[DOCUMENT UPLOAD] Querying assigned managers for userId=${actor.id}`,
         );
@@ -167,61 +167,62 @@ export class DocumentProcessingDomainService {
         );
 
         if (assignedManagerUserIds.length === 0) {
-          this.logger.error(
-            `[DOCUMENT UPLOAD] ❌ BLOCKED: User ${actor.id} attempted to upload document but has no assigned manager`,
+          // User has no assigned manager → allow self-management
+          this.logger.log(
+            `[DOCUMENT UPLOAD] User ${actor.id} has no assigned manager → enabling self-management (originManagerId = null)`,
           );
-          throw new BadRequestException(
-            'User must have an assigned manager to upload documents. Please contact an administrator to assign a manager.',
+          originManagerId = null; // User will act as origin manager
+          originUserContextId = actor.id; // Track who uploaded (intake context)
+        } else {
+          // User has assigned manager → use that manager
+          // Get the first assigned manager's Manager
+          // TODO: In future, allow user to select which manager if multiple assigned
+          const managerUserId = assignedManagerUserIds[0];
+          this.logger.debug(
+            `[DOCUMENT UPLOAD] Looking up Manager for manager User ID: ${managerUserId}`,
           );
+          const manager = await this.managerRepository.findByUserId(managerUserId);
+
+          if (!manager) {
+            this.logger.error(
+              `[DOCUMENT UPLOAD] ❌ BLOCKED: Manager not found for assigned manager User ID: ${managerUserId}`,
+            );
+            throw new BadRequestException(
+              'Assigned manager not found. Please contact an administrator.',
+            );
+          }
+
+          this.logger.log(
+            `[DOCUMENT UPLOAD] Found Manager: managerId=${manager.id}, managerUserId=${managerUserId}, displayName="${manager.displayName}"`,
+          );
+
+          // HIPAA Requirement: Only verified managers can be selected as origin manager
+          this.logger.debug(
+            `[DOCUMENT UPLOAD] Checking manager verification status: managerId=${manager.id}`,
+          );
+
+          this.logger.log(
+            `[DOCUMENT UPLOAD] Manager retrieved: managerId=${manager.id}, displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", verifiedAt=${manager.verifiedAt || 'null'}, verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
+          );
+
+          if (manager.verificationStatus !== 'verified') {
+            this.logger.warn(
+              `[DOCUMENT UPLOAD] ❌ FORBIDDEN (403): User ${actor.id} attempted to upload with unverified manager. ` +
+              `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
+              `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
+            );
+            throw new ForbiddenException(
+              'Assigned manager must be verified before uploading documents. Please contact an administrator.',
+            );
+          }
+
+          this.logger.log(
+            `[DOCUMENT UPLOAD] ✅ Verification check passed: managerId=${manager.id} is verified. Proceeding with upload.`,
+          );
+
+          originManagerId = manager.id;
+          originUserContextId = actor.id; // Track who uploaded (intake context)
         }
-
-        // Get the first assigned manager's Manager
-        // TODO: In future, allow user to select which manager if multiple assigned
-        const managerUserId = assignedManagerUserIds[0];
-        this.logger.debug(
-          `[DOCUMENT UPLOAD] Looking up Manager for manager User ID: ${managerUserId}`,
-        );
-        const manager = await this.managerRepository.findByUserId(managerUserId);
-
-        if (!manager) {
-          this.logger.error(
-            `[DOCUMENT UPLOAD] ❌ BLOCKED: Manager not found for assigned manager User ID: ${managerUserId}`,
-          );
-          throw new BadRequestException(
-            'Assigned manager not found. Please contact an administrator.',
-          );
-        }
-
-        this.logger.log(
-          `[DOCUMENT UPLOAD] Found Manager: managerId=${manager.id}, managerUserId=${managerUserId}, displayName="${manager.displayName}"`,
-        );
-
-        // HIPAA Requirement: Only verified managers can be selected as origin manager
-        this.logger.debug(
-          `[DOCUMENT UPLOAD] Checking manager verification status: managerId=${manager.id}`,
-        );
-
-        this.logger.log(
-          `[DOCUMENT UPLOAD] Manager retrieved: managerId=${manager.id}, displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", verifiedAt=${manager.verifiedAt || 'null'}, verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
-        );
-
-        if (manager.verificationStatus !== 'verified') {
-          this.logger.warn(
-            `[DOCUMENT UPLOAD] ❌ FORBIDDEN (403): User ${actor.id} attempted to upload with unverified manager. ` +
-            `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
-            `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
-          );
-          throw new ForbiddenException(
-            'Assigned manager must be verified before uploading documents. Please contact an administrator.',
-          );
-        }
-
-        this.logger.log(
-          `[DOCUMENT UPLOAD] ✅ Verification check passed: managerId=${manager.id} is verified. Proceeding with upload.`,
-        );
-
-        originManagerId = manager.id;
-        originUserContextId = actor.id; // Track who uploaded (intake context)
       } else {
         throw new BadRequestException(
           'Only users and managers can upload documents',
@@ -288,13 +289,13 @@ export class DocumentProcessingDomainService {
           documentId: savedDocument.id,
           documentType,
           fileSize: fileBuffer.length,
-          originManagerId,
+          originManagerId: originManagerId ?? null,
           actorType: actor.type,
         },
       });
 
       this.logger.log(
-        `Document uploaded: ${savedDocument.id} (actor: ${actor.type}:${actor.id}, originManager: ${originManagerId})`,
+        `Document uploaded: ${savedDocument.id} (actor: ${actor.type}:${actor.id}, originManager: ${originManagerId ?? 'null (self-managed)'})`,
       );
 
       // 6. Trigger async processing (don't await) - pass buffer for PDF analysis
@@ -811,6 +812,10 @@ export class DocumentProcessingDomainService {
 
   /**
    * Get document by ID (with authorization check)
+   * 
+   * Note: This method checks if the document belongs to the user or if the user
+   * is the self-manager. For more comprehensive authorization checks, use
+   * DocumentAccessDomainService.getDocument() which handles AccessGrants.
    */
   async getDocument(
     documentId: string,
@@ -820,25 +825,32 @@ export class DocumentProcessingDomainService {
     const documentExists = await this.documentRepository.findById(documentId);
 
     this.logger.debug(
-      `[AUTH] Checking access: documentId=${documentId}, requestUserId=${userId}, documentExists=${!!documentExists}, documentOwnerId=${documentExists?.userId}`,
+      `[AUTH] Checking access: documentId=${documentId}, requestUserId=${userId}, documentExists=${!!documentExists}, documentOwnerId=${documentExists?.userId}, originManagerId=${documentExists?.originManagerId}, originUserContextId=${documentExists?.originUserContextId}`,
     );
 
-    const document = await this.documentRepository.findByIdAndUserId(
-      documentId,
-      userId,
-    );
+    if (!documentExists) {
+      this.logger.warn(
+        `[AUTH] Document ${documentId} does not exist in database`,
+      );
+      throw new NotFoundException('Document not found');
+    }
 
-    if (!document) {
-      // Log detailed info for debugging
-      if (documentExists) {
-        this.logger.warn(
-          `[AUTH] Document ${documentId} exists but belongs to user ${documentExists.userId}, not ${userId}`,
-        );
-      } else {
-        this.logger.warn(
-          `[AUTH] Document ${documentId} does not exist in database`,
-        );
-      }
+    const numericUserId =
+      typeof userId === 'string' ? parseInt(userId, 10) : userId;
+
+    // Check if user has access:
+    // 1. Document belongs to user (userId matches)
+    // 2. OR user is self-manager (originManagerId IS NULL and originUserContextId matches)
+    const hasAccess =
+      documentExists.userId === numericUserId ||
+      (documentExists.originManagerId === null &&
+        documentExists.originUserContextId === numericUserId);
+
+    if (!hasAccess) {
+      this.logger.warn(
+        `[AUTH] Document ${documentId} exists but user ${userId} does not have access. ` +
+        `Document userId: ${documentExists.userId}, originManagerId: ${documentExists.originManagerId}, originUserContextId: ${documentExists.originUserContextId}`,
+      );
 
       // Audit log unauthorized access attempt
       this.auditService.logAuthEvent({
@@ -848,8 +860,10 @@ export class DocumentProcessingDomainService {
         success: false,
         metadata: {
           documentId,
-          documentExists: !!documentExists,
-          documentOwnerId: documentExists?.userId,
+          documentExists: true,
+          documentUserId: documentExists.userId,
+          originManagerId: documentExists.originManagerId,
+          originUserContextId: documentExists.originUserContextId,
         },
       });
 
@@ -865,7 +879,7 @@ export class DocumentProcessingDomainService {
       metadata: { documentId },
     });
 
-    return document;
+    return documentExists;
   }
 
   /**
@@ -957,31 +971,48 @@ export class DocumentProcessingDomainService {
       throw new NotFoundException('Document not found');
     }
 
-    // 2. Validate actor is origin manager and verified
-    if (actor.type !== 'manager') {
-      throw new ForbiddenException(
-        'Only managers can trigger OCR processing',
-      );
+    // 2. Validate actor is origin manager
+    // Handles both self-managed and manager-managed documents
+    let isAuthorized = false;
+
+    if (document.originManagerId === null) {
+      // Self-managed document: user acts as origin manager if they uploaded it
+      if (
+        actor.type === 'user' &&
+        document.originUserContextId === actor.id
+      ) {
+        isAuthorized = true;
+        this.logger.log(
+          `[OCR TRIGGER] User ${actor.id} triggering OCR on self-managed document ${documentId}`,
+        );
+      }
+    } else if (actor.type === 'manager') {
+      // Manager-managed document: check if manager is origin manager and verified
+      const manager = await this.managerRepository.findByUserId(actor.id);
+
+      if (!manager) {
+        throw new ForbiddenException(
+          'Manager not found. Please contact an administrator.',
+        );
+      }
+
+      // HIPAA Requirement: Only verified managers can trigger OCR
+      if (manager.verificationStatus !== 'verified') {
+        throw new ForbiddenException(
+          'Manager must be verified before triggering OCR. Please contact an administrator.',
+        );
+      }
+
+      // Verify this manager is the origin manager
+      if (document.originManagerId === manager.id) {
+        isAuthorized = true;
+        this.logger.log(
+          `[OCR TRIGGER] Manager ${actor.id} (managerId: ${manager.id}) triggering OCR on document ${documentId}`,
+        );
+      }
     }
 
-    // Find Manager for this manager user
-    const manager = await this.managerRepository.findByUserId(actor.id);
-
-    if (!manager) {
-      throw new ForbiddenException(
-        'Manager not found. Please contact an administrator.',
-      );
-    }
-
-    // HIPAA Requirement: Only verified managers can trigger OCR
-    if (manager.verificationStatus !== 'verified') {
-      throw new ForbiddenException(
-        'Manager must be verified before triggering OCR. Please contact an administrator.',
-      );
-    }
-
-    // Verify this manager is the origin manager
-    if (document.originManagerId !== manager.id) {
+    if (!isAuthorized) {
       this.auditService.logAuthEvent({
         userId: String(actor.id),
         provider: 'document-processing',
@@ -993,7 +1024,7 @@ export class DocumentProcessingDomainService {
           actorId: actor.id,
           operation: 'trigger-ocr',
           originManagerId: document.originManagerId,
-          managerId: manager.id,
+          originUserContextId: document.originUserContextId,
         },
       });
 
@@ -1043,8 +1074,126 @@ export class DocumentProcessingDomainService {
     });
 
     this.logger.log(
-      `OCR triggered for document ${documentId} by origin manager ${actor.id}`,
+      `OCR triggered for document ${documentId} by ${actor.type} ${actor.id} (origin manager)`,
     );
+  }
+
+  /**
+   * Assign a manager to a self-managed document
+   * 
+   * This is a one-time, irreversible operation. Once a manager is assigned,
+   * the document's originManagerId is set and cannot be changed back to null.
+   * 
+   * Validation:
+   * - Document must exist and have originManagerId === null (self-managed)
+   * - Actor must be the user who uploaded the document (originUserContextId matches)
+   * - Manager must exist and be verified
+   * 
+   * @param documentId - Document UUID
+   * @param managerId - Manager ID to assign
+   * @param actor - Actor requesting assignment (must be self-managing user)
+   * @returns Updated document
+   * @throws BadRequestException if document already has a manager
+   * @throws ForbiddenException if actor is not authorized
+   */
+  async assignManagerToDocument(
+    documentId: string,
+    managerId: number,
+    actor: Actor,
+  ): Promise<Document> {
+    this.logger.log(
+      `[ASSIGN MANAGER] Request to assign manager ${managerId} to document ${documentId} by ${actor.type} ${actor.id}`,
+    );
+
+    // 1. Get document
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // 2. Validate document is self-managed (originManagerId === null)
+    if (document.originManagerId !== null) {
+      this.logger.warn(
+        `[ASSIGN MANAGER] ❌ BLOCKED: Document ${documentId} already has a manager assigned (originManagerId: ${document.originManagerId})`,
+      );
+      throw new BadRequestException(
+        'Document already has a manager assigned. Manager assignment is irreversible.',
+      );
+    }
+
+    // 3. Validate actor is the self-managing user
+    if (actor.type !== 'user') {
+      this.logger.warn(
+        `[ASSIGN MANAGER] ❌ FORBIDDEN: Only users can assign managers to their self-managed documents`,
+      );
+      throw new ForbiddenException(
+        'Only users can assign managers to their self-managed documents',
+      );
+    }
+
+    if (document.originUserContextId !== actor.id) {
+      this.logger.warn(
+        `[ASSIGN MANAGER] ❌ FORBIDDEN: User ${actor.id} attempted to assign manager to document ${documentId} they did not upload (originUserContextId: ${document.originUserContextId})`,
+      );
+      throw new ForbiddenException(
+        'You can only assign a manager to documents you uploaded',
+      );
+    }
+
+    // 4. Validate manager exists and is verified
+    const manager = await this.managerRepository.findById(managerId);
+    if (!manager) {
+      this.logger.error(
+        `[ASSIGN MANAGER] ❌ NOT FOUND: Manager ${managerId} not found`,
+      );
+      throw new NotFoundException('Manager not found');
+    }
+
+    if (manager.verificationStatus !== 'verified') {
+      this.logger.warn(
+        `[ASSIGN MANAGER] ❌ FORBIDDEN: Manager ${managerId} is not verified (status: ${manager.verificationStatus})`,
+      );
+      throw new ForbiddenException(
+        'Manager must be verified before being assigned to a document. Please contact an administrator.',
+      );
+    }
+
+    // 5. Update document with manager assignment (immutable after this)
+    this.logger.log(
+      `[ASSIGN MANAGER] Assigning manager ${managerId} (displayName: "${manager.displayName}") to document ${documentId}`,
+    );
+
+    await this.documentRepository.update(documentId, {
+      originManagerId: managerId,
+    });
+
+    // 6. Get updated document
+    const updatedDocument = await this.documentRepository.findById(documentId);
+    if (!updatedDocument) {
+      throw new NotFoundException('Document not found after update');
+    }
+
+    // 7. Audit log
+    this.auditService.logAuthEvent({
+      userId: String(actor.id),
+      provider: 'document-processing',
+      event: DocumentEventType.DOCUMENT_UPLOADED as any, // Using existing event type
+      success: true,
+      metadata: {
+        documentId,
+        operation: 'assign-manager',
+        previousOriginManagerId: null,
+        newOriginManagerId: managerId,
+        actorType: actor.type,
+        actorId: actor.id,
+      },
+    });
+
+    this.logger.log(
+      `[ASSIGN MANAGER] ✅ Successfully assigned manager ${managerId} to document ${documentId}. User ${actor.id} no longer has self-management privileges for this document.`,
+    );
+
+    return updatedDocument;
   }
 
   /**

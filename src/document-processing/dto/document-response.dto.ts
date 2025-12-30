@@ -62,10 +62,13 @@ export class DocumentResponseDto {
   createdAt: Date;
 
   @ApiProperty({
-    description: 'Origin manager ID (Manager ID, not User ID)',
+    description:
+      'Origin manager ID (Manager ID, not User ID). Null if document is self-managed by the user who uploaded it.',
+    nullable: true,
+    required: false,
   })
   @Expose()
-  originManagerId: number;
+  originManagerId: number | null;
 
   // SECURITY: Never expose GCS URIs, full OCR output, or internal IDs
 }

@@ -103,10 +103,17 @@ export class AccessControlService {
       }
 
       // If actor is not origin manager, filter to only their own grants
-      // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
-      // We need to resolve the Manager ID from the User ID for managers
+      // Handles both self-managed and manager-managed documents
       let isOriginManager = false;
-      if (actor.type === 'manager') {
+      if (document.originManagerId === null) {
+        // Self-managed document: user acts as origin manager if they uploaded it
+        isOriginManager =
+          actor.type === 'user' &&
+          document.originUserContextId === actor.id;
+      } else if (actor.type === 'manager') {
+        // Manager-managed document: check if manager is origin manager
+        // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
+        // We need to resolve the Manager ID from the User ID for managers
         const manager = await this.managerRepository.findByUserId(actor.id);
         if (manager && document.originManagerId === manager.id) {
           isOriginManager = true;

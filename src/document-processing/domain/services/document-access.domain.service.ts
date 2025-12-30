@@ -86,17 +86,22 @@ export class DocumentAccessDomainService {
       throw new NotFoundException('Document not found');
     }
 
-    // 3. Check access via AccessGrantService
-    const hasAccess = await this.accessGrantService.hasAccess(
-      documentId,
-      actor.type,
-      actor.id,
-    );
+    // 3. Check if actor is origin manager (handles self-managed documents)
+    const isOriginMgr = await this.isOriginManager(document, actor);
 
-    if (!hasAccess) {
-      this.logUnauthorizedAccess(documentId, actor, 'getDocument');
-      // Don't reveal document existence
-      throw new NotFoundException('Document not found');
+    // 4. If not origin manager, check access via AccessGrantService
+    if (!isOriginMgr) {
+      const hasAccess = await this.accessGrantService.hasAccess(
+        documentId,
+        actor.type,
+        actor.id,
+      );
+
+      if (!hasAccess) {
+        this.logUnauthorizedAccess(documentId, actor, 'getDocument');
+        // Don't reveal document existence
+        throw new NotFoundException('Document not found');
+      }
     }
 
     // 4. Log successful access
@@ -140,7 +145,7 @@ export class DocumentAccessDomainService {
     // 3. Get document IDs from grants
     const documentIdsFromGrants = grants.map((grant) => grant.documentId);
 
-    // 4. If actor is a manager, also get documents where they are origin manager
+    // 4. Get documents where actor is origin manager
     let allDocumentIds = [...documentIdsFromGrants];
 
     if (actor.type === 'manager') {
@@ -158,6 +163,22 @@ export class DocumentAccessDomainService {
         const originManagerIds = originManagerDocuments.map((doc) => doc.id);
         allDocumentIds = [...new Set([...allDocumentIds, ...originManagerIds])];
       }
+    } else if (actor.type === 'user') {
+      // Get self-managed documents (where originManagerId IS NULL and originUserContextId matches)
+      // TODO: Add repository method findSelfManagedByUserId for efficiency
+      // For now, we'll need to fetch and filter (not ideal for large datasets)
+      // This is a placeholder - in production, add a repository method
+      const allUserDocuments = await this.documentRepository.findByUserId(
+        actor.id,
+        { skip: 0, limit: 1000 }, // Large limit to get all
+      );
+      const selfManagedDocs = allUserDocuments.data.filter(
+        (doc) =>
+          doc.originManagerId === null &&
+          doc.originUserContextId === actor.id,
+      );
+      const selfManagedIds = selfManagedDocs.map((doc) => doc.id);
+      allDocumentIds = [...new Set([...allDocumentIds, ...selfManagedIds])];
     }
 
     // 5. If no documents, return empty
@@ -205,6 +226,43 @@ export class DocumentAccessDomainService {
   }
 
   /**
+   * Check if an actor is the origin manager of a document
+   * 
+   * Handles both manager-managed documents and self-managed documents:
+   * - If originManagerId IS NULL: User acts as origin manager if they uploaded it
+   * - If originManagerId IS NOT NULL: Manager acts as origin manager if their ID matches
+   * 
+   * @param document - Document entity
+   * @param actor - Actor to check
+   * @returns true if actor is the origin manager
+   */
+  async isOriginManager(document: Document, actor: Actor): Promise<boolean> {
+    // 1. Hard deny admins
+    if (actor.type === 'admin') {
+      return false;
+    }
+
+    // 2. Self-managed document (originManagerId IS NULL)
+    if (document.originManagerId === null) {
+      // User acts as origin manager if they uploaded it
+      return (
+        actor.type === 'user' &&
+        document.originUserContextId === actor.id
+      );
+    }
+
+    // 3. Manager-managed document (originManagerId IS NOT NULL)
+    if (actor.type === 'manager') {
+      const manager = await this.managerRepository.findByUserId(actor.id);
+      if (manager && document.originManagerId === manager.id) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Check if an actor can perform an operation on a document
    * 
    * Operation Authorization Matrix (from Phase 1):
@@ -234,26 +292,17 @@ export class DocumentAccessDomainService {
       return false;
     }
 
-    // 3. Check if actor is origin manager
-    // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
-    // We need to resolve the Manager ID from the User ID
-    let isOriginManager = false;
-    if (actor.type === 'manager') {
-      const manager =
-        await this.managerRepository.findByUserId(actor.id);
-      if (manager && document.originManagerId === manager.id) {
-        isOriginManager = true;
-      }
-    }
+    // 3. Check if actor is origin manager (handles both manager-managed and self-managed)
+    const isOriginMgr = await this.isOriginManager(document, actor);
 
     // 4. Origin manager operations (only origin manager can perform)
     if (operation === 'trigger-ocr' || operation === 'delete') {
-      return isOriginManager;
+      return isOriginMgr;
     }
 
     // 5. View/Download operations (origin manager OR granted access)
     if (operation === 'view' || operation === 'download') {
-      if (isOriginManager) {
+      if (isOriginMgr) {
         return true;
       }
 
