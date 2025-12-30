@@ -78,7 +78,7 @@ export class DocumentProcessingController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Document file (PDF, JPEG, PNG)',
+          description: 'Document file (PDF, JPEG, PNG, TIFF, GIF)',
         },
         documentType: {
           type: 'string',
