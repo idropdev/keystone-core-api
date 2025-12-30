@@ -48,3 +48,5 @@ keystone-sa-key.json
 gcp-*.json
 
 storage/*
+
+.cursor/*

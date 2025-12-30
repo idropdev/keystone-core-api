@@ -38,6 +38,7 @@ import { DocumentResponseDto } from './dto/document-response.dto';
 import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
+import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 
 /**
@@ -77,7 +78,7 @@ export class DocumentProcessingController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Document file (PDF, JPEG, PNG)',
+          description: 'Document file (PDF, JPEG, PNG, TIFF, GIF)',
         },
         documentType: {
           type: 'string',
@@ -227,9 +228,9 @@ export class DocumentProcessingController {
 
   @Get(':documentId/fields')
   @ApiOperation({
-    summary: 'Get Extracted Fields',
+    summary: 'Get Extracted Fields with OCR Outputs',
     description:
-      'Get structured fields extracted from the document via OCR processing (e.g., patient name, date, lab values).',
+      'Get structured fields extracted from the document via OCR processing (e.g., patient name, date, lab values), along with raw OCR outputs from both Document AI and Vision AI for comparison.',
   })
   @ApiParam({
     name: 'documentId',
@@ -239,8 +240,8 @@ export class DocumentProcessingController {
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiOkResponse({
-    description: 'Extracted fields retrieved',
-    type: [ExtractedFieldResponseDto],
+    description: 'Extracted fields and OCR outputs retrieved',
+    type: ExtractedFieldsWithOcrResponseDto,
   })
   @ApiUnauthorizedResponse({
     description: 'Invalid or expired access token',
@@ -251,7 +252,7 @@ export class DocumentProcessingController {
   async getExtractedFields(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
-  ): Promise<ExtractedFieldResponseDto[]> {
+  ): Promise<ExtractedFieldsWithOcrResponseDto> {
     const userId = req.user.id;
     return this.documentProcessingService.getExtractedFields(
       documentId,
@@ -396,5 +397,85 @@ export class DocumentProcessingController {
   ): Promise<void> {
     const userId = req.user.id;
     await this.documentProcessingService.deleteDocument(documentId, userId);
+  }
+
+  @Get(':documentId/vision-ai')
+  @ApiOperation({
+    summary: 'Get Vision AI OCR Output',
+    description:
+      'Get the raw Vision AI OCR output for a document. This allows comparison with Document AI output. Only available for documents processed with parallel OCR merge.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Vision AI OCR output retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+        confidence: { type: 'number' },
+        pageCount: { type: 'number' },
+        entities: { type: 'array' },
+        fullResponse: { type: 'object' },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found, access denied, or Vision AI output not available',
+  })
+  async getVisionAiOutput(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ): Promise<any> {
+    const userId = req.user.id;
+    return this.documentProcessingService.getVisionAiOutput(documentId, userId);
+  }
+
+  @Get(':documentId/document-ai')
+  @ApiOperation({
+    summary: 'Get Document AI OCR Output',
+    description:
+      'Get the raw Document AI OCR output for a document. This allows comparison with Vision AI output. Available for all documents processed with OCR.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Document AI OCR output retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+        confidence: { type: 'number' },
+        pageCount: { type: 'number' },
+        entities: { type: 'array' },
+        fullResponse: { type: 'object' },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found, access denied, or Document AI output not available',
+  })
+  async getDocumentAiOutput(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ): Promise<any> {
+    const userId = req.user.id;
+    return this.documentProcessingService.getDocumentAiOutput(documentId, userId);
   }
 }
