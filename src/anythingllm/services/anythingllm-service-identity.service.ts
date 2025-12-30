@@ -136,9 +136,7 @@ export class AnythingLLMServiceIdentityService {
 
       // Credentials configuration logging moved to DEBUG level for HIPAA compliance
       if (credentialsFileType === 'service_account_key') {
-        this.logger.debug(
-          `[Service Identity] Using service account key file`,
-        );
+        this.logger.debug(`[Service Identity] Using service account key file`);
       } else if (credentialsFileType === 'adc') {
         if (adcImpersonationInfo?.hasImpersonationUrl) {
           this.logger.debug(

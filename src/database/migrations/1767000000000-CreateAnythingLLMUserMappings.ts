@@ -90,4 +90,3 @@ export class CreateAnythingLLMUserMappings1767000000000
     await queryRunner.dropTable('anythingllm_user_mappings', true);
   }
 }
-

@@ -132,7 +132,7 @@ export class DocumentProcessingService {
     }
 
     // Get document for deletion (already verified it exists and user is authorized)
-    const document = await this.accessService.getDocument(documentId, actor);
+    await this.accessService.getDocument(documentId, actor);
 
     // Delete via domain service (it will handle soft delete and audit)
     return this.domainService.deleteDocument(documentId, actor.id);
@@ -151,7 +151,7 @@ export class DocumentProcessingService {
     }
 
     // Get document to verify it exists and get file URI
-    const document = await this.accessService.getDocument(documentId, actor);
+    await this.accessService.getDocument(documentId, actor);
 
     // Generate signed URL via domain service
     return this.domainService.getDownloadUrl(documentId, actor.id);
@@ -272,10 +272,7 @@ export class DocumentProcessingService {
     return response;
   }
 
-  async getVisionAiOutput(
-    documentId: string,
-    actor: Actor,
-  ): Promise<any> {
+  async getVisionAiOutput(documentId: string, actor: Actor): Promise<any> {
     // Check authorization (origin manager OR granted access)
     const canView = await this.accessService.canPerformOperation(
       documentId,
@@ -293,10 +290,7 @@ export class DocumentProcessingService {
     return this.domainService.getVisionAiOutput(documentId, actor.id);
   }
 
-  async getDocumentAiOutput(
-    documentId: string,
-    actor: Actor,
-  ): Promise<any> {
+  async getDocumentAiOutput(documentId: string, actor: Actor): Promise<any> {
     // Check authorization (origin manager OR granted access)
     const canView = await this.accessService.canPerformOperation(
       documentId,

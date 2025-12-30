@@ -77,7 +77,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
 
   describe('User Creation and Provisioning', () => {
     let createdUser: TestUser;
-    let anythingllmUserId: number | null = null;
+    const anythingllmUserId: number | null = null;
 
     afterAll(async () => {
       // Cleanup: Delete user in AnythingLLM if it was created

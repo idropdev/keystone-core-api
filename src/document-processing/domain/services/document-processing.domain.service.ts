@@ -462,13 +462,17 @@ export class DocumentProcessingDomainService {
                 : null;
 
             // Store OCR results in fullResponse for comparison endpoints
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
 
             // IMPORTANT: Serialize to avoid circular references
             if (visionOcrResult) {
-              ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+              ocrResult.fullResponse.rawVisionResult =
+                this.serializeOcrResult(visionOcrResult);
               this.logger.log(
                 `[DIRECT_EXTRACTION] Stored Vision AI output for comparison`,
               );
@@ -483,7 +487,8 @@ export class DocumentProcessingDomainService {
             }
 
             if (documentAiOcrResult) {
-              ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+              ocrResult.fullResponse.rawDocumentAiResult =
+                this.serializeOcrResult(documentAiOcrResult);
               this.logger.log(
                 `[DIRECT_EXTRACTION] Stored Document AI output for comparison`,
               );
@@ -583,34 +588,41 @@ export class DocumentProcessingDomainService {
                 );
 
                 try {
-                  const [visionResult, documentAiResult] = await Promise.allSettled([
-                    this.visionOcrService.processDocument(
-                      gcsUri,
-                      mimeType,
-                      document.pageCount,
-                    ),
-                    this.documentAiOcrService.processDocument(
-                      gcsUri,
-                      mimeType,
-                      document.pageCount,
-                    ),
-                  ]);
+                  const [visionResult, documentAiResult] =
+                    await Promise.allSettled([
+                      this.visionOcrService.processDocument(
+                        gcsUri,
+                        mimeType,
+                        document.pageCount,
+                      ),
+                      this.documentAiOcrService.processDocument(
+                        gcsUri,
+                        mimeType,
+                        document.pageCount,
+                      ),
+                    ]);
 
                   const visionOcrResult =
-                    visionResult.status === 'fulfilled' ? visionResult.value : null;
+                    visionResult.status === 'fulfilled'
+                      ? visionResult.value
+                      : null;
                   const documentAiOcrResult =
                     documentAiResult.status === 'fulfilled'
                       ? documentAiResult.value
                       : null;
 
                   // Store OCR results in fullResponse for comparison endpoints
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
 
                   // IMPORTANT: Serialize to avoid circular references
                   if (visionOcrResult) {
-                    ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+                    ocrResult.fullResponse.rawVisionResult =
+                      this.serializeOcrResult(visionOcrResult);
                   } else if (visionResult.status === 'rejected') {
                     ocrResult.fullResponse.rawVisionResult = {
                       error: true,
@@ -619,7 +631,8 @@ export class DocumentProcessingDomainService {
                   }
 
                   if (documentAiOcrResult) {
-                    ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+                    ocrResult.fullResponse.rawDocumentAiResult =
+                      this.serializeOcrResult(documentAiOcrResult);
                   } else if (documentAiResult.status === 'rejected') {
                     ocrResult.fullResponse.rawDocumentAiResult = {
                       error: true,
@@ -639,7 +652,7 @@ export class DocumentProcessingDomainService {
                 );
               }
             } catch (pdfParseError: any) {
-              // pdf-parse also failed - fall back to OCR
+              // pdf-parse also failed - fall back to parallel OCR
               const errorMessage =
                 pdfParseError?.message ||
                 String(pdfParseError) ||
@@ -656,20 +669,12 @@ export class DocumentProcessingDomainService {
                 );
               } else {
                 this.logger.warn(
-                  `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to OCR`,
+                  `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to parallel OCR`,
                 );
                 this.logger.warn(
                   `[PDF-PARSE] Error: ${errorMessage.substring(0, 200)}`,
                 );
               }
-            } catch (pdfParseError) {
-              // pdf-parse also failed - fall back to parallel OCR
-              this.logger.warn(
-                `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to parallel OCR`,
-              );
-              this.logger.warn(
-                `[PDF-PARSE] Error: ${pdfParseError.message || pdfParseError}`,
-              );
 
               const mergeEnabled =
                 this.configService.get('documentProcessing.ocrMerge.enabled', {
@@ -724,16 +729,23 @@ export class DocumentProcessingDomainService {
                     { enablePostProcessing: postProcessingEnabled },
                   );
                   // Store raw OCR results in fullResponse for comparison endpoints
-                  if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+                  if (
+                    ocrResult.fullResponse &&
+                    typeof ocrResult.fullResponse === 'object'
+                  ) {
                     ocrResult.fullResponse.rawVisionResult = visionOcrResult;
-                    ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                    ocrResult.fullResponse.rawDocumentAiResult =
+                      documentAiOcrResult;
                   }
                   processingMethod = ProcessingMethod.OCR_MERGED;
                 } else if (visionOcrResult) {
                   ocrResult = visionOcrResult;
                   // Store Vision AI result for comparison endpoints
                   // Ensure fullResponse is an object
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
                   ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -749,10 +761,14 @@ export class DocumentProcessingDomainService {
                   ocrResult = documentAiOcrResult;
                   // Store Document AI result for comparison endpoints
                   // Ensure fullResponse is an object
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
-                  ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                  ocrResult.fullResponse.rawDocumentAiResult =
+                    documentAiOcrResult;
                   // Also store Vision AI failure info if it failed
                   if (visionResult.status === 'rejected') {
                     ocrResult.fullResponse.rawVisionResult = {
@@ -813,8 +829,12 @@ export class DocumentProcessingDomainService {
                 if (documentAiOcrResult) {
                   ocrResult = documentAiOcrResult;
                   // Store both results for comparison endpoints
-                  if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
-                    ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                  if (
+                    ocrResult.fullResponse &&
+                    typeof ocrResult.fullResponse === 'object'
+                  ) {
+                    ocrResult.fullResponse.rawDocumentAiResult =
+                      documentAiOcrResult;
                     if (visionOcrResult) {
                       ocrResult.fullResponse.rawVisionResult = visionOcrResult;
                     }
@@ -827,7 +847,10 @@ export class DocumentProcessingDomainService {
                   ocrResult = visionOcrResult;
                   // Store Vision AI result for comparison endpoints
                   // Ensure fullResponse is an object
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
                   ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -871,8 +894,8 @@ export class DocumentProcessingDomainService {
               ) || false;
 
             if (mergeEnabled) {
-              const [visionResult, documentAiResult] =
-                await Promise.allSettled([
+              const [visionResult, documentAiResult] = await Promise.allSettled(
+                [
                   this.visionOcrService.processDocument(
                     gcsUri,
                     mimeType,
@@ -883,7 +906,8 @@ export class DocumentProcessingDomainService {
                     mimeType,
                     document.pageCount,
                   ),
-                ]);
+                ],
+              );
 
               const visionOcrResult =
                 visionResult.status === 'fulfilled' ? visionResult.value : null;
@@ -913,9 +937,14 @@ export class DocumentProcessingDomainService {
 
                 // Store raw OCR results in fullResponse for comparison endpoints
                 // IMPORTANT: Serialize to avoid circular references
-                if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
-                  ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
-                  ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+                if (
+                  ocrResult.fullResponse &&
+                  typeof ocrResult.fullResponse === 'object'
+                ) {
+                  ocrResult.fullResponse.rawVisionResult =
+                    this.serializeOcrResult(visionOcrResult);
+                  ocrResult.fullResponse.rawDocumentAiResult =
+                    this.serializeOcrResult(documentAiOcrResult);
                 }
 
                 processingMethod = ProcessingMethod.OCR_MERGED;
@@ -923,7 +952,10 @@ export class DocumentProcessingDomainService {
                 ocrResult = visionOcrResult;
                 // Store Vision AI result for comparison endpoints
                 // Ensure fullResponse is an object (it should be from Vision AI adapter)
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
                 ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -939,10 +971,14 @@ export class DocumentProcessingDomainService {
                 ocrResult = documentAiOcrResult;
                 // Store Document AI result for comparison endpoints
                 // Ensure fullResponse is an object
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
-                ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                ocrResult.fullResponse.rawDocumentAiResult =
+                  documentAiOcrResult;
                 // Also store Vision AI failure info if it failed
                 if (visionResult.status === 'rejected') {
                   ocrResult.fullResponse.rawVisionResult = {
@@ -964,8 +1000,8 @@ export class DocumentProcessingDomainService {
               );
 
               // Run both OCRs in parallel even when merge is disabled
-              const [visionResult, documentAiResult] =
-                await Promise.allSettled([
+              const [visionResult, documentAiResult] = await Promise.allSettled(
+                [
                   this.visionOcrService.processDocument(
                     gcsUri,
                     mimeType,
@@ -976,7 +1012,8 @@ export class DocumentProcessingDomainService {
                     mimeType,
                     document.pageCount,
                   ),
-                ]);
+                ],
+              );
 
               const visionOcrResult =
                 visionResult.status === 'fulfilled' ? visionResult.value : null;
@@ -1002,10 +1039,14 @@ export class DocumentProcessingDomainService {
                 ocrResult = documentAiOcrResult;
                 // Store both results for comparison endpoints
                 // Ensure fullResponse is an object
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
-                ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                ocrResult.fullResponse.rawDocumentAiResult =
+                  documentAiOcrResult;
                 if (visionOcrResult) {
                   ocrResult.fullResponse.rawVisionResult = visionOcrResult;
                 } else if (visionResult.status === 'rejected') {
@@ -1023,7 +1064,10 @@ export class DocumentProcessingDomainService {
                 ocrResult = visionOcrResult;
                 // Store Vision AI result for comparison endpoints
                 // Ensure fullResponse is an object
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
                 ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -1115,9 +1159,14 @@ export class DocumentProcessingDomainService {
 
             // Store raw OCR results in fullResponse for comparison endpoints
             // IMPORTANT: Serialize to avoid circular references
-            if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
-              ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
-              ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+            if (
+              ocrResult.fullResponse &&
+              typeof ocrResult.fullResponse === 'object'
+            ) {
+              ocrResult.fullResponse.rawVisionResult =
+                this.serializeOcrResult(visionOcrResult);
+              ocrResult.fullResponse.rawDocumentAiResult =
+                this.serializeOcrResult(documentAiOcrResult);
             }
 
             processingMethod = ProcessingMethod.OCR_MERGED;
@@ -1129,11 +1178,15 @@ export class DocumentProcessingDomainService {
             ocrResult = visionOcrResult;
             // Store Vision AI result for comparison endpoints
             // Ensure fullResponse is an object (it should be from Vision AI adapter)
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+            ocrResult.fullResponse.rawVisionResult =
+              this.serializeOcrResult(visionOcrResult);
             // Also store Document AI failure info if it failed
             if (documentAiResult.status === 'rejected') {
               ocrResult.fullResponse.rawDocumentAiResult = {
@@ -1150,11 +1203,15 @@ export class DocumentProcessingDomainService {
             ocrResult = documentAiOcrResult;
             // Store Document AI result for comparison endpoints
             // Ensure fullResponse is an object
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+            ocrResult.fullResponse.rawDocumentAiResult =
+              this.serializeOcrResult(documentAiOcrResult);
             // Also store Vision AI failure info if it failed
             if (visionResult.status === 'rejected') {
               ocrResult.fullResponse.rawVisionResult = {
@@ -1215,13 +1272,18 @@ export class DocumentProcessingDomainService {
             ocrResult = documentAiOcrResult;
             // Store both results for comparison endpoints
             // Ensure fullResponse is an object
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+            ocrResult.fullResponse.rawDocumentAiResult =
+              this.serializeOcrResult(documentAiOcrResult);
             if (visionOcrResult) {
-              ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+              ocrResult.fullResponse.rawVisionResult =
+                this.serializeOcrResult(visionOcrResult);
             } else if (visionResult.status === 'rejected') {
               // Store Vision AI failure info
               ocrResult.fullResponse.rawVisionResult = {
@@ -1237,11 +1299,15 @@ export class DocumentProcessingDomainService {
             ocrResult = visionOcrResult;
             // Store Vision AI result for comparison endpoints
             // Ensure fullResponse is an object
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+            ocrResult.fullResponse.rawVisionResult =
+              this.serializeOcrResult(visionOcrResult);
             // Store Document AI failure info if it failed
             if (documentAiResult.status === 'rejected') {
               ocrResult.fullResponse.rawDocumentAiResult = {
@@ -1266,7 +1332,9 @@ export class DocumentProcessingDomainService {
 
       // Store processed output JSON
       // Serialize fullResponse to avoid circular references when storing
-      const serializedFullResponse = this.serializeFullResponse(ocrResult.fullResponse);
+      const serializedFullResponse = this.serializeFullResponse(
+        ocrResult.fullResponse,
+      );
 
       const processedUri = await this.storageService.storeProcessed(
         serializedFullResponse,
@@ -1306,12 +1374,12 @@ export class DocumentProcessingDomainService {
       this.logger.debug(
         `[STORAGE] Has rawDocumentAiResult: ${!!ocrResult.fullResponse?.rawDocumentAiResult}`,
       );
-      this.logger.debug(
-        `[STORAGE] Processing method: ${processingMethod}`,
-      );
+      this.logger.debug(`[STORAGE] Processing method: ${processingMethod}`);
 
       // Serialize fullResponse before storing in database to avoid circular references
-      const serializedOcrJsonOutput = this.serializeFullResponse(ocrResult.fullResponse);
+      const serializedOcrJsonOutput = this.serializeFullResponse(
+        ocrResult.fullResponse,
+      );
 
       // Log what we're actually storing (after serialization)
       if (serializedOcrJsonOutput) {

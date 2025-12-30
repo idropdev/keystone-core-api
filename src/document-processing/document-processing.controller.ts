@@ -528,7 +528,8 @@ export class DocumentProcessingController {
     description: 'Invalid or expired access token',
   })
   @ApiNotFoundResponse({
-    description: 'Document not found, access denied, or Vision AI output not available',
+    description:
+      'Document not found, access denied, or Vision AI output not available',
   })
   async getVisionAiOutput(
     @Request() req,

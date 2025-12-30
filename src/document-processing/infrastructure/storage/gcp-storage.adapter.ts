@@ -63,14 +63,15 @@ export class GcpStorageAdapter implements StorageServicePort {
         `GCP Storage initialized with direct service account key: ${credentialsPath}`,
       );
       if (credentialInfo.clientEmail) {
-        this.logger.log(
-          `  Service account: ${credentialInfo.clientEmail}`,
-        );
+        this.logger.log(`  Service account: ${credentialInfo.clientEmail}`);
       }
       this.storage = new Storage({
         keyFilename: credentialsPath,
       });
-    } else if (credentialsPath && credentialInfo.type === 'impersonated_service_account') {
+    } else if (
+      credentialsPath &&
+      credentialInfo.type === 'impersonated_service_account'
+    ) {
       // Impersonation credentials detected - warn user
       this.logger.warn(
         '⚠️  [GCP STORAGE] Impersonation credentials detected. Signed URLs will not work with impersonation.',
@@ -78,9 +79,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.warn(
         '   For signed URLs, use a direct service account key file (type: service_account).',
       );
-      this.logger.warn(
-        '   Current file type: impersonated_service_account',
-      );
+      this.logger.warn('   Current file type: impersonated_service_account');
 
       // Still try to use ADC (library will read GOOGLE_APPLICATION_CREDENTIALS)
       this.storage = new Storage();
@@ -100,9 +99,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.error(
         `❌ [GCP STORAGE] Credentials file not found: ${credentialsPath}`,
       );
-      this.logger.error(
-        '   Falling back to ADC. Signed URLs will not work.',
-      );
+      this.logger.error('   Falling back to ADC. Signed URLs will not work.');
       this.storage = new Storage();
     } else {
       // No GOOGLE_APPLICATION_CREDENTIALS set - use ADC directly
@@ -145,7 +142,11 @@ export class GcpStorageAdapter implements StorageServicePort {
    * Returns information about the credential file
    */
   private detectCredentialType(credentialsPath?: string): {
-    type: 'service_account' | 'impersonated_service_account' | 'authorized_user' | 'unknown';
+    type:
+      | 'service_account'
+      | 'impersonated_service_account'
+      | 'authorized_user'
+      | 'unknown';
     exists: boolean;
     clientEmail?: string;
   } {
@@ -203,9 +204,7 @@ export class GcpStorageAdapter implements StorageServicePort {
    * Detect if credentials file contains impersonation credentials
    * @deprecated Use detectCredentialType instead
    */
-  private detectImpersonationCredentials(
-    credentialsPath?: string,
-  ): boolean {
+  private detectImpersonationCredentials(credentialsPath?: string): boolean {
     const info = this.detectCredentialType(credentialsPath);
     return info.type === 'impersonated_service_account';
   }
@@ -240,12 +239,8 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.error(
         `❌ Service account key file not found: ${credentialsPath}`,
       );
-      this.logger.error(
-        `   Original path from env: ${credentialsPathEnv}`,
-      );
-      this.logger.error(
-        `   Resolved absolute path: ${credentialsPath}`,
-      );
+      this.logger.error(`   Original path from env: ${credentialsPathEnv}`);
+      this.logger.error(`   Resolved absolute path: ${credentialsPath}`);
       return;
     }
 
@@ -255,9 +250,7 @@ export class GcpStorageAdapter implements StorageServicePort {
         this.logger.log(
           `✅ Service account credentials validated: ${credentialInfo.clientEmail}`,
         );
-        this.logger.log(
-          `   File: ${credentialsPath}`,
-        );
+        this.logger.log(`   File: ${credentialsPath}`);
       } else {
         this.logger.error(
           `❌ Service account key file missing 'client_email' field: ${credentialsPath}`,
@@ -267,9 +260,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.warn(
         `⚠️  Impersonation credentials detected. Signed URLs may not work reliably.`,
       );
-      this.logger.warn(
-        `   File: ${credentialsPath}`,
-      );
+      this.logger.warn(`   File: ${credentialsPath}`);
       this.logger.warn(
         '   For signed URLs, use a direct service account key (type: service_account).',
       );
@@ -281,12 +272,8 @@ export class GcpStorageAdapter implements StorageServicePort {
         '   For signed URLs, use a service account key file (type: service_account).',
       );
     } else {
-      this.logger.warn(
-        `⚠️  Unknown credential type. Signed URLs may fail.`,
-      );
-      this.logger.warn(
-        `   File: ${credentialsPath}`,
-      );
+      this.logger.warn(`⚠️  Unknown credential type. Signed URLs may fail.`);
+      this.logger.warn(`   File: ${credentialsPath}`);
     }
   }
 
@@ -363,9 +350,7 @@ export class GcpStorageAdapter implements StorageServicePort {
         this.logger.error(
           `[GCP STORAGE] Upload failed - invalid service account key format: ${this.sanitizeError(error)}`,
         );
-        this.logger.error(
-          `   Credentials file: ${credentialsPath}`,
-        );
+        this.logger.error(`   Credentials file: ${credentialsPath}`);
         this.logger.error(
           '   Verify the service account key file is valid and contains a proper client_email field.',
         );
@@ -425,7 +410,8 @@ export class GcpStorageAdapter implements StorageServicePort {
       // Check for impersonation errors
       const errorMessage = (error as Error).message || String(error);
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      const isImpersonationCredentials = this.detectImpersonationCredentials(credentialsPath);
+      const isImpersonationCredentials =
+        this.detectImpersonationCredentials(credentialsPath);
 
       if (
         (errorMessage.includes('unable to impersonate') ||
@@ -642,8 +628,9 @@ export class GcpStorageAdapter implements StorageServicePort {
         : undefined;
       const credentialInfo = this.detectCredentialType(credentialsPath);
 
-      const remediation = credentialInfo.type === 'impersonated_service_account'
-        ? `Service account impersonation is failing. For signed URLs, use a direct service account key (type: service_account).
+      const remediation =
+        credentialInfo.type === 'impersonated_service_account'
+          ? `Service account impersonation is failing. For signed URLs, use a direct service account key (type: service_account).
 
    Current file: ${credentialsPath || 'not set'}
    Detected type: ${credentialInfo.type}
@@ -655,8 +642,8 @@ export class GcpStorageAdapter implements StorageServicePort {
 
    2. Ensure GOOGLE_APPLICATION_CREDENTIALS points to this file:
       export GOOGLE_APPLICATION_CREDENTIALS=.secrets/keystone-doc-processing-key.json`
-        : credentialInfo.type === 'service_account'
-        ? `Service account key file detected but authentication is failing. Verify:
+          : credentialInfo.type === 'service_account'
+            ? `Service account key file detected but authentication is failing. Verify:
    1. File path: ${credentialsPath || 'not set'}
    2. File exists and is readable
    3. File contains valid JSON with type: "service_account" and client_email field
@@ -664,7 +651,7 @@ export class GcpStorageAdapter implements StorageServicePort {
    5. Regenerate the key if needed:
       gcloud iam service-accounts keys create .secrets/keystone-doc-processing-key.json \\
         --iam-account=SERVICE_ACCOUNT@PROJECT.iam.gserviceaccount.com`
-        : `GCP authentication failed. Verify:
+            : `GCP authentication failed. Verify:
    1. Check GOOGLE_APPLICATION_CREDENTIALS env var (if using service account)
    2. File path: ${credentialsPath || 'not set'}
    3. Or run: gcloud auth application-default login (for local dev)
