@@ -35,4 +35,3 @@ export class WorkspaceMapperService {
     return `patient-${hash}`;
   }
 }
-

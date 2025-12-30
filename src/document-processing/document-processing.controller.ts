@@ -45,6 +45,7 @@ import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 import { extractActorFromRequest } from './utils/actor-extractor.util';
 import { RoleEnum } from '../roles/roles.enum';
+import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 
 /**
  * Document Processing Controller
@@ -83,7 +84,7 @@ export class DocumentProcessingController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Document file (PDF, JPEG, PNG)',
+          description: 'Document file (PDF, JPEG, PNG, TIFF, GIF)',
         },
         documentType: {
           type: 'string',
@@ -266,9 +267,9 @@ export class DocumentProcessingController {
 
   @Get(':documentId/fields')
   @ApiOperation({
-    summary: 'Get Extracted Fields',
+    summary: 'Get Extracted Fields with OCR Outputs',
     description:
-      'Get structured fields extracted from the document via OCR processing (e.g., patient name, date, lab values).',
+      'Get structured fields extracted from the document via OCR processing (e.g., patient name, date, lab values), along with raw OCR outputs from both Document AI and Vision AI for comparison.',
   })
   @ApiParam({
     name: 'documentId',
@@ -278,8 +279,8 @@ export class DocumentProcessingController {
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiOkResponse({
-    description: 'Extracted fields retrieved',
-    type: [ExtractedFieldResponseDto],
+    description: 'Extracted fields and OCR outputs retrieved',
+    type: ExtractedFieldsWithOcrResponseDto,
   })
   @ApiUnauthorizedResponse({
     description: 'Invalid or expired access token',
@@ -495,5 +496,99 @@ export class DocumentProcessingController {
     const actor = extractActorFromRequest(req);
     await this.documentProcessingService.triggerOcr(documentId, actor);
     return { message: 'OCR processing triggered successfully' };
+  }
+
+  @Get(':documentId/vision-ai')
+  @ApiOperation({
+    summary: 'Get Vision AI OCR Output',
+    description:
+      'Get the raw Vision AI OCR output for a document. This allows comparison with Document AI output. Only available for documents processed with parallel OCR merge.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Vision AI OCR output retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+        confidence: { type: 'number' },
+        pageCount: { type: 'number' },
+        entities: { type: 'array' },
+        fullResponse: { type: 'object' },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found, access denied, or Vision AI output not available',
+  })
+  async getVisionAiOutput(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ): Promise<any> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getVisionAiOutput(documentId, actor);
+  }
+
+  @Get(':documentId/document-ai')
+  @ApiOperation({
+    summary: 'Get Document AI OCR Output',
+    description:
+      'Get the raw Document AI OCR output for a document. This allows comparison with Vision AI output. Available for all documents processed with OCR.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Document AI OCR output retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+        confidence: { type: 'number' },
+        pageCount: { type: 'number' },
+        entities: { type: 'array' },
+        fullResponse: { type: 'object' },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'Document not found, access denied, or Document AI output not available',
+  })
+  async getDocumentAiOutput(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ): Promise<any> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getDocumentAiOutput(
+      documentId,
+      actor,
+    );
   }
 }

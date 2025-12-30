@@ -15,6 +15,7 @@ import { DocumentResponseDto } from './dto/document-response.dto';
 import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
+import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 
 /**
@@ -179,6 +180,7 @@ export class DocumentProcessingService {
     await this.accessService.getDocument(documentId, actor);
 
     // Get fields via domain service
+    // Get extracted fields
     const fields = await this.domainService.getExtractedFields(
       documentId,
       actor.id,
@@ -201,21 +203,115 @@ export class DocumentProcessingService {
       );
     }
 
-    const dtos = fields.map((field) =>
+    const fieldDtos = fields.map((field) =>
       plainToClass(ExtractedFieldResponseDto, field, {
         excludeExtraneousValues: true,
       }),
     );
 
-    this.logger.log(`[APP SERVICE] Transformed to ${dtos.length} DTOs`);
+    this.logger.log(`[APP SERVICE] Transformed to ${fieldDtos.length} DTOs`);
 
-    if (dtos.length > 0) {
-      this.logger.debug(
-        `[APP SERVICE] First DTO after transformation: ${JSON.stringify(dtos[0])}`,
+    // Get OCR outputs (may not be available for all documents)
+    let documentOutput: any = null;
+    let visionOutput: any = null;
+
+    try {
+      documentOutput = await this.domainService.getDocumentAiOutput(
+        documentId,
+        actor.id,
       );
+      this.logger.debug(
+        `[APP SERVICE] Retrieved Document AI output for document ${documentId}`,
+      );
+    } catch (error) {
+      // Not available - that's okay, we'll return null
+      // Only log if it's not a NotFoundException (which is expected)
+      if (error.name !== 'NotFoundException') {
+        this.logger.warn(
+          `[APP SERVICE] Error retrieving Document AI output: ${error.message}`,
+        );
+      } else {
+        this.logger.debug(
+          `[APP SERVICE] Document AI output not available for document ${documentId}`,
+        );
+      }
     }
 
-    return dtos;
+    try {
+      visionOutput = await this.domainService.getVisionAiOutput(
+        documentId,
+        actor.id,
+      );
+      this.logger.debug(
+        `[APP SERVICE] Retrieved Vision AI output for document ${documentId}`,
+      );
+    } catch (error) {
+      // Not available - that's okay, we'll return null
+      // Only log if it's not a NotFoundException (which is expected)
+      if (error.name !== 'NotFoundException') {
+        this.logger.warn(
+          `[APP SERVICE] Error retrieving Vision AI output: ${error.message}`,
+        );
+      } else {
+        this.logger.debug(
+          `[APP SERVICE] Vision AI output not available for document ${documentId}`,
+        );
+      }
+    }
+
+    const response = plainToClass(
+      ExtractedFieldsWithOcrResponseDto,
+      {
+        fields: fieldDtos,
+        document_output: documentOutput,
+        vision_output: visionOutput,
+      },
+      { excludeExtraneousValues: true },
+    );
+
+    return response;
+  }
+
+  async getVisionAiOutput(
+    documentId: string,
+    actor: Actor,
+  ): Promise<any> {
+    // Check authorization (origin manager OR granted access)
+    const canView = await this.accessService.canPerformOperation(
+      documentId,
+      'view',
+      actor,
+    );
+
+    if (!canView) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists
+    await this.accessService.getDocument(documentId, actor);
+
+    return this.domainService.getVisionAiOutput(documentId, actor.id);
+  }
+
+  async getDocumentAiOutput(
+    documentId: string,
+    actor: Actor,
+  ): Promise<any> {
+    // Check authorization (origin manager OR granted access)
+    const canView = await this.accessService.canPerformOperation(
+      documentId,
+      'view',
+      actor,
+    );
+
+    if (!canView) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists
+    await this.accessService.getDocument(documentId, actor);
+
+    return this.domainService.getDocumentAiOutput(documentId, actor.id);
   }
 
   /**

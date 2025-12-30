@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ForbiddenException,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, ForbiddenException, Inject } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import {
   AccessGrantDomainService,

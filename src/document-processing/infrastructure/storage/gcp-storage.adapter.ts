@@ -2,7 +2,6 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Storage, Bucket, File } from '@google-cloud/storage';
@@ -34,100 +33,95 @@ import { AllConfigType } from '../../../config/config.type';
  * - Use signed URLs with short expiry for downloads
  */
 @Injectable()
-export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
+export class GcpStorageAdapter implements StorageServicePort {
   private readonly logger = new Logger(GcpStorageAdapter.name);
   private readonly storage: Storage;
   private readonly bucket: Bucket;
   private readonly rawPrefix: string;
   private readonly processedPrefix: string;
-  private readonly bucketName: string;
-  private authVerified: boolean = false;
 
   constructor(private readonly configService: ConfigService<AllConfigType>) {
-    // Initialize Storage with explicit credentials if GOOGLE_APPLICATION_CREDENTIALS is set
-    // This ensures signed URLs work (requires service account with client_email)
-    let credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    // Initialize Storage with proper credential handling (same pattern as Document AI and Vision AI)
+    // Priority:
+    // 1. Direct service account key (if GOOGLE_APPLICATION_CREDENTIALS points to a service account JSON)
+    // 2. ADC (Application Default Credentials) - recommended for local dev and GCP compute
+    // 3. Impersonation credentials (if detected, will use ADC but may fail if IAM not configured)
+    const credentialsPathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-    // If ADC file is specified but service account key exists in same directory, prefer service account key
-    if (credentialsPath && fs.existsSync(credentialsPath)) {
-      try {
-        const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-        const keyJson = JSON.parse(keyContent);
-        // If it's ADC, check for service account key in same directory
-        if (keyJson.type === 'authorized_user') {
-          const adcDir = path.dirname(credentialsPath);
-          const serviceAccountKeyPath = path.join(
-            adcDir,
-            'keystone-sa-key.json',
-          );
-          if (fs.existsSync(serviceAccountKeyPath)) {
-            credentialsPath = serviceAccountKeyPath;
-            this.logger.log(
-              `Service account key found, using it instead of ADC: ${serviceAccountKeyPath}`,
-            );
-          }
-        }
-      } catch {
-        // If parsing fails, continue with original path
+    // Resolve relative paths to absolute paths
+    const credentialsPath = credentialsPathEnv
+      ? path.isAbsolute(credentialsPathEnv)
+        ? credentialsPathEnv
+        : path.resolve(process.cwd(), credentialsPathEnv)
+      : undefined;
+
+    const credentialInfo = this.detectCredentialType(credentialsPath);
+
+    if (credentialsPath && credentialInfo.type === 'service_account') {
+      // Direct service account key - can use keyFilename (required for signed URLs)
+      this.logger.log(
+        `GCP Storage initialized with direct service account key: ${credentialsPath}`,
+      );
+      if (credentialInfo.clientEmail) {
+        this.logger.log(
+          `  Service account: ${credentialInfo.clientEmail}`,
+        );
       }
-    }
-
-    // Get project ID from env (needed for ADC when project can't be auto-detected)
-    const projectId =
-      process.env.GCP_PROJECT_ID ||
-      process.env.GOOGLE_CLOUD_PROJECT ||
-      this.configService.get('documentProcessing.gcp.projectId', {
-        infer: true,
-      }) ||
-      process.env.GCLOUD_PROJECT;
-
-    if (credentialsPath) {
-      // Verify the file exists and is readable
-      if (!fs.existsSync(credentialsPath)) {
-        this.logger.error(`❌ Credentials file not found: ${credentialsPath}`);
-      } else {
-        try {
-          // Verify it's a valid JSON file
-          const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-          const keyJson = JSON.parse(keyContent);
-          if (keyJson.type === 'service_account' && keyJson.client_email) {
-            this.logger.log(
-              `GCP Storage initialized with service account: ${keyJson.client_email}`,
-            );
-            this.logger.log(`   Credentials file: ${credentialsPath}`);
-            if (projectId) {
-              this.logger.log(`   Project ID: ${projectId}`);
-            }
-          }
-        } catch (err) {
-          this.logger.warn(
-            `⚠️  Could not parse credentials file: ${credentialsPath}`,
-          );
-        }
-      }
-
       this.storage = new Storage({
         keyFilename: credentialsPath,
-        projectId: projectId || undefined,
       });
-    } else {
-      // Fallback to ADC (Application Default Credentials)
-      // NOTE: ADC may not work for signed URLs - requires service account with client_email
-      // Set project ID explicitly for ADC
-      this.storage = new Storage({
-        projectId: projectId || undefined,
-      });
+    } else if (credentialsPath && credentialInfo.type === 'impersonated_service_account') {
+      // Impersonation credentials detected - warn user
       this.logger.warn(
-        'GCP Storage initialized with ADC. Signed URLs require a service account key file. Set GOOGLE_APPLICATION_CREDENTIALS for production.',
+        '⚠️  [GCP STORAGE] Impersonation credentials detected. Signed URLs will not work with impersonation.',
       );
+      this.logger.warn(
+        '   For signed URLs, use a direct service account key file (type: service_account).',
+      );
+      this.logger.warn(
+        '   Current file type: impersonated_service_account',
+      );
+
+      // Still try to use ADC (library will read GOOGLE_APPLICATION_CREDENTIALS)
+      this.storage = new Storage();
+    } else if (credentialsPath && credentialInfo.type === 'unknown') {
+      // File exists but couldn't determine type - try to use it anyway
+      this.logger.warn(
+        `⚠️  [GCP STORAGE] Could not determine credential type for: ${credentialsPath}`,
+      );
+      this.logger.warn(
+        '   Attempting to use as service account key. If this fails, verify the file is a valid service account JSON.',
+      );
+      this.storage = new Storage({
+        keyFilename: credentialsPath,
+      });
+    } else if (credentialsPath && !credentialInfo.exists) {
+      // File doesn't exist
+      this.logger.error(
+        `❌ [GCP STORAGE] Credentials file not found: ${credentialsPath}`,
+      );
+      this.logger.error(
+        '   Falling back to ADC. Signed URLs will not work.',
+      );
+      this.storage = new Storage();
+    } else {
+      // No GOOGLE_APPLICATION_CREDENTIALS set - use ADC directly
+      this.logger.log(
+        '[GCP STORAGE] Using Application Default Credentials (ADC).',
+      );
+      this.logger.warn(
+        '  NOTE: Signed URLs require a service account key file, not ADC.',
+      );
+
+      this.storage = new Storage();
     }
 
-    this.bucketName = this.configService.getOrThrow(
+    const bucketName = this.configService.getOrThrow(
       'documentProcessing.gcp.storage.bucket',
       { infer: true },
     );
 
-    this.bucket = this.storage.bucket(this.bucketName);
+    this.bucket = this.storage.bucket(bucketName);
 
     this.rawPrefix = this.configService.getOrThrow(
       'documentProcessing.gcp.storage.rawPrefix',
@@ -147,137 +141,73 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
   }
 
   /**
-   * OnModuleInit: Verify GCP authentication at startup (fail fast)
-   * This prevents runtime errors when handling document uploads
+   * Detect credential type from file
+   * Returns information about the credential file
    */
-  async onModuleInit(): Promise<void> {
-    await this.verifyAuth();
-  }
+  private detectCredentialType(credentialsPath?: string): {
+    type: 'service_account' | 'impersonated_service_account' | 'authorized_user' | 'unknown';
+    exists: boolean;
+    clientEmail?: string;
+  } {
+    if (!credentialsPath) {
+      return { type: 'unknown', exists: false };
+    }
 
-  /**
-   * Verify GCP authentication at startup (fail fast)
-   * This checks:
-   * 1. Credentials are valid and can authenticate
-   * 2. Project ID matches expected project
-   * 3. Bucket exists and is accessible
-   * 4. Service account has required permissions
-   *
-   * Throws error if auth fails - prevents app from starting with broken auth
-   */
-  async verifyAuth(): Promise<void> {
     try {
-      this.logger.log('🔍 Verifying GCP authentication...');
-
-      // Step 1: Verify we can authenticate and get project ID
-      let detectedProjectId: string | null = null;
-      const configuredProjectId =
-        process.env.GCP_PROJECT_ID ||
-        process.env.GOOGLE_CLOUD_PROJECT ||
-        this.configService.get('documentProcessing.gcp.projectId', {
-          infer: true,
-        }) ||
-        process.env.GCLOUD_PROJECT;
-
-      try {
-        detectedProjectId = await this.storage.getProjectId();
-        this.logger.log(`   ✅ Project ID: ${detectedProjectId}`);
-
-        // Verify project matches configured project (if set)
-        if (configuredProjectId && detectedProjectId !== configuredProjectId) {
-          this.logger.warn(
-            `   ⚠️  Project mismatch: detected=${detectedProjectId}, configured=${configuredProjectId}`,
-          );
-          this.logger.warn(
-            '   This may cause bucket access failures. Set GCP_PROJECT_ID to match your bucket project.',
-          );
-        }
-      } catch (error) {
-        // If project ID can't be auto-detected, use configured project ID
-        if (configuredProjectId) {
-          this.logger.warn(
-            `   ⚠️  Could not auto-detect project ID, using configured: ${configuredProjectId}`,
-          );
-          this.logger.warn(`   Error: ${(error as Error).message}`);
-          // Storage was already initialized with projectId in constructor, so continue
-          detectedProjectId = configuredProjectId;
-        } else {
-          this.logger.error(
-            `⚠️  Could not get project ID and no configured project ID found. ` +
-              `Set GCP_PROJECT_ID or DOC_PROCESSING_GCP_PROJECT_ID in .env.`,
-          );
-          this.logger.error(`   Error: ${(error as Error).message}`);
-          // Continue without project ID - it may work if credentials have it embedded
-        }
+      if (!fs.existsSync(credentialsPath)) {
+        this.logger.warn(
+          `[GCP STORAGE] Credentials file does not exist: ${credentialsPath}`,
+        );
+        return { type: 'unknown', exists: false };
       }
 
-      // Step 2: Skip bucket listing check - we don't need storage.buckets.list permission
-      // roles/storage.objectAdmin is sufficient for object operations (upload/download/delete)
-      // We'll verify access to the specific bucket we need instead (Step 3)
-      this.logger.log(
-        '   ✅ Credentials configured (skipping bucket list check - not required)',
-      );
+      const keyContent = fs.readFileSync(credentialsPath, 'utf8');
+      const keyJson = JSON.parse(keyContent);
 
-      // Step 3: Skip bucket metadata check - roles/storage.objectAdmin doesn't include bucket.get permission
-      // This is fine - we'll verify access when we actually use the bucket (upload/download operations)
-      // The service account has objectAdmin role which is sufficient for object operations
-      this.logger.log(
-        `   ✅ Bucket configured: ${this.bucketName} (access will be verified on first use)`,
-      );
+      const credentialType = keyJson.type;
 
-      this.authVerified = true;
-      this.logger.log('✅ GCP authentication verification completed');
-    } catch (error) {
-      this.authVerified = false;
-      this.logger.error(
-        '⚠️  GCP authentication verification encountered errors',
-      );
-      this.logger.error(`   Error: ${(error as Error).message}`);
-      // Don't throw - log errors but allow app to start
-      // This way we can debug credential issues without blocking startup
-    }
-  }
-
-  /**
-   * Check if authentication has been verified
-   * Used by health check endpoint
-   */
-  isAuthVerified(): boolean {
-    return this.authVerified;
-  }
-
-  /**
-   * Health check: Verify bucket is accessible
-   * Used by GET /health/gcp endpoint
-   */
-  async healthCheck(): Promise<{
-    status: string;
-    bucket: string;
-    accessible: boolean;
-    error?: string;
-  }> {
-    try {
-      const [exists] = await this.bucket.exists();
-      if (!exists) {
+      if (credentialType === 'service_account') {
         return {
-          status: 'unhealthy',
-          bucket: this.bucketName,
-          accessible: false,
-          error: 'Bucket does not exist or is not accessible',
+          type: 'service_account',
+          exists: true,
+          clientEmail: keyJson.client_email,
+        };
+      } else if (credentialType === 'impersonated_service_account') {
+        return {
+          type: 'impersonated_service_account',
+          exists: true,
+        };
+      } else if (credentialType === 'authorized_user') {
+        return {
+          type: 'authorized_user',
+          exists: true,
+        };
+      } else {
+        this.logger.warn(
+          `[GCP STORAGE] Unknown credential type: ${credentialType || 'undefined'}`,
+        );
+        return {
+          type: 'unknown',
+          exists: true,
         };
       }
-      return {
-        status: 'healthy',
-        bucket: this.bucketName,
-        accessible: true,
-      };
     } catch (error) {
-      return {
-        status: 'unhealthy',
-        bucket: this.bucketName,
-        accessible: false,
-        error: this.sanitizeError(error),
-      };
+      this.logger.warn(
+        `[GCP STORAGE] Could not parse credentials file: ${this.sanitizeError(error)}`,
+      );
+      return { type: 'unknown', exists: true };
     }
+  }
+
+  /**
+   * Detect if credentials file contains impersonation credentials
+   * @deprecated Use detectCredentialType instead
+   */
+  private detectImpersonationCredentials(
+    credentialsPath?: string,
+  ): boolean {
+    const info = this.detectCredentialType(credentialsPath);
+    return info.type === 'impersonated_service_account';
   }
 
   /**
@@ -285,8 +215,8 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
    * This is a best-effort check - actual validation happens at runtime
    */
   private validateSignedUrlCredentials(): void {
-    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    if (!credentialsPath) {
+    const credentialsPathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (!credentialsPathEnv) {
       this.logger.warn(
         '⚠️  GOOGLE_APPLICATION_CREDENTIALS not set. Signed URL generation will fail.',
       );
@@ -296,61 +226,76 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       this.logger.warn(
         '   Application Default Credentials cannot be used for signed URLs.',
       );
-    } else {
-      // Try to verify the file exists and is readable
-      try {
-        if (!fs.existsSync(credentialsPath)) {
-          this.logger.error(
-            `❌ Service account key file not found: ${credentialsPath}`,
-          );
-        } else {
-          // Try to parse JSON to verify it's a valid service account key
-          const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-          const keyJson = JSON.parse(keyContent);
-          // Only check for client_email if it's a service account (not ADC)
-          if (keyJson.type === 'service_account' && !keyJson.client_email) {
-            this.logger.error(
-              `❌ Service account key file missing 'client_email' field: ${credentialsPath}`,
-            );
-            this.logger.error(
-              '   This file may be user credentials, not a service account key.',
-            );
-          } else if (
-            keyJson.type === 'service_account' &&
-            keyJson.client_email
-          ) {
-            this.logger.log(
-              `✅ Service account credentials validated: ${keyJson.client_email}`,
-            );
-          } else {
-            // It's ADC (user credentials) - that's fine, just log it
-            // Note: Constructor already handles preferring service account key if available
-            this.logger.log(
-              '✅ Application Default Credentials (ADC) file found',
-            );
-          }
-        }
-      } catch (error) {
-        this.logger.warn(
-          `⚠️  Could not validate service account key file: ${credentialsPath}`,
+      return;
+    }
+
+    // Resolve relative paths to absolute paths
+    const credentialsPath = path.isAbsolute(credentialsPathEnv)
+      ? credentialsPathEnv
+      : path.resolve(process.cwd(), credentialsPathEnv);
+
+    const credentialInfo = this.detectCredentialType(credentialsPath);
+
+    if (!credentialInfo.exists) {
+      this.logger.error(
+        `❌ Service account key file not found: ${credentialsPath}`,
+      );
+      this.logger.error(
+        `   Original path from env: ${credentialsPathEnv}`,
+      );
+      this.logger.error(
+        `   Resolved absolute path: ${credentialsPath}`,
+      );
+      return;
+    }
+
+    // Validate based on credential type
+    if (credentialInfo.type === 'service_account') {
+      if (credentialInfo.clientEmail) {
+        this.logger.log(
+          `✅ Service account credentials validated: ${credentialInfo.clientEmail}`,
         );
-        this.logger.warn(`   Error: ${(error as Error).message}`);
+        this.logger.log(
+          `   File: ${credentialsPath}`,
+        );
+      } else {
+        this.logger.error(
+          `❌ Service account key file missing 'client_email' field: ${credentialsPath}`,
+        );
       }
+    } else if (credentialInfo.type === 'impersonated_service_account') {
+      this.logger.warn(
+        `⚠️  Impersonation credentials detected. Signed URLs may not work reliably.`,
+      );
+      this.logger.warn(
+        `   File: ${credentialsPath}`,
+      );
+      this.logger.warn(
+        '   For signed URLs, use a direct service account key (type: service_account).',
+      );
+    } else if (credentialInfo.type === 'authorized_user') {
+      this.logger.warn(
+        `⚠️  User credentials detected (type: authorized_user). Signed URL generation will fail.`,
+      );
+      this.logger.warn(
+        '   For signed URLs, use a service account key file (type: service_account).',
+      );
+    } else {
+      this.logger.warn(
+        `⚠️  Unknown credential type. Signed URLs may fail.`,
+      );
+      this.logger.warn(
+        `   File: ${credentialsPath}`,
+      );
     }
   }
 
   async storeRaw(fileBuffer: Buffer, metadata: FileMetadata): Promise<string> {
-    const objectKey = `${this.rawPrefix}${metadata.userId}/${metadata.documentId}_${metadata.fileName}`;
-    this.logger.debug(
-      `Attempting to upload file for document ${metadata.documentId} to bucket: ${this.bucketName}, object: ${objectKey}`,
-    );
-
     try {
-      const file: File = this.bucket.file(objectKey);
+      // Build deterministic object key: raw/{userId}/{documentId}_{fileName}
+      const objectKey = `${this.rawPrefix}${metadata.userId}/${metadata.documentId}_${metadata.fileName}`;
 
-      this.logger.debug(
-        `Starting upload for document ${metadata.documentId} (${(metadata.contentLength / 1024).toFixed(2)} KB, type: ${metadata.mimeType})`,
-      );
+      const file: File = this.bucket.file(objectKey);
 
       // Upload with resumable upload (automatic for files > 5MB)
       await file.save(fileBuffer, {
@@ -372,79 +317,13 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
 
       const gcsUri = `gs://${this.bucket.name}/${objectKey}`;
 
+      // SECURITY: Only log at DEBUG level, mask URI
       this.logger.debug(
-        `Successfully uploaded raw file for document ${metadata.documentId} (${(metadata.contentLength / 1024).toFixed(2)} KB)`,
+        `Uploaded raw file for document ${metadata.documentId} (${(metadata.contentLength / 1024).toFixed(2)} KB)`,
       );
 
       return gcsUri;
     } catch (error) {
-      const errorDetails = error as any;
-
-      // Log comprehensive error details
-      this.logger.error(
-        `❌ Failed to upload file for document ${metadata.documentId} to bucket ${this.bucketName}`,
-      );
-      this.logger.error(`  Operation: storeRaw (upload)`);
-      this.logger.error(`  Bucket: ${this.bucketName}`);
-      this.logger.error(`  Object key: ${objectKey}`);
-      this.logger.error(
-        `  File size: ${(metadata.contentLength / 1024).toFixed(2)} KB`,
-      );
-      this.logger.error(`  MIME type: ${metadata.mimeType}`);
-
-      // Log error details
-      this.logger.error(`  Error code: ${errorDetails?.code || 'unknown'}`);
-      this.logger.error(
-        `  Error message: ${errorDetails?.message || String(error)}`,
-      );
-      if (errorDetails?.response) {
-        this.logger.error(
-          `  HTTP status: ${errorDetails.response?.statusCode || 'unknown'}`,
-        );
-      }
-      if (errorDetails?.errors) {
-        this.logger.error(
-          `  GCP API errors: ${JSON.stringify(errorDetails.errors)}`,
-        );
-      }
-
-      // Log credential info
-      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      this.logger.error(`  Credentials path: ${credentialsPath || 'not set'}`);
-      if (credentialsPath) {
-        try {
-          if (fs.existsSync(credentialsPath)) {
-            const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-            const keyJson = JSON.parse(keyContent);
-            if (keyJson.client_email) {
-              this.logger.error(`  Service account: ${keyJson.client_email}`);
-              this.logger.error(
-                `  Project ID from key: ${keyJson.project_id || 'not found'}`,
-              );
-            } else {
-              this.logger.error(
-                `  ⚠️  Credentials file does not contain client_email (may be ADC)`,
-              );
-            }
-          } else {
-            this.logger.error(
-              `  ❌ Credentials file does not exist: ${credentialsPath}`,
-            );
-          }
-        } catch (err) {
-          this.logger.error(
-            `  ⚠️  Could not read credentials file: ${(err as Error).message}`,
-          );
-        }
-      }
-
-      // Log project ID
-      const projectId =
-        process.env.GCP_PROJECT_ID ||
-        process.env.GOOGLE_CLOUD_PROJECT ||
-        process.env.GCLOUD_PROJECT;
-      this.logger.error(`  Configured project ID: ${projectId || 'not set'}`);
-
       const authError = this.detectAuthError(error);
       if (authError) {
         this.logger.error(
@@ -454,29 +333,64 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         throw new Error(authError.userMessage);
       }
 
-      this.logger.error(
-        `Failed to upload raw file for document ${metadata.documentId}: ${this.sanitizeError(error)}`,
-      );
+      // Check for specific error types and provide remediation guidance
+      const errorMessage = (error as Error).message || String(error);
+      const credentialsPathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const credentialsPath = credentialsPathEnv
+        ? path.isAbsolute(credentialsPathEnv)
+          ? credentialsPathEnv
+          : path.resolve(process.cwd(), credentialsPathEnv)
+        : undefined;
+      const credentialInfo = this.detectCredentialType(credentialsPath);
+
+      // Only show impersonation error if we actually detected impersonation credentials
+      if (
+        (errorMessage.includes('unable to impersonate') ||
+          errorMessage.includes('Invalid form of account ID')) &&
+        credentialInfo.type === 'impersonated_service_account'
+      ) {
+        this.logger.error(
+          `[GCP STORAGE] Upload failed due to service account impersonation error: ${this.sanitizeError(error)}`,
+        );
+        this.logger.error(
+          '⚠️  Service account impersonation is failing. For signed URLs, use a direct service account key (type: service_account).',
+        );
+      } else if (
+        errorMessage.includes('Invalid form of account ID') &&
+        credentialInfo.type === 'service_account'
+      ) {
+        // This might be a malformed service account key
+        this.logger.error(
+          `[GCP STORAGE] Upload failed - invalid service account key format: ${this.sanitizeError(error)}`,
+        );
+        this.logger.error(
+          `   Credentials file: ${credentialsPath}`,
+        );
+        this.logger.error(
+          '   Verify the service account key file is valid and contains a proper client_email field.',
+        );
+        this.logger.error(
+          '   Regenerate the key if needed: gcloud iam service-accounts keys create key.json --iam-account=SERVICE_ACCOUNT@PROJECT.iam.gserviceaccount.com',
+        );
+      } else {
+        this.logger.error(
+          `Failed to upload raw file for document ${metadata.documentId}: ${this.sanitizeError(error)}`,
+        );
+        if (credentialsPath) {
+          this.logger.error(
+            `   Credentials file: ${credentialsPath} (type: ${credentialInfo.type || 'unknown'})`,
+          );
+        }
+      }
       throw new Error('Failed to upload document to storage');
     }
   }
 
   async storeProcessed(jsonData: any, metadata: FileMetadata): Promise<string> {
-    const objectKey = `${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`;
-    const gcsUri = `gs://${this.bucket.name}/${objectKey}`;
-
     try {
-      const file: File = this.bucket.file(objectKey);
+      const objectKey = `${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`;
 
-      // Check if file already exists (to handle retention policy gracefully)
-      // This requires storage.objects.get permission (included in roles/storage.objectAdmin)
-      const [exists] = await file.exists();
-      if (exists) {
-        this.logger.debug(
-          `Processed file already exists for document ${metadata.documentId}, skipping overwrite (retention policy)`,
-        );
-        return gcsUri;
-      }
+      const file: File = this.bucket.file(objectKey);
 
       const jsonString = JSON.stringify(jsonData, null, 2);
       const buffer = Buffer.from(jsonString, 'utf-8');
@@ -491,64 +405,14 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         },
       });
 
+      const gcsUri = `gs://${this.bucket.name}/${objectKey}`;
+
       this.logger.debug(
         `Stored processed output for document ${metadata.documentId}`,
       );
 
       return gcsUri;
     } catch (error) {
-      const errorDetails = error as any;
-
-      // Log comprehensive error details
-      this.logger.error(
-        `❌ Failed to store processed output for document ${metadata.documentId} to bucket ${this.bucketName}`,
-      );
-      this.logger.error(`  Operation: storeProcessed`);
-      this.logger.error(`  Bucket: ${this.bucketName}`);
-      this.logger.error(
-        `  Object key: ${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`,
-      );
-      this.logger.error(`  Error code: ${errorDetails?.code || 'unknown'}`);
-      this.logger.error(
-        `  Error message: ${errorDetails?.message || String(error)}`,
-      );
-
-      // Log credential info
-      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      this.logger.error(`  Credentials path: ${credentialsPath || 'not set'}`);
-      if (credentialsPath && fs.existsSync(credentialsPath)) {
-        try {
-          const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-          const keyJson = JSON.parse(keyContent);
-          if (keyJson.client_email) {
-            this.logger.error(`  Service account: ${keyJson.client_email}`);
-          }
-        } catch (err) {
-          // Ignore parsing errors
-        }
-      }
-
-      // Check if this is a retention policy error (not auth error)
-      if (
-        errorDetails?.message?.includes('retention policy') ||
-        errorDetails?.message?.includes('object retention') ||
-        errorDetails?.message?.includes('cannot be deleted or overwritten')
-      ) {
-        this.logger.warn(
-          `⚠️  Retention policy error for document ${metadata.documentId}: Object cannot be overwritten due to bucket retention policy`,
-        );
-        this.logger.warn(
-          `   This is expected behavior - processed files are protected by retention policy.`,
-        );
-        this.logger.warn(
-          `   The file already exists and cannot be overwritten until retention period expires.`,
-        );
-        // Return the existing GCS URI instead of failing
-        const existingGcsUri = `gs://${this.bucketName}/${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`;
-        this.logger.log(`   Returning existing GCS URI: ${existingGcsUri}`);
-        return existingGcsUri;
-      }
-
       const authError = this.detectAuthError(error);
       if (authError) {
         this.logger.error(
@@ -558,9 +422,28 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         throw new Error(authError.userMessage);
       }
 
-      this.logger.error(
-        `Failed to store processed output for document ${metadata.documentId}: ${this.sanitizeError(error)}`,
-      );
+      // Check for impersonation errors
+      const errorMessage = (error as Error).message || String(error);
+      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const isImpersonationCredentials = this.detectImpersonationCredentials(credentialsPath);
+
+      if (
+        (errorMessage.includes('unable to impersonate') ||
+          errorMessage.includes('INVALID_ARGUMENT') ||
+          errorMessage.includes('Invalid form of account ID')) &&
+        isImpersonationCredentials
+      ) {
+        this.logger.error(
+          `[GCP STORAGE] Store processed failed due to impersonation error: ${this.sanitizeError(error)}`,
+        );
+        this.logger.error(
+          '⚠️  Use ADC directly: unset GOOGLE_APPLICATION_CREDENTIALS and run gcloud auth application-default login',
+        );
+      } else {
+        this.logger.error(
+          `Failed to store processed output for document ${metadata.documentId}: ${this.sanitizeError(error)}`,
+        );
+      }
       throw new Error('Failed to store processed document');
     }
   }
@@ -604,27 +487,7 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
   ): Promise<string> {
     try {
       const { bucket, objectKey } = this.parseGcsUri(gcsUri);
-      this.logger.debug(
-        `Generating signed URL for bucket: ${bucket}, object: ${objectKey}, expires in: ${expiresIn}s`,
-      );
-
       const file = this.storage.bucket(bucket).file(objectKey);
-
-      // Check what credentials we're using
-      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      if (credentialsPath) {
-        try {
-          const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-          const keyJson = JSON.parse(keyContent);
-          if (keyJson.client_email) {
-            this.logger.debug(
-              `Using service account for signed URL: ${keyJson.client_email}`,
-            );
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-      }
 
       const [url] = await file.getSignedUrl({
         version: 'v4',
@@ -632,41 +495,10 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
         expires: Date.now() + expiresIn * 1000,
       });
 
-      this.logger.debug(
-        `Successfully generated signed URL (expires in ${expiresIn}s)`,
-      );
+      this.logger.debug(`Generated signed URL (expires in ${expiresIn}s)`);
 
       return url;
     } catch (error) {
-      const errorDetails = error as any;
-      this.logger.error(`Failed to generate signed URL for GCS URI: ${gcsUri}`);
-      this.logger.error(
-        `  Error code: ${errorDetails?.code || 'unknown'}, Error message: ${errorDetails?.message || String(error)}`,
-      );
-
-      // Log credential info
-      const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      if (credentialsPath) {
-        this.logger.error(`  Credentials file: ${credentialsPath}`);
-        try {
-          const keyContent = fs.readFileSync(credentialsPath, 'utf8');
-          const keyJson = JSON.parse(keyContent);
-          if (keyJson.client_email) {
-            this.logger.error(`  Service account: ${keyJson.client_email}`);
-          } else {
-            this.logger.error(
-              `  ⚠️  Credentials file does not contain client_email (may be ADC, not service account)`,
-            );
-          }
-        } catch (err) {
-          this.logger.error(
-            `  ⚠️  Could not read credentials file: ${(err as Error).message}`,
-          );
-        }
-      } else {
-        this.logger.error(`  ⚠️  GOOGLE_APPLICATION_CREDENTIALS not set`);
-      }
-
       const authError = this.detectAuthError(error);
       if (authError) {
         // Log detailed error and remediation on server side only (security: don't expose to clients)
@@ -719,11 +551,6 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
     const errorCode = error?.code;
     const errorSubtype = error?.error_subtype;
 
-    // Log full error details for debugging
-    this.logger.debug(
-      `Detecting auth error - Code: ${errorCode}, Subtype: ${errorSubtype}, Message: ${errorMessage.substring(0, 500)}`,
-    );
-
     // Check for missing client_email (required for signed URLs)
     if (
       errorMessage.includes('Cannot sign data without') ||
@@ -739,25 +566,25 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
    4. Regenerate the service account key if needed:
       gcloud iam service-accounts keys create key.json --iam-account=SERVICE_ACCOUNT@PROJECT.iam.gserviceaccount.com`
         : `Signed URLs require a service account key file (not Application Default Credentials).
-   
+
    To fix:
    1. Create a service account (if you don't have one):
       gcloud iam service-accounts create keystone-doc-processing \\
         --display-name="Keystone Document Processing"
-   
+
    2. Grant required permissions:
       gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \\
         --member="serviceAccount:keystone-doc-processing@YOUR_PROJECT_ID.iam.gserviceaccount.com" \\
         --role="roles/storage.objectAdmin"
-   
+
    3. Create and download the key:
       gcloud iam service-accounts keys create ~/keystone-sa-key.json \\
         --iam-account=keystone-doc-processing@YOUR_PROJECT_ID.iam.gserviceaccount.com
-   
+
    4. Set environment variable:
       export GOOGLE_APPLICATION_CREDENTIALS=~/keystone-sa-key.json
-   
-   Note: Application Default Credentials (from gcloud auth application-default login) 
+
+   Note: Application Default Credentials (from gcloud auth application-default login)
    cannot be used for signed URLs - you must use a service account key file.`;
 
       return {
@@ -788,7 +615,7 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
    1. Run: gcloud auth application-default login
    2. Set your project: gcloud config set project YOUR_PROJECT_ID
    3. Verify: gcloud auth application-default print-access-token
-   
+
    For production, use a service account key instead of ADC:
    - Set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json`;
 
@@ -800,29 +627,49 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       };
     }
 
-    // Check for retention policy errors (not auth errors)
+    // Check for impersonation errors
     if (
-      errorMessage.includes('retention policy') ||
-      errorMessage.includes('object retention') ||
-      errorMessage.includes('cannot be deleted or overwritten until')
+      errorMessage.includes('unable to impersonate') ||
+      errorMessage.includes('Invalid form of account ID') ||
+      (errorMessage.includes('INVALID_ARGUMENT') &&
+        errorMessage.includes('impersonate'))
     ) {
-      // This is NOT an authentication error - it's a retention policy violation
-      return null; // Don't classify as auth error
-    }
+      const credentialsPathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const credentialsPath = credentialsPathEnv
+        ? path.isAbsolute(credentialsPathEnv)
+          ? credentialsPathEnv
+          : path.resolve(process.cwd(), credentialsPathEnv)
+        : undefined;
+      const credentialInfo = this.detectCredentialType(credentialsPath);
 
-    // Check for other common auth errors (but exclude retention policy 403s)
-    if (
-      errorCode === 401 ||
-      (errorCode === 403 &&
-        !errorMessage.includes('retention policy') &&
-        !errorMessage.includes('object retention') &&
-        !errorMessage.includes('cannot be deleted or overwritten'))
-    ) {
-      const remediation = `Verify GCP authentication:
+      const remediation = credentialInfo.type === 'impersonated_service_account'
+        ? `Service account impersonation is failing. For signed URLs, use a direct service account key (type: service_account).
+
+   Current file: ${credentialsPath || 'not set'}
+   Detected type: ${credentialInfo.type}
+
+   To fix:
+   1. Create a direct service account key (not impersonation):
+      gcloud iam service-accounts keys create .secrets/keystone-doc-processing-key.json \\
+        --iam-account=keystone-doc-processing@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+   2. Ensure GOOGLE_APPLICATION_CREDENTIALS points to this file:
+      export GOOGLE_APPLICATION_CREDENTIALS=.secrets/keystone-doc-processing-key.json`
+        : credentialInfo.type === 'service_account'
+        ? `Service account key file detected but authentication is failing. Verify:
+   1. File path: ${credentialsPath || 'not set'}
+   2. File exists and is readable
+   3. File contains valid JSON with type: "service_account" and client_email field
+   4. Service account has required permissions (roles/storage.objectAdmin)
+   5. Regenerate the key if needed:
+      gcloud iam service-accounts keys create .secrets/keystone-doc-processing-key.json \\
+        --iam-account=SERVICE_ACCOUNT@PROJECT.iam.gserviceaccount.com`
+        : `GCP authentication failed. Verify:
    1. Check GOOGLE_APPLICATION_CREDENTIALS env var (if using service account)
-   2. Or run: gcloud auth application-default login (for local dev)
-   3. Verify service account has required IAM roles
-   4. Check project ID matches your GCP project`;
+   2. File path: ${credentialsPath || 'not set'}
+   3. Or run: gcloud auth application-default login (for local dev)
+   4. Verify service account has required IAM roles
+   5. Check project ID matches your GCP project`;
 
       return {
         message: 'GCP authentication failed',
@@ -832,12 +679,13 @@ export class GcpStorageAdapter implements StorageServicePort, OnModuleInit {
       };
     }
 
-    // Also check for credential loading errors
+    // Check for other common auth errors
     if (
+      errorCode === 401 ||
+      errorCode === 403 ||
       errorMessage.includes('Could not load the default credentials') ||
       errorMessage.includes('unauthorized') ||
-      (errorMessage.includes('permission denied') &&
-        !errorMessage.includes('retention'))
+      errorMessage.includes('permission denied')
     ) {
       const remediation = `Verify GCP authentication:
    1. Check GOOGLE_APPLICATION_CREDENTIALS env var (if using service account)
