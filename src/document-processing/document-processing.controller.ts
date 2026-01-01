@@ -75,7 +75,11 @@ export class DocumentProcessingController {
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
-  @ApiOperation({ summary: 'Upload medical document for OCR processing' })
+  @ApiOperation({
+    summary: 'Upload medical document (no processing)',
+    description:
+      'Upload a document and store it in the system. The document enters the system in UPLOADED state with no OCR or processing started. OCR processing must be explicitly triggered via POST /v1/documents/{documentId}/ocr/trigger by the origin manager.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -291,7 +295,7 @@ export class DocumentProcessingController {
   async getExtractedFields(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
-  ): Promise<ExtractedFieldResponseDto[]> {
+  ): Promise<ExtractedFieldsWithOcrResponseDto> {
     // Hard deny admins
     if (req.user?.role?.id === RoleEnum.admin) {
       throw new ForbiddenException('Admins do not have document-level access');
@@ -460,7 +464,12 @@ export class DocumentProcessingController {
   @ApiOperation({
     summary: 'Trigger OCR Processing (Origin Manager Only)',
     description:
-      'Manually trigger OCR processing for a document. Only the origin manager can trigger OCR. Document must be in STORED, PROCESSED, or FAILED state.',
+      'Explicitly trigger OCR processing for a document. Only the origin manager can trigger OCR. ' +
+      'If the document has an assigned manager (originManagerId is set), only that verified manager can trigger. ' +
+      'If the document has no assigned manager (originManagerId is null), the user who uploaded it (temporary origin manager) can trigger. ' +
+      'Document must be in UPLOADED, STORED, PROCESSED, or FAILED state. ' +
+      'Transitions document state: UPLOADED/STORED/FAILED/PROCESSED → PROCESSING. ' +
+      'All OCR processing originates from this endpoint - upload does not trigger processing.',
   })
   @ApiParam({
     name: 'documentId',
@@ -591,5 +600,67 @@ export class DocumentProcessingController {
       documentId,
       actor,
     );
+  }
+
+  @Post(':documentId/assign-manager')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign a verified manager to a document (irreversible)',
+    description:
+      'Assigns a verified manager as the permanent origin manager for a document. ' +
+      'This operation is irreversible. Once assigned, the user loses manager-level authority ' +
+      'and access is governed by AccessGrants. Only users who uploaded the document (temporary origin) ' +
+      'or admins can assign managers.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['managerId'],
+      properties: {
+        managerId: {
+          type: 'number',
+          description: 'Manager ID to assign (must be verified)',
+          example: 1,
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Manager successfully assigned to document',
+    type: DocumentResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Document already has a manager assigned, or manager is not verified',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'User does not have permission to assign manager to this document',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document or manager not found',
+  })
+  async assignManagerToDocument(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() body: { managerId: number },
+  ): Promise<DocumentResponseDto> {
+    // Hard deny admins from document operations (but allow them to assign managers)
+    // Actually, admins CAN assign managers, so we don't block them here
+
+    const actor = extractActorFromRequest(req);
+    const document = await this.documentProcessingService.assignManagerToDocument(
+      documentId,
+      body.managerId,
+      actor,
+    );
+    return this.documentProcessingService.toResponseDto(document);
   }
 }

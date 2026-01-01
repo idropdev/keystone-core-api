@@ -4,18 +4,21 @@ import { DocumentStatus } from '../enums/document-status.enum';
 /**
  * Document State Machine Utility
  *
- * Enforces valid state transitions according to Phase 2 design.
+ * Enforces valid state transitions according to explicit trigger workflow design.
  *
  * Valid Transitions:
- * - UPLOADED → STORED (automatic, system)
- * - UPLOADED → ERROR (automatic, system)
- * - STORED → PROCESSING (origin manager only)
- * - STORED → ERROR (automatic, system)
+ * - UPLOADED → PROCESSING (origin manager only, via explicit /ocr/trigger)
+ * - UPLOADED → FAILED (automatic, system - upload failure)
+ * - STORED → PROCESSING (origin manager only, via explicit /ocr/trigger)
+ * - STORED → FAILED (automatic, system)
  * - PROCESSING → PROCESSED (automatic, system)
- * - PROCESSING → ERROR (automatic, system)
- * - ERROR → PROCESSING (retry - origin manager or system)
- * - ERROR → STORED (manual reset - origin manager)
- * - PROCESSED → PROCESSING (re-process - origin manager only)
+ * - PROCESSING → FAILED (automatic, system)
+ * - FAILED → PROCESSING (retry - origin manager only, via explicit /ocr/trigger)
+ * - FAILED → STORED (manual reset - origin manager)
+ * - PROCESSED → PROCESSING (re-process - origin manager only, via explicit /ocr/trigger)
+ *
+ * Design Principle: Upload means upload only. No automatic OCR processing.
+ * All OCR must be explicitly triggered via POST /v1/documents/{id}/ocr/trigger
  */
 export class DocumentStateMachine {
   /**
@@ -26,7 +29,7 @@ export class DocumentStateMachine {
     DocumentStatus,
     DocumentStatus[]
   > = new Map([
-    [DocumentStatus.UPLOADED, [DocumentStatus.STORED, DocumentStatus.FAILED]],
+    [DocumentStatus.UPLOADED, [DocumentStatus.PROCESSING, DocumentStatus.FAILED]], // UPLOADED → PROCESSING allowed for explicit trigger
     [DocumentStatus.STORED, [DocumentStatus.PROCESSING, DocumentStatus.FAILED]],
     [
       DocumentStatus.PROCESSING,
@@ -110,13 +113,14 @@ export class DocumentStateMachine {
    * Check if a state allows processing
    *
    * @param status - Document status
-   * @returns true if status allows OCR processing
+   * @returns true if status allows OCR processing (via explicit trigger)
    */
   static canProcess(status: DocumentStatus): boolean {
     return (
+      status === DocumentStatus.UPLOADED || // Uploaded documents can be processed via explicit trigger
       status === DocumentStatus.STORED ||
-      status === DocumentStatus.PROCESSED ||
-      status === DocumentStatus.FAILED
+      status === DocumentStatus.PROCESSED || // Re-processing allowed
+      status === DocumentStatus.FAILED // Retry allowed
     );
   }
 

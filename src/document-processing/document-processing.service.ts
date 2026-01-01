@@ -160,7 +160,7 @@ export class DocumentProcessingService {
   async getExtractedFields(
     documentId: string,
     actor: Actor,
-  ): Promise<ExtractedFieldResponseDto[]> {
+  ): Promise<ExtractedFieldsWithOcrResponseDto> {
     this.logger.log(
       `[APP SERVICE] Getting extracted fields for document ${documentId}`,
     );
@@ -267,7 +267,7 @@ export class DocumentProcessingService {
         vision_output: visionOutput,
       },
       { excludeExtraneousValues: true },
-    );
+    ) as ExtractedFieldsWithOcrResponseDto;
 
     return response;
   }
@@ -313,6 +313,24 @@ export class DocumentProcessingService {
    */
   async triggerOcr(documentId: string, actor: Actor): Promise<void> {
     return this.domainService.triggerOcr(documentId, actor);
+  }
+
+  /**
+   * Assign a verified manager to a document (irreversible)
+   *
+   * Allows a user (temporary origin manager) or admin to assign
+   * a verified manager as the permanent origin manager.
+   */
+  async assignManagerToDocument(
+    documentId: string,
+    managerId: number,
+    actor: Actor,
+  ): Promise<Document> {
+    return this.domainService.assignManagerToDocument(
+      documentId,
+      managerId,
+      actor,
+    );
   }
 
   /**

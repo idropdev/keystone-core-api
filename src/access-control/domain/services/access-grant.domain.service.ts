@@ -73,13 +73,25 @@ export class AccessGrantDomainService {
     }
 
     // 2. Check if actor is origin manager (implicit access)
-    // Only managers can be origin managers
-    // NOTE: actorId is the User ID, but originManagerId is the Manager ID
-    // We need to resolve the Manager ID from the User ID
+    // Origin manager can be:
+    // - A verified manager (when originManagerId is set)
+    // - A user acting as temporary origin manager (when originManagerId is null and originUserContextId matches)
     if (actorType === 'manager') {
+      // Check if manager is the origin manager
       const manager = await this.managerRepository.findByUserId(actorId);
       if (manager && document.originManagerId === manager.id) {
         return true;
+      }
+    } else if (actorType === 'user') {
+      // Check if user is the temporary origin manager
+      // This happens when originManagerId is null and originUserContextId matches the user
+      if (
+        document.originManagerId === null ||
+        document.originManagerId === undefined
+      ) {
+        if (document.originUserContextId === actorId) {
+          return true;
+        }
       }
     }
 
@@ -136,12 +148,26 @@ export class AccessGrantDomainService {
     }
 
     // 3. Validate subject is not origin manager (they have implicit access)
-    // NOTE: dto.subjectId is the User ID, but originManagerId is the Manager ID
+    // Origin manager can be:
+    // - A verified manager (when originManagerId is set)
+    // - A user acting as temporary origin manager (when originManagerId is null and originUserContextId matches)
     if (dto.subjectType === 'manager') {
+      // Check if manager is the origin manager
       const manager = await this.managerRepository.findByUserId(dto.subjectId);
       if (manager && document.originManagerId === manager.id) {
         throw new BadRequestException(
           'Cannot create grant for origin manager (they have implicit access)',
+        );
+      }
+    } else if (dto.subjectType === 'user') {
+      // Check if user is the temporary origin manager
+      if (
+        (document.originManagerId === null ||
+          document.originManagerId === undefined) &&
+        document.originUserContextId === dto.subjectId
+      ) {
+        throw new BadRequestException(
+          'Cannot create grant for temporary origin manager (they have implicit access)',
         );
       }
     }

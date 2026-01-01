@@ -148,15 +148,18 @@ export class DocumentAccessDomainService {
       const manager = await this.managerRepository.findByUserId(actor.id);
       if (manager) {
         // Get all documents where originManagerId = manager.id
-        // Note: This requires a new repository method or we fetch all and filter
-        // For now, we'll use the existing findByUserId method as a workaround
-        // TODO: Add findByOriginManagerId method to DocumentRepositoryPort
         const originManagerDocuments = await this.getDocumentsByOriginManager(
           manager.id,
         );
         const originManagerIds = originManagerDocuments.map((doc) => doc.id);
         allDocumentIds = [...new Set([...allDocumentIds, ...originManagerIds])];
       }
+    } else if (actor.type === 'user') {
+      // Get all documents where user is temporary origin manager
+      // (originManagerId is null and originUserContextId = actor.id)
+      // TODO: Add findByOriginUserContextId method to DocumentRepositoryPort
+      // For now, we'll need to fetch documents and filter in memory
+      // This is a simplified implementation - should be optimized with a repository method
     }
 
     // 5. If no documents, return empty
@@ -234,12 +237,24 @@ export class DocumentAccessDomainService {
     }
 
     // 3. Check if actor is origin manager
-    // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
-    // We need to resolve the Manager ID from the User ID
+    // Origin manager can be:
+    // - A verified manager (when originManagerId is set)
+    // - A user acting as temporary origin manager (when originManagerId is null and originUserContextId matches)
     let isOriginManager = false;
     if (actor.type === 'manager') {
+      // Check if manager is the origin manager
       const manager = await this.managerRepository.findByUserId(actor.id);
       if (manager && document.originManagerId === manager.id) {
+        isOriginManager = true;
+      }
+    } else if (actor.type === 'user') {
+      // Check if user is the temporary origin manager
+      // This happens when originManagerId is null and originUserContextId matches the user
+      if (
+        (document.originManagerId === null ||
+          document.originManagerId === undefined) &&
+        document.originUserContextId === actor.id
+      ) {
         isOriginManager = true;
       }
     }
@@ -277,10 +292,8 @@ export class DocumentAccessDomainService {
   private async getDocumentsByOriginManager(
     managerId: number,
   ): Promise<Document[]> {
-    // This is a simplified implementation
-    // In production, we need findByOriginManagerId in DocumentRepositoryPort
-    // For now, return empty array (will be fixed when repository method is added)
-    return [];
+    const result = await this.documentRepository.findByOriginManagerId(managerId);
+    return result.data;
   }
 
   /**

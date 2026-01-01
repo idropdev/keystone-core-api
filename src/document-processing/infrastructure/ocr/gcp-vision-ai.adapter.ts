@@ -36,53 +36,28 @@ export class GcpVisionAiAdapter implements OcrServicePort {
   private readonly maxWaitTime: number = 600000; // 10 minutes
 
   constructor(private readonly configService: ConfigService<AllConfigType>) {
-    // Initialize clients with proper credential handling (same pattern as Document AI)
-    // Priority:
-    // 1. Direct service account key (if GOOGLE_APPLICATION_CREDENTIALS points to a service account JSON)
-    // 2. ADC (Application Default Credentials) - recommended for local dev and GCP compute
-    // 3. Impersonation credentials (if detected, will use ADC but may fail if IAM not configured)
-    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const isImpersonationCredentials =
-      this.detectImpersonationCredentials(credentialsPath);
+    // Vision AI always uses ADC (Application Default Credentials), same as Document AI
+    // Storage adapter uses the service account file from GOOGLE_APPLICATION_CREDENTIALS
+    // This separation ensures:
+    // - Vision AI/Document AI: Use ADC (from gcloud auth application-default login or attached service account)
+    // - Storage: Uses service account key file for signed URL generation
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-vision-ai.adapter.ts:38',message:'VISION AI: Initializing with ADC (always)',data:{credentialsPathEnv:process.env.GOOGLE_APPLICATION_CREDENTIALS,hasCredentialsPath:!!process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    this.logger.log(
+      '[VISION AI] Using Application Default Credentials (ADC). Ensure ADC is configured:',
+    );
+    this.logger.log('  - Local: Run "gcloud auth application-default login"');
+    this.logger.log(
+      '  - GCP Compute: Service account must be attached to the workload',
+    );
+    this.logger.log(
+      '  - NOTE: GOOGLE_APPLICATION_CREDENTIALS is used by Storage adapter, not Vision AI',
+    );
 
-    if (credentialsPath && !isImpersonationCredentials) {
-      // Direct service account key - can use keyFilename
-      this.logger.log(
-        `[VISION AI] Initializing with direct service account key: ${credentialsPath}`,
-      );
-      this.client = new ImageAnnotatorClient({
-        keyFilename: credentialsPath,
-      });
-      this.storage = new Storage({
-        keyFilename: credentialsPath,
-      });
-    } else if (isImpersonationCredentials) {
-      // Impersonation credentials detected - warn user and use ADC
-      this.logger.warn(
-        '⚠️  [VISION AI] Impersonation credentials detected. If you encounter IAM errors, consider using ADC directly:',
-      );
-      this.logger.warn('   1. Unset GOOGLE_APPLICATION_CREDENTIALS');
-      this.logger.warn('   2. Run: gcloud auth application-default login');
-      this.logger.warn(
-        '   3. Ensure your account has roles/cloudvision.apiUser and roles/storage.objectAdmin',
-      );
-
-      // Still try to use ADC (library will read GOOGLE_APPLICATION_CREDENTIALS)
-      this.client = new ImageAnnotatorClient();
-      this.storage = new Storage();
-    } else {
-      // No GOOGLE_APPLICATION_CREDENTIALS set - use ADC directly
-      this.logger.log(
-        '[VISION AI] Using Application Default Credentials (ADC). Ensure ADC is configured:',
-      );
-      this.logger.log('  - Local: Run "gcloud auth application-default login"');
-      this.logger.log(
-        '  - GCP Compute: Service account must be attached to the workload',
-      );
-
-      this.client = new ImageAnnotatorClient();
-      this.storage = new Storage();
-    }
+    this.client = new ImageAnnotatorClient();
+    this.storage = new Storage();
 
     this.projectId = this.configService.getOrThrow(
       'documentProcessing.gcp.projectId',

@@ -47,6 +47,9 @@ export class GcpStorageAdapter implements StorageServicePort {
     // 2. ADC (Application Default Credentials) - recommended for local dev and GCP compute
     // 3. Impersonation credentials (if detected, will use ADC but may fail if IAM not configured)
     const credentialsPathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:49',message:'STORAGE: GOOGLE_APPLICATION_CREDENTIALS env var',data:{credentialsPathEnv,hasValue:!!credentialsPathEnv},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     // Resolve relative paths to absolute paths
     const credentialsPath = credentialsPathEnv
@@ -54,8 +57,14 @@ export class GcpStorageAdapter implements StorageServicePort {
         ? credentialsPathEnv
         : path.resolve(process.cwd(), credentialsPathEnv)
       : undefined;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:56',message:'STORAGE: Resolved credentials path',data:{credentialsPath,originalPath:credentialsPathEnv,isAbsolute:credentialsPathEnv?path.isAbsolute(credentialsPathEnv):null,cwd:process.cwd()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     const credentialInfo = this.detectCredentialType(credentialsPath);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:58',message:'STORAGE: Credential type detection result',data:{type:credentialInfo.type,exists:credentialInfo.exists,clientEmail:credentialInfo.clientEmail,credentialsPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
 
     if (credentialsPath && credentialInfo.type === 'service_account') {
       // Direct service account key - can use keyFilename (required for signed URLs)
@@ -65,6 +74,9 @@ export class GcpStorageAdapter implements StorageServicePort {
       if (credentialInfo.clientEmail) {
         this.logger.log(`  Service account: ${credentialInfo.clientEmail}`);
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:68',message:'STORAGE: Creating Storage with keyFilename',data:{keyFilename:credentialsPath,credentialType:credentialInfo.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       this.storage = new Storage({
         keyFilename: credentialsPath,
       });
@@ -155,15 +167,30 @@ export class GcpStorageAdapter implements StorageServicePort {
     }
 
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:157',message:'STORAGE: detectCredentialType checking file',data:{credentialsPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       if (!fs.existsSync(credentialsPath)) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:158',message:'STORAGE: Credentials file does not exist',data:{credentialsPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         this.logger.warn(
           `[GCP STORAGE] Credentials file does not exist: ${credentialsPath}`,
         );
         return { type: 'unknown', exists: false };
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:165',message:'STORAGE: File exists, reading content',data:{credentialsPath,fileStats:fs.statSync(credentialsPath).size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       const keyContent = fs.readFileSync(credentialsPath, 'utf8');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:166',message:'STORAGE: File read, parsing JSON',data:{contentLength:keyContent.length,hasContent:!!keyContent},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const keyJson = JSON.parse(keyContent);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:168',message:'STORAGE: JSON parsed, checking type',data:{credentialType:keyJson.type,hasClientEmail:!!keyJson.client_email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
 
       const credentialType = keyJson.type;
 
@@ -193,6 +220,9 @@ export class GcpStorageAdapter implements StorageServicePort {
         };
       }
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:195',message:'STORAGE: Error parsing credentials file',data:{credentialsPath,errorMessage:(error as Error).message,errorName:(error as Error).name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       this.logger.warn(
         `[GCP STORAGE] Could not parse credentials file: ${this.sanitizeError(error)}`,
       );
@@ -278,11 +308,17 @@ export class GcpStorageAdapter implements StorageServicePort {
   }
 
   async storeRaw(fileBuffer: Buffer, metadata: FileMetadata): Promise<string> {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:280',message:'STORAGE: storeRaw entry',data:{documentId:metadata.documentId,fileName:metadata.fileName,credentialsPathEnv:process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     try {
       // Build deterministic object key: raw/{userId}/{documentId}_{fileName}
       const objectKey = `${this.rawPrefix}${metadata.userId}/${metadata.documentId}_${metadata.fileName}`;
 
       const file: File = this.bucket.file(objectKey);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:287',message:'STORAGE: About to call file.save',data:{bucketName:this.bucket.name,objectKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       // Upload with resumable upload (automatic for files > 5MB)
       await file.save(fileBuffer, {
@@ -303,6 +339,9 @@ export class GcpStorageAdapter implements StorageServicePort {
       });
 
       const gcsUri = `gs://${this.bucket.name}/${objectKey}`;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:305',message:'STORAGE: file.save succeeded',data:{documentId:metadata.documentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       // SECURITY: Only log at DEBUG level, mask URI
       this.logger.debug(
@@ -311,6 +350,9 @@ export class GcpStorageAdapter implements StorageServicePort {
 
       return gcsUri;
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:313',message:'STORAGE: storeRaw error caught',data:{documentId:metadata.documentId,errorMessage:(error as Error).message,errorCode:(error as any).code,errorType:typeof error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       const authError = this.detectAuthError(error);
       if (authError) {
         this.logger.error(
@@ -689,6 +731,48 @@ export class GcpStorageAdapter implements StorageServicePort {
     }
 
     return null;
+  }
+
+  /**
+   * Health check for GCP Storage
+   * Verifies that the bucket is accessible and authenticated
+   */
+  public async healthCheck(): Promise<{
+    status: string;
+    bucket?: string;
+    accessible?: boolean;
+    error?: string;
+  }> {
+    try {
+      // Try to check if bucket exists and is accessible
+      const [exists] = await this.bucket.exists();
+      const bucketName = this.bucket.name;
+
+      if (exists) {
+        return {
+          status: 'healthy',
+          bucket: bucketName,
+          accessible: true,
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          bucket: bucketName,
+          accessible: false,
+          error: 'Bucket does not exist or is not accessible',
+        };
+      }
+    } catch (error) {
+      this.logger.error(
+        `GCP Storage health check failed: ${this.sanitizeError(error)}`,
+      );
+      return {
+        status: 'unhealthy',
+        bucket: this.bucket.name,
+        accessible: false,
+        error: this.sanitizeError(error),
+      };
+    }
   }
 
   /**

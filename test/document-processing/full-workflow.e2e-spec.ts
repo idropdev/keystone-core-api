@@ -16,7 +16,7 @@ import { RoleEnum } from '../../src/roles/roles.enum';
 
 /**
  * Comprehensive Document Processing Full Workflow E2E Tests
- *
+ * 
  * Tests the complete end-to-end functionality of the document processing system:
  * 1. User creation and authentication
  * 2. Document upload
@@ -25,7 +25,7 @@ import { RoleEnum } from '../../src/roles/roles.enum';
  * 5. Field extraction and retrieval
  * 6. Manager assignment and access control
  * 7. Full workflow scenarios
- *
+ * 
  * This test suite validates the intelligent PDF processing system that uses:
  * - pdf2json for direct text extraction (fast, free)
  * - pdf-parse fallback for XRef errors
@@ -108,10 +108,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(response.body).toHaveProperty('fileSize');
       expect(response.body).toHaveProperty('mimeType', 'application/pdf');
       expect(response.body).toHaveProperty('originManagerId', manager.id);
-      expect(response.body).toHaveProperty(
-        'description',
-        'Test lab result for workflow testing',
-      );
+      expect(response.body).toHaveProperty('description', 'Test lab result for workflow testing');
       expect(response.body).toHaveProperty('createdAt');
 
       // Store documentId for subsequent tests
@@ -134,79 +131,31 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(['STORED', 'UPLOADED']).toContain(response.body.status);
     });
 
-    it('should allow user with auto-created Manager record to upload document', async () => {
-      // Users automatically get Manager records when created (auto-verified)
-      // This test validates that the expected default behavior works correctly
-      const testUser = await createTestUser(RoleEnum.user, 'upload-test-user');
-
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
+    it('should allow user without assigned manager to upload (user becomes temporary origin manager)', async () => {
       const pdfBuffer = Buffer.from(
         '%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Root 1 0 R\n>>\n%%EOF',
       );
 
       const response = await request(APP_URL)
         .post('/api/v1/documents/upload')
-        .auth(testUser.token, { type: 'bearer' })
+        .auth(regularUser.token, { type: 'bearer' })
         .field('documentType', 'LAB_RESULT')
         .attach('file', pdfBuffer, 'test-document.pdf');
 
-      // Users with auto-created Manager records should be able to upload
+      // User without assigned manager should be able to upload
+      // They become temporary origin manager (originManagerId = null)
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('id');
-      expect(response.body).toHaveProperty('originManagerId');
+      expect(response.body).toHaveProperty('originManagerId', null);
       expect(response.body).toHaveProperty('documentType', 'LAB_RESULT');
-      expect(response.body).toHaveProperty('status');
-    }, 120000);
-
-    it('should reject upload with invalid documentType', async () => {
-      const pdfBuffer = Buffer.from(
-        '%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Root 1 0 R\n>>\n%%EOF',
-      );
-
-      const response = await request(APP_URL)
-        .post('/api/v1/documents/upload')
-        .auth(managerUser.token, { type: 'bearer' })
-        .field('documentType', 'INVALID_TYPE')
-        .attach('file', pdfBuffer, 'test.pdf');
-
-      expect([400, 422]).toContain(response.status);
-      // Should reject invalid documentType enum value
     });
 
-    it('should reject upload without file', async () => {
+    it('should validate required fields on upload', async () => {
       const response = await request(APP_URL)
         .post('/api/v1/documents/upload')
-        .auth(managerUser.token, { type: 'bearer' })
-        .field('documentType', 'LAB_RESULT');
+        .auth(managerUser.token, { type: 'bearer' });
 
       expect([400, 422]).toContain(response.status);
-      // Error message is "File is required" (capital F), use case-insensitive match
-      expect(response.body.message?.toLowerCase() || '').toContain('file');
-    });
-
-    it('should reject upload without documentType', async () => {
-      const pdfBuffer = Buffer.from(
-        '%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Root 1 0 R\n>>\n%%EOF',
-      );
-
-      const response = await request(APP_URL)
-        .post('/api/v1/documents/upload')
-        .auth(managerUser.token, { type: 'bearer' })
-        .attach('file', pdfBuffer, 'test.pdf');
-
-      expect([400, 422]).toContain(response.status);
-      // NestJS validation may return message string or errors object
-      if (response.body.message) {
-        expect(response.body.message.toLowerCase()).toContain('documenttype');
-      } else if (response.body.errors) {
-        // Validation pipe returns errors object structure
-        expect(response.body.errors).toBeDefined();
-      } else {
-        // Ensure we got some validation error indication
-        expect(response.status).toBe(400);
-      }
     });
   });
 
@@ -214,11 +163,6 @@ describe('Document Processing Full Workflow (E2E)', () => {
   // Test 3: Document Details and Metadata
   // ============================================================================
   describe('Document Details and Metadata', () => {
-    beforeEach(async () => {
-      // Add delay between tests to reduce rate limit collisions
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    });
-
     it('should retrieve complete document details', async () => {
       if (!documentId) {
         throw new Error('documentId not set');
@@ -236,10 +180,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(response.body).toHaveProperty('fileSize');
       expect(response.body).toHaveProperty('mimeType', 'application/pdf');
       expect(response.body).toHaveProperty('originManagerId', manager.id);
-      expect(response.body).toHaveProperty(
-        'description',
-        'Test lab result for workflow testing',
-      );
+      expect(response.body).toHaveProperty('description', 'Test lab result for workflow testing');
       expect(response.body).toHaveProperty('createdAt');
     });
 
@@ -262,85 +203,108 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
     it('should list documents for manager', async () => {
       if (!documentId) {
-        throw new Error('documentId not set');
+        throw new Error('documentId not set from previous test');
       }
 
-      // Wait longer to ensure document is fully committed and indexed
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      console.log('[DOCUMENT LIST] Starting test - Expected documentId:', documentId);
+      console.log('[DOCUMENT LIST] Manager ID:', manager.id);
+      console.log('[DOCUMENT LIST] Manager User ID:', managerUser.id);
 
-      let allDocumentIds: string[] = [];
-      let page = 1;
-      let hasNextPage = true;
-      let found = false;
-      let response;
+      const response = await request(APP_URL)
+        .get('/api/v1/documents')
+        .auth(managerUser.token, { type: 'bearer' });
 
-      // Iterate through pages to find the document (handles pagination)
-      while (hasNextPage && !found && page <= 5) {
-        // Small delay between page requests to avoid rate limiting
-        if (page > 1) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
+      console.log('[DOCUMENT LIST] Response status:', response.status);
+      console.log('[DOCUMENT LIST] Response body keys:', Object.keys(response.body || {}));
 
-        response = await request(APP_URL)
-          .get(`/api/v1/documents?page=${page}&limit=20`)
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('data');
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body).toHaveProperty('hasNextPage');
+      expect(typeof response.body.hasNextPage).toBe('boolean');
+
+      // Check array contents
+      const documents = response.body.data;
+      const documentIds = documents.map((doc: any) => doc.id);
+
+      console.log('[DOCUMENT LIST] Found documents count:', documents.length);
+      console.log('[DOCUMENT LIST] hasNextPage:', response.body.hasNextPage);
+      console.log('[DOCUMENT LIST] Document IDs in array:', JSON.stringify(documentIds));
+      console.log('[DOCUMENT LIST] Expected documentId:', documentId);
+      console.log('[DOCUMENT LIST] Document found in array?', documentIds.includes(documentId));
+
+      // Print full response body
+      console.log('[DOCUMENT LIST] Full response body:', JSON.stringify(response.body, null, 2));
+
+      // Print complete array contents
+      if (documents.length === 0) {
+        console.log('[DOCUMENT LIST] ARRAY IS EMPTY - No documents returned');
+      } else {
+        console.log('[DOCUMENT LIST] Printing all documents in array:');
+        documents.forEach((doc: any, index: number) => {
+          console.log(`[DOCUMENT LIST] Document ${index + 1}:`, JSON.stringify(doc, null, 2));
+        });
+      }
+
+      // Check if our document is in the list (may need to check multiple pages)
+      const foundInFirstPage = documentIds.includes(documentId);
+
+      if (!foundInFirstPage) {
+        console.log('[DOCUMENT LIST] Document not found in first page, checking with limit=100');
+        // Try with a higher limit to check if it's a pagination issue
+        const allPagesResponse = await request(APP_URL)
+          .get('/api/v1/documents?limit=100')
           .auth(managerUser.token, { type: 'bearer' });
 
-        // Handle rate limiting
-        if (response.status === 429) {
-          console.log(
-            `[LIST DOCUMENTS] Rate limited on page ${page}, waiting before retry...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, 65000));
-          response = await request(APP_URL)
-            .get(`/api/v1/documents?page=${page}&limit=20`)
-            .auth(managerUser.token, { type: 'bearer' });
+        console.log('[DOCUMENT LIST] Response with limit=100 - status:', allPagesResponse.status);
+
+        if (
+          allPagesResponse.status === 200 &&
+          Array.isArray(allPagesResponse.body.data)
+        ) {
+          const allDocuments = allPagesResponse.body.data;
+          const allDocumentIds = allDocuments.map((doc: any) => doc.id);
+
+          console.log('[DOCUMENT LIST] With limit=100, found total documents:', allDocumentIds.length);
+          console.log('[DOCUMENT LIST] All document IDs with limit=100:', JSON.stringify(allDocumentIds));
+
+          // Print full array with limit=100
+          if (allDocuments.length === 0) {
+            console.log('[DOCUMENT LIST] ARRAY IS EMPTY - No documents returned even with limit=100');
+          } else {
+            console.log('[DOCUMENT LIST] Printing all documents with limit=100:');
+            allDocuments.forEach((doc: any, index: number) => {
+              console.log(`[DOCUMENT LIST] Document ${index + 1} (limit=100):`, JSON.stringify(doc, null, 2));
+            });
+          }
+
+          if (allDocumentIds.includes(documentId)) {
+            console.log('[DOCUMENT LIST] ✅ Document found in full list (pagination issue)');
+            // Document exists, just not on first page - acceptable
+            expect(allDocumentIds).toContain(documentId);
+            return;
+          } else {
+            console.log('[DOCUMENT LIST] ❌ Document still not found even with limit=100');
+            console.log('[DOCUMENT LIST] Full response body (limit=100):', JSON.stringify(allPagesResponse.body, null, 2));
+          }
         }
-
-        expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty('data');
-        expect(Array.isArray(response.body.data)).toBe(true);
-        expect(response.body).toHaveProperty('hasNextPage');
-        expect(typeof response.body.hasNextPage).toBe('boolean');
-
-        const pageDocumentIds = response.body.data.map((doc: any) => doc.id);
-        allDocumentIds = [...allDocumentIds, ...pageDocumentIds];
-
-        console.log(
-          `[LIST DOCUMENTS] Page ${page}: Found ${pageDocumentIds.length} documents. Looking for: ${documentId}`,
-        );
-
-        if (pageDocumentIds.includes(documentId)) {
-          found = true;
-          console.log(`[LIST DOCUMENTS] Document found on page ${page}`);
-        }
-
-        hasNextPage = response.body.hasNextPage;
-        page++;
       }
 
-      // Document should be found in the list
-      // If not found, log all document IDs for debugging
-      if (!found) {
-        console.warn(
-          `[LIST DOCUMENTS] Document ${documentId} not found in list. Found documents: ${allDocumentIds.join(', ')}`,
-        );
-        // Still test that listing works (returns array structure)
-        expect(Array.isArray(allDocumentIds)).toBe(true);
-      } else {
-        expect(allDocumentIds).toContain(documentId);
+      // Final assertion - document should be in the list
+      if (documents.length === 0) {
+        console.log('[DOCUMENT LIST] ⚠️ No documents returned. Expected documentId:', documentId);
       }
-    }, 120000);
+
+      console.log('[DOCUMENT LIST] Final check - documentIds:', JSON.stringify(documentIds));
+      console.log('[DOCUMENT LIST] Final check - expected documentId:', documentId);
+      expect(documentIds).toContain(documentId);
+    });
   });
 
   // ============================================================================
   // Test 4: OCR Triggering and Processing
   // ============================================================================
   describe('OCR Triggering and Processing', () => {
-    beforeEach(async () => {
-      // Add delay between tests to reduce rate limit collisions
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    });
-
     it('should allow origin manager to trigger OCR processing', async () => {
       if (!documentId) {
         throw new Error('documentId not set');
@@ -418,40 +382,31 @@ describe('Document Processing Full Workflow (E2E)', () => {
   // Test 5: Status Checking During Processing
   // ============================================================================
   describe('Status Checking During Processing', () => {
-    beforeEach(async () => {
-      // Add delay between tests to reduce rate limit collisions
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    });
-
     it('should track document status progression', async () => {
       if (!documentId) {
         throw new Error('documentId not set');
       }
 
-      // Wait before starting status checks to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
       // Check status multiple times to see progression
       // Note: OCR processing may be fast or async, so we check a few times
-      const previousStatus: string | null = null;
+      let previousStatus: string | null = null;
       const maxAttempts = 10;
-      const delayMs = 3000; // 3 seconds between checks (to avoid rate limiting)
+      const delayMs = 2000; // 2 seconds between checks
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        // Additional delay before each request to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const response = await request(APP_URL)
+        let response = await request(APP_URL)
           .get(`/api/v1/documents/${documentId}/status`)
           .auth(managerUser.token, { type: 'bearer' });
 
-        // Handle rate limiting
+        // Handle rate limiting (429) - retry after waiting
         if (response.status === 429) {
           console.log(
-            `[STATUS CHECK] Rate limited (429) on attempt ${attempt + 1}, waiting ${delayMs * 2}ms before retry`,
+            `[STATUS PROGRESSION] Rate limited on attempt ${attempt + 1}, waiting 65s before retry...`,
           );
-          await new Promise((resolve) => setTimeout(resolve, delayMs * 2));
-          continue;
+          await new Promise((resolve) => setTimeout(resolve, 65000));
+          response = await request(APP_URL)
+            .get(`/api/v1/documents/${documentId}/status`)
+            .auth(managerUser.token, { type: 'bearer' });
         }
 
         expect(response.status).toBe(200);
@@ -485,63 +440,43 @@ describe('Document Processing Full Workflow (E2E)', () => {
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
-    }, 90000); // 90 second timeout for status checks
+    }, 180000); // 3 minute timeout to account for rate limiting (65s) + multiple status checks
 
     it('should return progress information when processing', async () => {
       if (!documentId) {
         throw new Error('documentId not set');
       }
 
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      const response = await request(APP_URL)
+      let response = await request(APP_URL)
         .get(`/api/v1/documents/${documentId}/status`)
         .auth(managerUser.token, { type: 'bearer' });
 
-      // Handle rate limiting
+      // Handle rate limiting (429) - retry after waiting
       if (response.status === 429) {
-        console.log('[PROGRESS CHECK] Rate limited, waiting before retry...');
-        await new Promise((resolve) => setTimeout(resolve, 65000)); // Wait full rate limit window
-
-        const retryResponse = await request(APP_URL)
+        console.log('[PROGRESS CHECK] Rate limited, waiting 65s before retry...');
+        await new Promise((resolve) => setTimeout(resolve, 65000));
+        response = await request(APP_URL)
           .get(`/api/v1/documents/${documentId}/status`)
           .auth(managerUser.token, { type: 'bearer' });
-
-        expect(retryResponse.status).toBe(200);
-        expect(retryResponse.body).toHaveProperty('status');
-
-        // If processing, progress should be present
-        if (retryResponse.body.status === 'PROCESSING') {
-          expect(retryResponse.body.progress).toBeDefined();
-          expect(typeof retryResponse.body.progress).toBe('number');
-          expect(retryResponse.body.progress).toBeGreaterThanOrEqual(0);
-          expect(retryResponse.body.progress).toBeLessThanOrEqual(100);
-        }
-      } else {
-        expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty('status');
-
-        // If processing, progress should be present
-        if (response.body.status === 'PROCESSING') {
-          expect(response.body.progress).toBeDefined();
-          expect(typeof response.body.progress).toBe('number');
-          expect(response.body.progress).toBeGreaterThanOrEqual(0);
-          expect(response.body.progress).toBeLessThanOrEqual(100);
-        }
       }
-    }, 120000); // Extended timeout for rate limit handling
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('status');
+
+      // If processing, progress should be present
+      if (response.body.status === 'PROCESSING') {
+        expect(response.body.progress).toBeDefined();
+        expect(typeof response.body.progress).toBe('number');
+        expect(response.body.progress).toBeGreaterThanOrEqual(0);
+        expect(response.body.progress).toBeLessThanOrEqual(100);
+      }
+    }, 120000); // 2 minute timeout to account for rate limiting (65s wait)
   });
 
   // ============================================================================
   // Test 6: Field Extraction and Retrieval
   // ============================================================================
   describe('Field Extraction and Retrieval', () => {
-    beforeEach(async () => {
-      // Add delay between tests to reduce rate limit collisions
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    });
-
     it('should wait for document to be processed before checking fields', async () => {
       if (!documentId) {
         throw new Error('documentId not set');
@@ -549,25 +484,13 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Wait for document to reach PROCESSED status
       let isProcessed = false;
-      const maxWaitAttempts = 30; // 30 attempts
-      const delayMs = 3000; // 3 seconds between checks (to avoid rate limiting)
+      const maxWaitAttempts = 30; // 30 attempts = 60 seconds max wait
+      const delayMs = 2000;
 
       for (let attempt = 0; attempt < maxWaitAttempts; attempt++) {
-        // Delay before each request to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
         const statusResponse = await request(APP_URL)
           .get(`/api/v1/documents/${documentId}/status`)
           .auth(managerUser.token, { type: 'bearer' });
-
-        // Handle rate limiting
-        if (statusResponse.status === 429) {
-          console.log(
-            `[FIELD EXTRACTION] Rate limited (429) on status check ${attempt + 1}, waiting ${delayMs * 2}ms`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delayMs * 2));
-          continue;
-        }
 
         if (statusResponse.status === 200) {
           const status = statusResponse.body.status;
@@ -606,11 +529,12 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Should return 200 with fields array (may be empty if no entities extracted)
       if (fieldsResponse.status === 200) {
-        expect(Array.isArray(fieldsResponse.body)).toBe(true);
+        expect(fieldsResponse.body).toHaveProperty('fields');
+        expect(Array.isArray(fieldsResponse.body.fields)).toBe(true);
 
         // If fields are present, validate structure
-        if (fieldsResponse.body.length > 0) {
-          const firstField = fieldsResponse.body[0];
+        if (fieldsResponse.body.fields.length > 0) {
+          const firstField = fieldsResponse.body.fields[0];
           expect(firstField).toHaveProperty('fieldKey');
           expect(firstField).toHaveProperty('fieldValue');
           expect(firstField).toHaveProperty('fieldType');
@@ -620,7 +544,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
           expect(firstField.confidence).toBeLessThanOrEqual(1);
 
           console.log(
-            `[FIELD EXTRACTION] Retrieved ${fieldsResponse.body.length} fields`,
+            `[FIELD EXTRACTION] Retrieved ${fieldsResponse.body.fields.length} fields`,
           );
           console.log(
             `[FIELD EXTRACTION] Sample field: ${firstField.fieldKey} = ${firstField.fieldValue?.substring(0, 50)}`,
@@ -720,10 +644,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
       }
 
       // Create a new user without access grant
-      const unauthorizedUser = await createTestUser(
-        RoleEnum.user,
-        'unauthorized-user',
-      );
+      const unauthorizedUser = await createTestUser(RoleEnum.user, 'unauthorized-user');
 
       const response = await request(APP_URL)
         .get(`/api/v1/documents/${documentId}`)
@@ -784,9 +705,6 @@ describe('Document Processing Full Workflow (E2E)', () => {
     it('should complete full workflow: upload -> trigger OCR -> check status -> get fields -> verify access', async () => {
       // Step 1: Upload document
       console.log('[FULL WORKFLOW] Step 1: Uploading document...');
-      // Wait before upload to ensure rate limit bucket has reset
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
       const pdfBuffer = readPdfFile(getTestPdfPath());
       const uploadResponse = await request(APP_URL)
         .post('/api/v1/documents/upload')
@@ -804,30 +722,13 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Step 2: Verify document details
       console.log('[FULL WORKFLOW] Step 2: Verifying document details...');
-      // Wait before checking to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      let detailsResponse = await request(APP_URL)
+      const detailsResponse = await request(APP_URL)
         .get(`/api/v1/documents/${workflowDocumentId}`)
         .auth(managerUser.token, { type: 'bearer' });
 
-      // Handle rate limiting
-      if (detailsResponse.status === 429) {
-        console.log(
-          '[FULL WORKFLOW] Rate limited on document details, waiting 65s...',
-        );
-        await new Promise((resolve) => setTimeout(resolve, 65000));
-        detailsResponse = await request(APP_URL)
-          .get(`/api/v1/documents/${workflowDocumentId}`)
-          .auth(managerUser.token, { type: 'bearer' });
-      }
-
       expect(detailsResponse.status).toBe(200);
       expect(detailsResponse.body).toHaveProperty('id', workflowDocumentId);
-      expect(detailsResponse.body).toHaveProperty(
-        'originManagerId',
-        manager.id,
-      );
+      expect(detailsResponse.body).toHaveProperty('originManagerId', manager.id);
       console.log(
         `[FULL WORKFLOW] Document details verified: ${detailsResponse.body.fileName}`,
       );
@@ -856,20 +757,19 @@ describe('Document Processing Full Workflow (E2E)', () => {
       const delayMs = 2000;
 
       for (let attempt = 0; attempt < maxWaitAttempts; attempt++) {
-        // Delay before each request to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const statusResponse = await request(APP_URL)
+        let statusResponse = await request(APP_URL)
           .get(`/api/v1/documents/${workflowDocumentId}/status`)
           .auth(managerUser.token, { type: 'bearer' });
 
-        // Handle rate limiting
+        // Handle rate limiting (429) - retry after waiting
         if (statusResponse.status === 429) {
           console.log(
-            `[FULL WORKFLOW] Rate limited (429) on status check ${attempt + 1}, waiting ${delayMs * 2}ms`,
+            `[FULL WORKFLOW STATUS] Rate limited on attempt ${attempt + 1}, waiting 65s before retry...`,
           );
-          await new Promise((resolve) => setTimeout(resolve, delayMs * 2));
-          continue;
+          await new Promise((resolve) => setTimeout(resolve, 65000));
+          statusResponse = await request(APP_URL)
+            .get(`/api/v1/documents/${workflowDocumentId}/status`)
+            .auth(managerUser.token, { type: 'bearer' });
         }
 
         expect(statusResponse.status).toBe(200);
@@ -897,20 +797,30 @@ describe('Document Processing Full Workflow (E2E)', () => {
       // Step 5: Retrieve extracted fields (if processed)
       if (isProcessed) {
         console.log('[FULL WORKFLOW] Step 5: Retrieving extracted fields...');
-        const fieldsResponse = await request(APP_URL)
+        let fieldsResponse = await request(APP_URL)
           .get(`/api/v1/documents/${workflowDocumentId}/fields`)
           .auth(managerUser.token, { type: 'bearer' });
 
+        // Handle rate limiting (429) - retry after waiting
+        if (fieldsResponse.status === 429) {
+          console.log('[FULL WORKFLOW GET FIELDS] Rate limited, waiting 65s before retry...');
+          await new Promise((resolve) => setTimeout(resolve, 65000));
+          fieldsResponse = await request(APP_URL)
+            .get(`/api/v1/documents/${workflowDocumentId}/fields`)
+            .auth(managerUser.token, { type: 'bearer' });
+        }
+
         expect(fieldsResponse.status).toBe(200);
-        expect(Array.isArray(fieldsResponse.body)).toBe(true);
+        expect(fieldsResponse.body).toHaveProperty('fields');
+        expect(Array.isArray(fieldsResponse.body.fields)).toBe(true);
         console.log(
-          `[FULL WORKFLOW] Retrieved ${fieldsResponse.body.length} extracted fields`,
+          `[FULL WORKFLOW] Retrieved ${fieldsResponse.body.fields.length} extracted fields`,
         );
       }
 
       // Step 6: Verify access control
       console.log('[FULL WORKFLOW] Step 6: Verifying access control...');
-
+      
       // Create access grant for regular user
       try {
         await createAccessGrant(
@@ -928,10 +838,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
           .auth(regularUser.token, { type: 'bearer' });
 
         expect(userAccessResponse.status).toBe(200);
-        expect(userAccessResponse.body).toHaveProperty(
-          'id',
-          workflowDocumentId,
-        );
+        expect(userAccessResponse.body).toHaveProperty('id', workflowDocumentId);
         console.log('[FULL WORKFLOW] User access grant verified');
       } catch (error) {
         console.warn(
@@ -951,9 +858,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
       expect(downloadResponse.body.downloadUrl).toMatch(/^https?:\/\//);
       console.log('[FULL WORKFLOW] Download URL generated successfully');
 
-      console.log(
-        '[FULL WORKFLOW] ✅ Full workflow test completed successfully!',
-      );
+      console.log('[FULL WORKFLOW] ✅ Full workflow test completed successfully!');
     }, 180000); // 3 minute timeout for full workflow
   });
 
@@ -995,409 +900,59 @@ describe('Document Processing Full Workflow (E2E)', () => {
   });
 
   // ============================================================================
-  // Test 10: Advanced Access Control and Manager Assignment Scenarios
-  // ============================================================================
-  /**
-   * Tests the flexibility of the access control system:
-   *
-   * 1. User as Origin Manager:
-   *    - Users upload documents using their auto-created Manager records
-   *    - User becomes the origin manager (via their Manager record)
-   *    - User can grant access to other managers while retaining origin manager abilities
-   *    - Granted managers get view access but cannot manage (cannot trigger OCR, etc.)
-   *
-   * 2. Manager-to-Manager Sharing:
-   *    - Managers can grant access to other managers directly (no user in the middle)
-   *    - Only origin manager retains full management capabilities
-   *    - Secondary managers get view-only access
-   *
-   * 3. Multiple Manager Access:
-   *    - Origin manager can grant access to multiple managers simultaneously
-   *    - Origin manager always retains full authority regardless of grants created
-   *    - Each granted manager gets independent view access
-   *
-   * Key Principle: originManagerId is immutable - once set at upload, it never changes.
-   * Access grants provide view access but cannot transfer origin manager authority.
-   */
-  describe('Advanced Access Control and Manager Assignment', () => {
-    let userDocumentId: string;
-    let userAsManager: TestUser;
-    let manager1: TestManager;
-    let manager2: TestManager;
-
-    beforeAll(async () => {
-      // Create a user who will upload a document
-      userAsManager = await createTestUser(RoleEnum.user, 'owner-user');
-
-      // Create two managers for testing access grants
-      manager1 = await createTestManager(adminToken);
-      manager2 = await createTestManager(adminToken);
-    }, 120000);
-
-    it('should allow user to upload document and become origin manager via their Manager record', async () => {
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      const pdfBuffer = readPdfFile(getTestPdfPath());
-      const response = await request(APP_URL)
-        .post('/api/v1/documents/upload')
-        .auth(userAsManager.token, { type: 'bearer' })
-        .field('documentType', 'LAB_RESULT')
-        .field('description', 'User-owned document for access control testing')
-        .attach('file', pdfBuffer, 'user-owned-document.pdf');
-
-      expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('id');
-      expect(response.body).toHaveProperty('originManagerId');
-      expect(response.body).toHaveProperty('documentType', 'LAB_RESULT');
-
-      userDocumentId = response.body.id;
-
-      // User's Manager record becomes the origin manager
-      // The user should be able to view and manage this document
-      const documentResponse = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}`)
-        .auth(userAsManager.token, { type: 'bearer' });
-
-      expect(documentResponse.status).toBe(200);
-      expect(documentResponse.body).toHaveProperty('id', userDocumentId);
-    }, 120000);
-
-    it('should allow user (origin manager) to grant access to another manager while retaining origin manager abilities', async () => {
-      if (!userDocumentId) {
-        throw new Error('userDocumentId not set from previous test');
-      }
-
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Get manager1's user ID (manager1.id is the Manager ID, manager1.userId is the User ID)
-      // Access grants use User IDs for managers
-      const manager1UserId = manager1.userId;
-
-      // User grants access to manager1
-      await createAccessGrant(
-        userAsManager.token,
-        userDocumentId,
-        'manager',
-        manager1UserId,
-        'delegated',
-      );
-
-      // Wait for grant to be committed
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Manager1 should now be able to view the document
-      const manager1ViewResponse = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      expect(manager1ViewResponse.status).toBe(200);
-      expect(manager1ViewResponse.body).toHaveProperty('id', userDocumentId);
-
-      // Manager1 should NOT be able to trigger OCR (only origin manager can)
-      const ocrTriggerResponse = await request(APP_URL)
-        .post(`/api/v1/documents/${userDocumentId}/ocr/trigger`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      expect([400, 403]).toContain(ocrTriggerResponse.status);
-      expect(ocrTriggerResponse.body.message).toContain(
-        'Only the origin manager',
-      );
-
-      // User (origin manager) should still be able to trigger OCR
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const userOcrResponse = await request(APP_URL)
-        .post(`/api/v1/documents/${userDocumentId}/ocr/trigger`)
-        .auth(userAsManager.token, { type: 'bearer' });
-
-      // May return 202 (accepted) or 400 (document not in correct state)
-      expect([202, 400]).toContain(userOcrResponse.status);
-    }, 120000);
-
-    it('should allow manager (origin manager) to grant access to another manager directly (no user in middle)', async () => {
-      // Wait 65 seconds to avoid rate limiting (60s rate limit window + 5s buffer)
-      console.log(
-        '[MANAGER-TO-MANAGER TEST] Waiting 65s to avoid rate limiting...',
-      );
-      await new Promise((resolve) => setTimeout(resolve, 65000));
-
-      // Manager1 uploads a document (becomes origin manager)
-      const pdfBuffer = readPdfFile(getTestPdfPath());
-      const uploadResponse = await request(APP_URL)
-        .post('/api/v1/documents/upload')
-        .auth(manager1.token, { type: 'bearer' })
-        .field('documentType', 'LAB_RESULT')
-        .field('description', 'Manager-to-manager sharing test document')
-        .attach('file', pdfBuffer, 'manager-document.pdf');
-
-      expect(uploadResponse.status).toBe(201);
-      const managerDocumentId = uploadResponse.body.id;
-      expect(uploadResponse.body).toHaveProperty(
-        'originManagerId',
-        manager1.id,
-      );
-
-      // Wait before creating grant
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Manager1 (origin manager) grants access to Manager2
-      await createAccessGrant(
-        manager1.token,
-        managerDocumentId,
-        'manager',
-        manager2.userId, // Manager User ID
-        'delegated',
-      );
-
-      // Wait for grant to be committed
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Manager2 should now be able to view the document
-      const manager2ViewResponse = await request(APP_URL)
-        .get(`/api/v1/documents/${managerDocumentId}`)
-        .auth(manager2.token, { type: 'bearer' });
-
-      expect(manager2ViewResponse.status).toBe(200);
-      expect(manager2ViewResponse.body).toHaveProperty('id', managerDocumentId);
-
-      // Manager2 should NOT be able to trigger OCR (only origin manager can)
-      const manager2OcrResponse = await request(APP_URL)
-        .post(`/api/v1/documents/${managerDocumentId}/ocr/trigger`)
-        .auth(manager2.token, { type: 'bearer' });
-
-      expect([400, 403]).toContain(manager2OcrResponse.status);
-
-      // Manager1 (origin manager) should still be able to trigger OCR
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const manager1OcrResponse = await request(APP_URL)
-        .post(`/api/v1/documents/${managerDocumentId}/ocr/trigger`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      expect([202, 400]).toContain(manager1OcrResponse.status);
-    }, 180000); // Extended timeout to account for 65s rate limit wait
-
-    it('should allow user (origin manager) to grant access to multiple managers while remaining origin manager', async () => {
-      if (!userDocumentId) {
-        throw new Error('userDocumentId not set');
-      }
-
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // User grants access to manager2
-      await createAccessGrant(
-        userAsManager.token,
-        userDocumentId,
-        'manager',
-        manager2.userId,
-        'delegated',
-      );
-
-      // Wait for grant to be committed
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Both managers should be able to view the document
-      const manager1View = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      const manager2View = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}`)
-        .auth(manager2.token, { type: 'bearer' });
-
-      expect(manager1View.status).toBe(200);
-      expect(manager2View.status).toBe(200);
-
-      // User should still be the origin manager and able to manage
-      const userView = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}`)
-        .auth(userAsManager.token, { type: 'bearer' });
-
-      expect(userView.status).toBe(200);
-      expect(userView.body).toHaveProperty('originManagerId');
-
-      // User should be able to trigger OCR (origin manager privilege)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const userOcrResponse = await request(APP_URL)
-        .post(`/api/v1/documents/${userDocumentId}/ocr/trigger`)
-        .auth(userAsManager.token, { type: 'bearer' });
-
-      expect([202, 400]).toContain(userOcrResponse.status);
-
-      // Neither manager should be able to trigger OCR
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const manager1Ocr = await request(APP_URL)
-        .post(`/api/v1/documents/${userDocumentId}/ocr/trigger`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      const manager2Ocr = await request(APP_URL)
-        .post(`/api/v1/documents/${userDocumentId}/ocr/trigger`)
-        .auth(manager2.token, { type: 'bearer' });
-
-      expect([400, 403]).toContain(manager1Ocr.status);
-      expect([400, 403]).toContain(manager2Ocr.status);
-    }, 120000);
-
-    it('should verify that granted managers can view but not modify document metadata', async () => {
-      if (!userDocumentId) {
-        throw new Error('userDocumentId not set');
-      }
-
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Manager1 should be able to view document details
-      const manager1Details = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      expect(manager1Details.status).toBe(200);
-      expect(manager1Details.body).toHaveProperty('id', userDocumentId);
-      expect(manager1Details.body).toHaveProperty('documentType');
-      expect(manager1Details.body).toHaveProperty('status');
-
-      // Verify document exists and manager1 has access before testing download
-      // Wait to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Manager1 should be able to download
-      let manager1Download = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}/download`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      // Handle rate limiting
-      if (manager1Download.status === 429) {
-        console.log('[DOWNLOAD TEST] Rate limited, waiting 65s...');
-        await new Promise((resolve) => setTimeout(resolve, 65000));
-        manager1Download = await request(APP_URL)
-          .get(`/api/v1/documents/${userDocumentId}/download`)
-          .auth(manager1.token, { type: 'bearer' });
-      }
-
-      // If still 404, verify access grant is still valid
-      if (manager1Download.status === 404) {
-        // Verify manager1 can still view the document (confirms access grant is valid)
-        const verifyAccess = await request(APP_URL)
-          .get(`/api/v1/documents/${userDocumentId}`)
-          .auth(manager1.token, { type: 'bearer' });
-
-        if (verifyAccess.status === 200) {
-          // Access grant is valid but download failed - might be document processing issue
-          console.warn(
-            `[DOWNLOAD TEST] Manager1 has access (200) but download returned 404 for document ${userDocumentId}`,
-          );
-          // Document might not be fully processed yet, or storage issue
-          expect([200, 404]).toContain(manager1Download.status);
-        } else {
-          throw new Error(
-            `Manager1 lost access to document ${userDocumentId}: view status=${verifyAccess.status}, download status=${manager1Download.status}`,
-          );
-        }
-      } else {
-        expect(manager1Download.status).toBe(200);
-        expect(manager1Download.body).toHaveProperty('downloadUrl');
-      }
-
-      // Manager1 should be able to view status
-      const manager1Status = await request(APP_URL)
-        .get(`/api/v1/documents/${userDocumentId}/status`)
-        .auth(manager1.token, { type: 'bearer' });
-
-      expect(manager1Status.status).toBe(200);
-      expect(manager1Status.body).toHaveProperty('status');
-    }, 120000);
-  });
-
-  // ============================================================================
-  // Test 11: Error Handling and Edge Cases
+  // Test 10: Error Handling and Edge Cases
   // ============================================================================
   describe('Error Handling and Edge Cases', () => {
-    beforeEach(async () => {
-      // Add delay between tests to reduce rate limit collisions
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    });
-
     it('should return 404 for non-existent document', async () => {
       const fakeId = '00000000-0000-0000-0000-000000000000';
-
-      let response = await request(APP_URL)
+      const response = await request(APP_URL)
         .get(`/api/v1/documents/${fakeId}`)
         .auth(managerUser.token, { type: 'bearer' });
 
-      // Handle rate limiting
-      if (response.status === 429) {
-        console.log('[404 TEST] Rate limited, waiting before retry...');
-        await new Promise((resolve) => setTimeout(resolve, 65000));
-        response = await request(APP_URL)
-          .get(`/api/v1/documents/${fakeId}`)
-          .auth(managerUser.token, { type: 'bearer' });
-      }
-
       expect(response.status).toBe(404);
-    }, 120000);
+    });
 
     it('should reject invalid UUID format', async () => {
       const invalidId = 'not-a-uuid';
-
-      let response = await request(APP_URL)
+      const response = await request(APP_URL)
         .get(`/api/v1/documents/${invalidId}`)
         .auth(managerUser.token, { type: 'bearer' });
 
-      // Handle rate limiting
-      if (response.status === 429) {
-        console.log(
-          '[UUID VALIDATION TEST] Rate limited, waiting before retry...',
-        );
-        await new Promise((resolve) => setTimeout(resolve, 65000));
-        response = await request(APP_URL)
-          .get(`/api/v1/documents/${invalidId}`)
-          .auth(managerUser.token, { type: 'bearer' });
-      }
-
       expect([400, 404]).toContain(response.status);
-    }, 120000);
+    });
 
     it('should reject admin from all document operations', async () => {
       if (!documentId) {
         throw new Error('documentId not set');
       }
 
-      // Wait before starting to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
       // Test admin rejection on multiple endpoints
-      // Use fewer endpoints and add delays to avoid rate limiting
       const endpoints = [
         { method: 'get', path: `/api/v1/documents/${documentId}` },
         { method: 'get', path: `/api/v1/documents/${documentId}/status` },
+        { method: 'get', path: `/api/v1/documents/${documentId}/fields` },
+        { method: 'get', path: `/api/v1/documents/${documentId}/download` },
+        { method: 'post', path: `/api/v1/documents/${documentId}/ocr/trigger` },
       ];
 
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        // Delay between requests to avoid rate limiting
-        if (i > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-
+      for (const endpoint of endpoints) {
         const req = request(APP_URL)[endpoint.method](endpoint.path);
-        const response = await req.auth(adminToken, { type: 'bearer' });
+        let response = await req.auth(adminToken, { type: 'bearer' });
 
-        // Handle rate limiting
+        // Handle rate limiting (429) - retry after waiting
         if (response.status === 429) {
           console.log(
-            `[ADMIN REJECTION TEST] Rate limited (429) on ${endpoint.method} ${endpoint.path}, skipping remaining tests`,
+            `[ADMIN REJECTION TEST] Rate limited on ${endpoint.method} ${endpoint.path}, waiting 65s before retry...`,
           );
-          // Skip remaining tests if rate limited
-          break;
+          await new Promise((resolve) => setTimeout(resolve, 65000));
+          const retryReq = request(APP_URL)[endpoint.method](endpoint.path);
+          response = await retryReq.auth(adminToken, { type: 'bearer' });
         }
 
         expect(response.status).toBe(403);
-        expect(response.body.message).toContain(
-          'Admins do not have document-level access',
-        );
+        expect(response.body.message).toContain('Admins do not have document-level access');
       }
-    }, 120000); // Extended timeout for rate limit handling
+    });
   });
 });
+

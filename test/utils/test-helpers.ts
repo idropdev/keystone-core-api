@@ -566,6 +566,147 @@ export async function verifyTestManager(
 }
 
 /**
+ * Wait for OCR processing to complete for a document
+ *
+ * Polls the status endpoint until the document reaches PROCESSED or FAILED status.
+ * This is required before accessing fields, as OCR is async and takes time to complete.
+ *
+ * @param documentId - UUID of the document
+ * @param token - JWT token for authentication
+ * @param maxWaitSeconds - Maximum time to wait in seconds (default: 60)
+ * @param pollIntervalMs - Interval between status checks in milliseconds (default: 1000)
+ * @returns The final status ('PROCESSED' or 'FAILED')
+ * @throws Error if timeout is reached before completion
+ */
+export async function waitForOcrToComplete(
+  documentId: string,
+  token: string,
+  maxWaitSeconds = 60,
+  pollIntervalMs = 2000, // Increased default to 2s to reduce rate limit hits
+): Promise<'PROCESSED' | 'FAILED'> {
+  // Rate limit constants (status endpoint uses global limit: 10 req/60s)
+  const RATE_LIMIT_TTL_MS = 60000; // 60 seconds
+  const RATE_LIMIT_BUFFER_MS = 5000; // 5 second buffer
+
+  const startTime = Date.now();
+  const maxWaitMs = maxWaitSeconds * 1000;
+  let attempts = 0;
+  let lastKnownStatus: string | undefined;
+  let consecutiveRateLimits = 0;
+  const maxConsecutiveRateLimits = 3;
+
+  console.log(
+    `[WAIT_FOR_OCR] Starting to wait for OCR completion (max ${maxWaitSeconds}s, poll interval ${pollIntervalMs}ms)`,
+  );
+
+  // Poll until we get PROCESSED or FAILED status or timeout
+  while (Date.now() - startTime < maxWaitMs) {
+    attempts++;
+
+    try {
+      const statusResponse = await request(APP_URL)
+        .get(`/api/v1/documents/${documentId}/status`)
+        .auth(token, { type: 'bearer' });
+
+      // Reset consecutive rate limit counter on successful request
+      consecutiveRateLimits = 0;
+
+      // Handle rate limiting (429)
+      if (statusResponse.status === 429) {
+        const waitTime = RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS;
+        const waitSeconds = Math.round(waitTime / 1000);
+        consecutiveRateLimits++;
+
+        if (consecutiveRateLimits > maxConsecutiveRateLimits) {
+          throw new Error(
+            `Rate limited ${consecutiveRateLimits} times in a row. This may indicate too aggressive polling or a configuration issue.`,
+          );
+        }
+
+        console.log(
+          `[WAIT_FOR_OCR] Rate limited (429), waiting ${waitSeconds}s before retry (attempt ${attempts})`,
+        );
+        await sleep(waitTime);
+
+        // Continue to retry after waiting
+        continue;
+      }
+
+      // Handle other non-200 status codes
+      if (statusResponse.status !== 200) {
+        throw new Error(
+          `Failed to get document status: ${statusResponse.status} - ${JSON.stringify(statusResponse.body)}`,
+        );
+      }
+
+      // Verify response has status property
+      if (!statusResponse.body || typeof statusResponse.body.status !== 'string') {
+        throw new Error(
+          `Invalid status response structure: ${JSON.stringify(statusResponse.body)}`,
+        );
+      }
+
+      const currentStatus = statusResponse.body.status;
+      lastKnownStatus = currentStatus;
+
+      // Return immediately if processing is complete
+      if (currentStatus === 'PROCESSED' || currentStatus === 'FAILED') {
+        const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+        console.log(
+          `[WAIT_FOR_OCR] OCR completed with status: ${currentStatus} (took ${elapsedSeconds}s, ${attempts} attempts)`,
+        );
+        return currentStatus as 'PROCESSED' | 'FAILED';
+      }
+
+      // Log progress for intermediate statuses (UPLOADED, STORED, QUEUED, PROCESSING)
+      if (attempts % 5 === 0) {
+        const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+        console.log(
+          `[WAIT_FOR_OCR] Document ${documentId} status: ${currentStatus} (attempt ${attempts}, ${elapsedSeconds}s elapsed)`,
+        );
+      }
+    } catch (error: any) {
+      // If it's a validation error or non-rate-limit HTTP error, rethrow it
+      if (
+        error.message &&
+        (error.message.includes('Failed to get document status') ||
+          error.message.includes('Invalid status response structure') ||
+          error.message.includes('Rate limited'))
+      ) {
+        throw error;
+      }
+
+      // For other errors (network issues, etc.), log and continue
+      console.warn(
+        `[WAIT_FOR_OCR] Error checking status (attempt ${attempts}):`,
+        error.message || error,
+      );
+      // Continue polling on transient errors
+    }
+
+    // Check if we've exceeded the timeout
+    const elapsed = Date.now() - startTime;
+    if (elapsed >= maxWaitMs) {
+      break;
+    }
+
+    // Wait before next check (with adaptive interval based on remaining time)
+    const remainingTime = maxWaitMs - elapsed;
+    const waitTime = Math.min(pollIntervalMs, remainingTime);
+    if (waitTime > 0) {
+      await sleep(waitTime);
+    }
+  }
+
+  // Timeout reached
+  const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+  const finalStatus = lastKnownStatus || 'UNKNOWN';
+  throw new Error(
+    `OCR processing did not complete within ${maxWaitSeconds} seconds. Final status: ${finalStatus} (attempts: ${attempts}, elapsed: ${elapsedSeconds}s)`,
+  );
+}
+
+/**
  * Get user info from token (for extracting actor info)
  */
 async function getUserInfoFromToken(

@@ -83,6 +83,28 @@ export class DocumentRepositoryAdapter implements DocumentRepositoryPort {
     };
   }
 
+  async findByOriginManagerId(
+    managerId: number,
+    options?: { skip?: number; limit?: number; status?: DocumentStatus[] },
+  ): Promise<{ data: Document[]; total: number }> {
+    const where: any = { originManagerId: managerId, deletedAt: IsNull() };
+    if (options?.status) {
+      where.status = In(options.status);
+    }
+
+    const [entities, total] = await this.documentRepository.findAndCount({
+      where,
+      skip: options?.skip,
+      take: options?.limit,
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      data: entities.map(DocumentMapper.toDomain),
+      total,
+    };
+  }
+
   async findExpired(): Promise<Document[]> {
     const entities = await this.documentRepository.find({
       where: {

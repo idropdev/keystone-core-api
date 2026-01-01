@@ -135,8 +135,12 @@ describe('Document Processing Endpoints (E2E)', () => {
       );
     });
 
-    it('should reject user without assigned manager (400/422)', async () => {
+    it('should allow user without assigned manager to upload document (user becomes temporary origin manager)', async () => {
       const unassignedUser = await createTestUser(RoleEnum.user, 'unassigned');
+      
+      // Wait to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      
       const pdfBuffer = Buffer.from(
         '%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\ntrailer\n<<\n/Root 1 0 R\n>>\n%%EOF',
       );
@@ -147,7 +151,12 @@ describe('Document Processing Endpoints (E2E)', () => {
         .field('documentType', 'LAB_RESULT')
         .attach('file', pdfBuffer, 'test-document.pdf');
 
-      expect([400, 422]).toContain(response.status);
+      // User without assigned manager should be able to upload
+      // They become temporary origin manager (originManagerId = null)
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('id');
+      expect(response.body).toHaveProperty('originManagerId', null);
+      expect(response.body).toHaveProperty('documentType', 'LAB_RESULT');
     }, 120000); // Increase timeout to 120 seconds to allow for rate limit retry (65s wait)
 
     it('should validate required fields (400/422)', async () => {
@@ -551,11 +560,23 @@ describe('Document Processing Endpoints (E2E)', () => {
       expect([200, 409]).toContain(response.status);
 
       if (response.status === 200) {
-        expect(Array.isArray(response.body)).toBe(true);
-        if (response.body.length > 0) {
-          expect(response.body[0]).toHaveProperty('fieldKey');
-          expect(response.body[0]).toHaveProperty('fieldValue');
-          expect(response.body[0]).toHaveProperty('fieldType');
+        // Response is an object with fields (array), document_output, and vision_output
+        expect(response.body).toHaveProperty('fields');
+        expect(Array.isArray(response.body.fields)).toBe(true);
+        
+        // Optional: document_output and vision_output may be present
+        if (response.body.fields.length > 0) {
+          expect(response.body.fields[0]).toHaveProperty('fieldKey');
+          expect(response.body.fields[0]).toHaveProperty('fieldValue');
+          expect(response.body.fields[0]).toHaveProperty('fieldType');
+        }
+        
+        // document_output and vision_output are optional fields in the response
+        if (response.body.document_output !== undefined) {
+          expect(typeof response.body.document_output).toBe('object');
+        }
+        if (response.body.vision_output !== undefined) {
+          expect(typeof response.body.vision_output).toBe('object');
         }
       }
     });
@@ -592,7 +613,9 @@ describe('Document Processing Endpoints (E2E)', () => {
         expect([200, 409]).toContain(response.status);
 
         if (response.status === 200) {
-          expect(Array.isArray(response.body)).toBe(true);
+          // Response is an object with fields (array), document_output, and vision_output
+          expect(response.body).toHaveProperty('fields');
+          expect(Array.isArray(response.body.fields)).toBe(true);
         }
       } catch (error) {
         console.warn('Access grant creation failed, skipping test:', error);

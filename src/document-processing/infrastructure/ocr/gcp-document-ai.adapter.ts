@@ -40,6 +40,9 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
 
   constructor(private readonly configService: ConfigService<AllConfigType>) {
     // TODO: Use Workload Identity or service account key
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-document-ai.adapter.ts:42',message:'DOCUMENT AI: Initializing with ADC',data:{credentialsPathEnv:process.env.GOOGLE_APPLICATION_CREDENTIALS,hasCredentialsPath:!!process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     this.client = new DocumentProcessorServiceClient();
     this.storage = new Storage();
 
