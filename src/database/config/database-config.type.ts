@@ -14,4 +14,13 @@ export type DatabaseConfig = {
   ca?: string;
   key?: string;
   cert?: string;
+  // Logging configuration
+  // Can be: false | true | 'all' | ['query', 'error', 'schema', 'warn', 'info', 'log'] | 'simple' | 'advanced'
+  // false = no logging, true = all logging, 'all' = all logging, array = specific log types
+  logging?:
+    | boolean
+    | 'all'
+    | ('query' | 'error' | 'schema' | 'warn' | 'info' | 'log')[]
+    | 'simple'
+    | 'advanced';
 };

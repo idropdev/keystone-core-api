@@ -184,12 +184,17 @@ export class OcrMergeService {
       );
 
       // Pair lines on this page
-      const linePairs = this.pairLines(sortedVisionLines, sortedDocumentAiLines);
+      const linePairs = this.pairLines(
+        sortedVisionLines,
+        sortedDocumentAiLines,
+      );
 
       // Sort pairs by Y position to maintain document order
       const sortedPairs = linePairs.sort((a, b) => {
-        const yA = a.vision?.boundingBox.y0 ?? a.documentAi?.boundingBox.y0 ?? 0;
-        const yB = b.vision?.boundingBox.y0 ?? b.documentAi?.boundingBox.y0 ?? 0;
+        const yA =
+          a.vision?.boundingBox.y0 ?? a.documentAi?.boundingBox.y0 ?? 0;
+        const yB =
+          b.vision?.boundingBox.y0 ?? b.documentAi?.boundingBox.y0 ?? 0;
         return yA - yB;
       });
 
@@ -211,9 +216,8 @@ export class OcrMergeService {
     }
 
     // Calculate document-level agreement ONLY from paired lines (not unmatched)
-    const docAgreement = this.calculateDocumentAgreementFromPairedLines(
-      perLineConfidence,
-    );
+    const docAgreement =
+      this.calculateDocumentAgreementFromPairedLines(perLineConfidence);
 
     // Calculate overall confidence
     const overallConfidence = this.calculateOverallConfidence(
@@ -321,7 +325,10 @@ export class OcrMergeService {
       text: mergedText,
       confidence: overallConfidence,
       pageCount: Math.max(visionResult.pageCount, documentAiResult.pageCount),
-      entities: this.mergeEntities(visionResult.entities, documentAiResult.entities),
+      entities: this.mergeEntities(
+        visionResult.entities,
+        documentAiResult.entities,
+      ),
       fullResponse: {
         engine: 'merged',
         sources,
@@ -481,8 +488,7 @@ export class OcrMergeService {
     box1: { y0: number; y1: number },
     box2: { y0: number; y1: number },
   ): number {
-    const overlap =
-      Math.min(box1.y1, box2.y1) - Math.max(box1.y0, box2.y0);
+    const overlap = Math.min(box1.y1, box2.y1) - Math.max(box1.y0, box2.y0);
     const maxHeight = Math.max(box1.y1 - box1.y0, box2.y1 - box2.y0);
 
     if (maxHeight === 0) return 0;
@@ -587,7 +593,7 @@ export class OcrMergeService {
     // If agreement is very low (< 0.3), they're likely different lines, not the same line with errors
     // In this case, we should include both (additive), but for now we choose the better one
     // TODO: Consider adding both lines when agreement < 0.3 (requires position-based ordering)
-    
+
     // Line winner rule: if agreement too low, choose whole best line
     // This handles cases where one engine sees content the other doesn't
     if (lineAgreement < this.lineMixThreshold) {
@@ -719,7 +725,9 @@ export class OcrMergeService {
 
     // Filter out empty strings and whitespace-only tokens for alignment
     const visionWordsOnly = visionWords.filter((w) => w.trim().length > 0);
-    const documentAiWordsOnly = documentAiWords.filter((w) => w.trim().length > 0);
+    const documentAiWordsOnly = documentAiWords.filter(
+      (w) => w.trim().length > 0,
+    );
 
     const alignedWords: string[] = [];
     let visionIndex = 0;
@@ -776,8 +784,7 @@ export class OcrMergeService {
       documentAiLine.text,
     );
     const confidence =
-      lineAgreement * 0.7 +
-      (this.calculateLineScore(mergedText) * 0.3);
+      lineAgreement * 0.7 + this.calculateLineScore(mergedText) * 0.3;
 
     return {
       text: mergedText,
@@ -835,11 +842,7 @@ export class OcrMergeService {
   /**
    * Validate character in context
    */
-  private validateChar(
-    char: string,
-    word: string,
-    position: number,
-  ): number {
+  private validateChar(char: string, word: string, position: number): number {
     let score = 0.5;
 
     // Prefer alphanumeric
@@ -1056,4 +1059,3 @@ export class OcrMergeService {
     return Array.from(entityMap.values());
   }
 }
-

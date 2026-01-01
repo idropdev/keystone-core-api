@@ -11,9 +11,11 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -31,6 +33,8 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiNoContentResponse,
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { DocumentProcessingService } from './document-processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
@@ -38,8 +42,10 @@ import { DocumentResponseDto } from './dto/document-response.dto';
 import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
-import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
+import { extractActorFromRequest } from './utils/actor-extractor.util';
+import { RoleEnum } from '../roles/roles.enum';
+import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 
 /**
  * Document Processing Controller
@@ -67,9 +73,13 @@ export class DocumentProcessingController {
   ) {}
 
   @Post('upload')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
-  @ApiOperation({ summary: 'Upload medical document for OCR processing' })
+  @ApiOperation({
+    summary: 'Upload medical document (no processing)',
+    description:
+      'Upload a document and store it in the system. The document enters the system in UPLOADED state with no OCR or processing started. OCR processing must be explicitly triggered via POST /v1/documents/{documentId}/ocr/trigger by the origin manager.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -142,19 +152,42 @@ export class DocumentProcessingController {
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,
   ): Promise<DocumentResponseDto> {
+    const logger = new Logger(DocumentProcessingController.name);
+
+    logger.log(
+      `[UPLOAD DOCUMENT] Request received: userId=${req.user?.id}, roleId=${req.user?.role?.id}, ` +
+        `documentType=${dto.documentType}, fileName=${file?.originalname || 'none'}, fileSize=${file?.size || 0}`,
+    );
+
     if (!file) {
+      logger.error('[UPLOAD DOCUMENT] ❌ No file provided');
       throw new BadRequestException('File is required');
     }
 
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      logger.warn(
+        `[UPLOAD DOCUMENT] ❌ FORBIDDEN (403): Admin user ${req.user.id} attempted to upload document`,
+      );
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    logger.debug(
+      `[UPLOAD DOCUMENT] Actor extracted: type=${actor.type}, id=${actor.id}`,
+    );
 
     const document = await this.documentProcessingService.uploadDocument(
-      userId,
+      actor,
       file.buffer,
       file.originalname,
       file.mimetype,
       dto.documentType,
       dto.description,
+    );
+
+    logger.log(
+      `[UPLOAD DOCUMENT] ✅ Document uploaded successfully: documentId=${document.id}, originManagerId=${document.originManagerId}`,
     );
 
     return this.documentProcessingService.toResponseDto(document);
@@ -187,8 +220,13 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<DocumentStatusResponseDto> {
-    const userId = req.user.id;
-    return this.documentProcessingService.getDocumentStatus(documentId, userId);
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getDocumentStatus(documentId, actor);
   }
 
   @Get(':documentId')
@@ -218,10 +256,15 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<DocumentResponseDto> {
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
     const document = await this.documentProcessingService.getDocument(
       documentId,
-      userId,
+      actor,
     );
     return this.documentProcessingService.toResponseDto(document);
   }
@@ -253,11 +296,13 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<ExtractedFieldsWithOcrResponseDto> {
-    const userId = req.user.id;
-    return this.documentProcessingService.getExtractedFields(
-      documentId,
-      userId,
-    );
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getExtractedFields(documentId, actor);
   }
 
   @Get(':documentId/download')
@@ -301,10 +346,15 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<{ downloadUrl: string; expiresIn: number }> {
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
     const downloadUrl = await this.documentProcessingService.getDownloadUrl(
       documentId,
-      userId,
+      actor,
     );
     return { downloadUrl, expiresIn: 86400 }; // 24 hours
   }
@@ -360,9 +410,14 @@ export class DocumentProcessingController {
     @Request() req,
     @Query() query: DocumentListQueryDto,
   ): Promise<InfinityPaginationResponseDto<DocumentResponseDto>> {
-    const userId = req.user.id;
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
     const result = await this.documentProcessingService.listDocuments(
-      userId,
+      actor,
       query,
     );
     return result;
@@ -395,8 +450,61 @@ export class DocumentProcessingController {
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<void> {
-    const userId = req.user.id;
-    await this.documentProcessingService.deleteDocument(documentId, userId);
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    await this.documentProcessingService.deleteDocument(documentId, actor);
+  }
+
+  @Post(':documentId/ocr/trigger')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Trigger OCR Processing (Origin Manager Only)',
+    description:
+      'Explicitly trigger OCR processing for a document. Only the origin manager can trigger OCR. ' +
+      'If the document has an assigned manager (originManagerId is set), only that verified manager can trigger. ' +
+      'If the document has no assigned manager (originManagerId is null), the user who uploaded it (temporary origin manager) can trigger. ' +
+      'Document must be in UPLOADED, STORED, PROCESSED, or FAILED state. ' +
+      'Transitions document state: UPLOADED/STORED/FAILED/PROCESSED → PROCESSING. ' +
+      'All OCR processing originates from this endpoint - upload does not trigger processing.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'OCR processing triggered successfully',
+  })
+  @ApiBadRequestResponse({
+    description: 'Document state does not allow processing',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only origin manager can trigger OCR processing',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document not found',
+  })
+  async triggerOcr(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+  ): Promise<{ message: string }> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    await this.documentProcessingService.triggerOcr(documentId, actor);
+    return { message: 'OCR processing triggered successfully' };
   }
 
   @Get(':documentId/vision-ai')
@@ -429,14 +537,20 @@ export class DocumentProcessingController {
     description: 'Invalid or expired access token',
   })
   @ApiNotFoundResponse({
-    description: 'Document not found, access denied, or Vision AI output not available',
+    description:
+      'Document not found, access denied, or Vision AI output not available',
   })
   async getVisionAiOutput(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<any> {
-    const userId = req.user.id;
-    return this.documentProcessingService.getVisionAiOutput(documentId, userId);
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getVisionAiOutput(documentId, actor);
   }
 
   @Get(':documentId/document-ai')
@@ -469,13 +583,84 @@ export class DocumentProcessingController {
     description: 'Invalid or expired access token',
   })
   @ApiNotFoundResponse({
-    description: 'Document not found, access denied, or Document AI output not available',
+    description:
+      'Document not found, access denied, or Document AI output not available',
   })
   async getDocumentAiOutput(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ): Promise<any> {
-    const userId = req.user.id;
-    return this.documentProcessingService.getDocumentAiOutput(documentId, userId);
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.getDocumentAiOutput(
+      documentId,
+      actor,
+    );
+  }
+
+  @Post(':documentId/assign-manager')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign a verified manager to a document (irreversible)',
+    description:
+      'Assigns a verified manager as the permanent origin manager for a document. ' +
+      'This operation is irreversible. Once assigned, the user loses manager-level authority ' +
+      'and access is governed by AccessGrants. Only users who uploaded the document (temporary origin) ' +
+      'or admins can assign managers.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['managerId'],
+      properties: {
+        managerId: {
+          type: 'number',
+          description: 'Manager ID to assign (must be verified)',
+          example: 1,
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Manager successfully assigned to document',
+    type: DocumentResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Document already has a manager assigned, or manager is not verified',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'User does not have permission to assign manager to this document',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document or manager not found',
+  })
+  async assignManagerToDocument(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() body: { managerId: number },
+  ): Promise<DocumentResponseDto> {
+    // Hard deny admins from document operations (but allow them to assign managers)
+    // Actually, admins CAN assign managers, so we don't block them here
+
+    const actor = extractActorFromRequest(req);
+    const document = await this.documentProcessingService.assignManagerToDocument(
+      documentId,
+      body.managerId,
+      actor,
+    );
+    return this.documentProcessingService.toResponseDto(document);
   }
 }

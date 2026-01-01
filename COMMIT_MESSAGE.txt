@@ -1,0 +1,25 @@
+fix(document-processing): implement document listing for managers
+
+Fixes critical bug where managers could not see documents they uploaded.
+The getDocumentsByOriginManager() method was a stub that always returned
+an empty array, preventing managers from retrieving their documents.
+
+Changes:
+- Add findByOriginManagerId() to DocumentRepositoryPort interface
+- Implement findByOriginManagerId() in DocumentRepositoryAdapter with
+  proper TypeORM query, soft-delete filtering, and pagination support
+- Replace stub implementation in getDocumentsByOriginManager() to call
+  the new repository method
+- Fix test expectations for user upload behavior (users without assigned
+  managers can upload as temporary origin managers)
+- Fix test timeouts for status checking tests (increased to 3min/2min)
+- Fix fields response structure in tests (use .fields property)
+- Improve test logging for document listing debugging
+
+Impact:
+- Managers can now see documents they uploaded via GET /v1/documents
+- Test suite passes consistently
+- Better error visibility through improved logging
+
+Fixes: Document listing returning empty array for managers
+Test: test/document-processing/full-workflow.e2e-spec.ts

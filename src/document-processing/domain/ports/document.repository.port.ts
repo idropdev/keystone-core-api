@@ -23,6 +23,10 @@ export interface DocumentRepositoryPort {
     userId: string | number,
     options?: { skip?: number; limit?: number; status?: DocumentStatus[] },
   ): Promise<{ data: Document[]; total: number }>;
+  findByOriginManagerId(
+    managerId: number,
+    options?: { skip?: number; limit?: number; status?: DocumentStatus[] },
+  ): Promise<{ data: Document[]; total: number }>;
 
   // Cleanup
   findExpired(): Promise<Document[]>; // Where scheduledDeletionAt < now

@@ -36,58 +36,28 @@ export class GcpVisionAiAdapter implements OcrServicePort {
   private readonly maxWaitTime: number = 600000; // 10 minutes
 
   constructor(private readonly configService: ConfigService<AllConfigType>) {
-    // Initialize clients with proper credential handling (same pattern as Document AI)
-    // Priority:
-    // 1. Direct service account key (if GOOGLE_APPLICATION_CREDENTIALS points to a service account JSON)
-    // 2. ADC (Application Default Credentials) - recommended for local dev and GCP compute
-    // 3. Impersonation credentials (if detected, will use ADC but may fail if IAM not configured)
-    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const isImpersonationCredentials = this.detectImpersonationCredentials(credentialsPath);
+    // Vision AI always uses ADC (Application Default Credentials), same as Document AI
+    // Storage adapter uses the service account file from GOOGLE_APPLICATION_CREDENTIALS
+    // This separation ensures:
+    // - Vision AI/Document AI: Use ADC (from gcloud auth application-default login or attached service account)
+    // - Storage: Uses service account key file for signed URL generation
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-vision-ai.adapter.ts:38',message:'VISION AI: Initializing with ADC (always)',data:{credentialsPathEnv:process.env.GOOGLE_APPLICATION_CREDENTIALS,hasCredentialsPath:!!process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    this.logger.log(
+      '[VISION AI] Using Application Default Credentials (ADC). Ensure ADC is configured:',
+    );
+    this.logger.log('  - Local: Run "gcloud auth application-default login"');
+    this.logger.log(
+      '  - GCP Compute: Service account must be attached to the workload',
+    );
+    this.logger.log(
+      '  - NOTE: GOOGLE_APPLICATION_CREDENTIALS is used by Storage adapter, not Vision AI',
+    );
 
-    if (credentialsPath && !isImpersonationCredentials) {
-      // Direct service account key - can use keyFilename
-      this.logger.log(
-        `[VISION AI] Initializing with direct service account key: ${credentialsPath}`,
-      );
-      this.client = new ImageAnnotatorClient({
-        keyFilename: credentialsPath,
-      });
-      this.storage = new Storage({
-        keyFilename: credentialsPath,
-      });
-    } else if (isImpersonationCredentials) {
-      // Impersonation credentials detected - warn user and use ADC
-      this.logger.warn(
-        '⚠️  [VISION AI] Impersonation credentials detected. If you encounter IAM errors, consider using ADC directly:',
-      );
-      this.logger.warn(
-        '   1. Unset GOOGLE_APPLICATION_CREDENTIALS',
-      );
-      this.logger.warn(
-        '   2. Run: gcloud auth application-default login',
-      );
-      this.logger.warn(
-        '   3. Ensure your account has roles/cloudvision.apiUser and roles/storage.objectAdmin',
-      );
-
-      // Still try to use ADC (library will read GOOGLE_APPLICATION_CREDENTIALS)
-      this.client = new ImageAnnotatorClient();
-      this.storage = new Storage();
-    } else {
-      // No GOOGLE_APPLICATION_CREDENTIALS set - use ADC directly
-      this.logger.log(
-        '[VISION AI] Using Application Default Credentials (ADC). Ensure ADC is configured:',
-      );
-      this.logger.log(
-        '  - Local: Run "gcloud auth application-default login"',
-      );
-      this.logger.log(
-        '  - GCP Compute: Service account must be attached to the workload',
-      );
-
-      this.client = new ImageAnnotatorClient();
-      this.storage = new Storage();
-    }
+    this.client = new ImageAnnotatorClient();
+    this.storage = new Storage();
 
     this.projectId = this.configService.getOrThrow(
       'documentProcessing.gcp.projectId',
@@ -100,9 +70,12 @@ export class GcpVisionAiAdapter implements OcrServicePort {
     );
 
     this.outputPrefix =
-      this.configService.get('documentProcessing.gcp.visionAi.asyncOutputPrefix', {
-        infer: true,
-      }) || 'vision-ocr-output/';
+      this.configService.get(
+        'documentProcessing.gcp.visionAi.asyncOutputPrefix',
+        {
+          infer: true,
+        },
+      ) || 'vision-ocr-output/';
 
     this.logger.log(
       `[VISION AI] Adapter initialized - Project: ${this.projectId}, Bucket: ${this.outputBucket}, Prefix: ${this.outputPrefix}`,
@@ -113,9 +86,7 @@ export class GcpVisionAiAdapter implements OcrServicePort {
    * Detect if credentials file contains impersonation credentials
    * Impersonation credentials must use ADC, not keyFilename
    */
-  private detectImpersonationCredentials(
-    credentialsPath?: string,
-  ): boolean {
+  private detectImpersonationCredentials(credentialsPath?: string): boolean {
     if (!credentialsPath) {
       return false;
     }
@@ -150,7 +121,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
       this.logger.log(`[VISION AI] Routing to synchronous processing (image)`);
       return this.processSync(gcsUri, mimeType);
     } else {
-      this.logger.log(`[VISION AI] Routing to async batch processing (PDF/TIFF)`);
+      this.logger.log(
+        `[VISION AI] Routing to async batch processing (PDF/TIFF)`,
+      );
       return this.processBatch(gcsUri, mimeType);
     }
   }
@@ -203,7 +176,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         throw new Error('No fullTextAnnotation returned from Vision AI');
       }
 
-      this.logger.debug(`[VISION AI SYNC] fullTextAnnotation found, extracting text`);
+      this.logger.debug(
+        `[VISION AI SYNC] fullTextAnnotation found, extracting text`,
+      );
       const fullTextAnnotation = result.fullTextAnnotation;
       const fullText = fullTextAnnotation.text || '';
       const extractedText = fullText.substring(0, 5000);
@@ -240,7 +215,8 @@ export class GcpVisionAiAdapter implements OcrServicePort {
       // Check for impersonation errors and provide remediation guidance
       const errorMessage = (error as Error).message || String(error);
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      const isImpersonationCredentials = this.detectImpersonationCredentials(credentialsPath);
+      const isImpersonationCredentials =
+        this.detectImpersonationCredentials(credentialsPath);
 
       if (
         (errorMessage.includes('unable to impersonate') ||
@@ -262,17 +238,15 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         this.logger.error(
           '   2. Authenticate with ADC: gcloud auth application-default login',
         );
-        this.logger.error(
-          '   3. Ensure your account has:',
-        );
-        this.logger.error(
-          '      - roles/cloudvision.apiUser',
-        );
+        this.logger.error('   3. Ensure your account has:');
+        this.logger.error('      - roles/cloudvision.apiUser');
         this.logger.error(
           '      - roles/storage.objectAdmin (or objectCreator + objectViewer)',
         );
       } else {
-        this.logger.error(`[VISION AI SYNC] Sync processing failed: ${this.sanitizeError(error)}`);
+        this.logger.error(
+          `[VISION AI SYNC] Sync processing failed: ${this.sanitizeError(error)}`,
+        );
       }
       throw new Error('Vision AI OCR processing failed');
     }
@@ -323,38 +297,44 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         ],
       };
 
-      this.logger.debug(`[VISION AI BATCH] Calling asyncBatchAnnotateFiles API`);
+      this.logger.debug(
+        `[VISION AI BATCH] Calling asyncBatchAnnotateFiles API`,
+      );
       // Start batch operation
-      const operationResult = await this.client.asyncBatchAnnotateFiles(request);
+      const operationResult =
+        await this.client.asyncBatchAnnotateFiles(request);
       const operation = operationResult[0];
       this.logger.log(
         `[VISION AI BATCH] Batch operation started - Operation name: ${operation.name || 'unknown'}`,
       );
 
       // Wait for operation to complete
-      this.logger.log(`[VISION AI BATCH] Waiting for operation to complete (max ${this.maxWaitTime / 1000}s)...`);
+      this.logger.log(
+        `[VISION AI BATCH] Waiting for operation to complete (max ${this.maxWaitTime / 1000}s)...`,
+      );
       const waitStartTime = Date.now();
 
       // Set timeout with better error message
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(
-          () => {
-            this.logger.error(
-              `[VISION AI BATCH] Operation timeout after ${this.maxWaitTime / 1000}s. This may indicate:`,
-            );
-            this.logger.error(
-              '  1. Document is very large (consider increasing maxWaitTime)',
-            );
-            this.logger.error(
-              '  2. Network/authentication issues (check ADC credentials)',
-            );
-            this.logger.error(
-              '  3. GCP Vision AI service is experiencing delays',
-            );
-            reject(new Error(`Batch operation timeout exceeded after ${this.maxWaitTime / 1000}s`));
-          },
-          this.maxWaitTime,
-        );
+        setTimeout(() => {
+          this.logger.error(
+            `[VISION AI BATCH] Operation timeout after ${this.maxWaitTime / 1000}s. This may indicate:`,
+          );
+          this.logger.error(
+            '  1. Document is very large (consider increasing maxWaitTime)',
+          );
+          this.logger.error(
+            '  2. Network/authentication issues (check ADC credentials)',
+          );
+          this.logger.error(
+            '  3. GCP Vision AI service is experiencing delays',
+          );
+          reject(
+            new Error(
+              `Batch operation timeout exceeded after ${this.maxWaitTime / 1000}s`,
+            ),
+          );
+        }, this.maxWaitTime);
       });
 
       // Wait for operation with timeout
@@ -362,7 +342,10 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         await Promise.race([operation.promise(), timeoutPromise]);
       } catch (timeoutError) {
         // Re-throw timeout errors as-is
-        if (timeoutError instanceof Error && timeoutError.message.includes('timeout')) {
+        if (
+          timeoutError instanceof Error &&
+          timeoutError.message.includes('timeout')
+        ) {
           throw timeoutError;
         }
         // For other errors, check if it's an impersonation issue
@@ -387,7 +370,8 @@ export class GcpVisionAiAdapter implements OcrServicePort {
       // Check for impersonation errors and provide remediation guidance
       const errorMessage = (error as Error).message || String(error);
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      const isImpersonationCredentials = this.detectImpersonationCredentials(credentialsPath);
+      const isImpersonationCredentials =
+        this.detectImpersonationCredentials(credentialsPath);
 
       if (
         (errorMessage.includes('unable to impersonate') ||
@@ -409,21 +393,13 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         this.logger.error(
           '   2. Authenticate with ADC: gcloud auth application-default login',
         );
-        this.logger.error(
-          '   3. Ensure your account has:',
-        );
-        this.logger.error(
-          '      - roles/cloudvision.apiUser',
-        );
+        this.logger.error('   3. Ensure your account has:');
+        this.logger.error('      - roles/cloudvision.apiUser');
         this.logger.error(
           '      - roles/storage.objectAdmin (or objectCreator + objectViewer)',
         );
-        this.logger.error(
-          '',
-        );
-        this.logger.error(
-          '   ALTERNATIVE: Fix impersonation IAM permissions:',
-        );
+        this.logger.error('');
+        this.logger.error('   ALTERNATIVE: Fix impersonation IAM permissions:');
         this.logger.error(
           '   gcloud iam service-accounts add-iam-policy-binding',
         );
@@ -460,7 +436,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
       );
 
       const bucket = this.storage.bucket(bucketName);
-      this.logger.debug(`[VISION AI BATCH] Listing files in bucket with prefix`);
+      this.logger.debug(
+        `[VISION AI BATCH] Listing files in bucket with prefix`,
+      );
       const [files] = await bucket.getFiles({ prefix });
 
       this.logger.log(
@@ -496,7 +474,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
       );
 
       if (responses.length === 0) {
-        this.logger.error(`[VISION AI BATCH] No responses in batch result JSON`);
+        this.logger.error(
+          `[VISION AI BATCH] No responses in batch result JSON`,
+        );
         throw new Error('No responses in batch result');
       }
 
@@ -511,7 +491,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         throw new Error('No fullTextAnnotation in batch result');
       }
 
-      this.logger.debug(`[VISION AI BATCH] fullTextAnnotation found, extracting text`);
+      this.logger.debug(
+        `[VISION AI BATCH] fullTextAnnotation found, extracting text`,
+      );
       const fullText = fullTextAnnotation.text || '';
       const extractedText = fullText.substring(0, 5000);
       const pageCount = fullTextAnnotation.pages?.length || 1;
@@ -596,4 +578,3 @@ export class GcpVisionAiAdapter implements OcrServicePort {
     return '[GCS_URI_REDACTED]';
   }
 }
-

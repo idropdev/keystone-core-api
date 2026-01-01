@@ -1,6 +1,7 @@
 import {
   HttpStatus,
   Injectable,
+  Logger,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -18,12 +19,16 @@ import { FileType } from '../files/domain/file';
 import { Role } from '../roles/domain/role';
 import { Status } from '../statuses/domain/status';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AnythingLLMUserProvisioningService } from '../anythingllm/provisioning/anythingllm-user-provisioning.service';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly usersRepository: UserRepository,
     private readonly filesService: FilesService,
+    private readonly anythingllmProvisioningService: AnythingLLMUserProvisioningService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -113,7 +118,7 @@ export class UsersService {
       };
     }
 
-    return this.usersRepository.create({
+    const user = await this.usersRepository.create({
       // Do not remove comment below.
       // <creating-property-payload />
       firstName: createUserDto.firstName,
@@ -126,6 +131,18 @@ export class UsersService {
       provider: createUserDto.provider ?? AuthProvidersEnum.email,
       socialId: createUserDto.socialId,
     });
+
+    // Trigger AnythingLLM provisioning asynchronously
+    // Fire-and-forget: don't await, log errors if provisioning service rejects
+    // TODO: Use bounded async executor to prevent unbounded parallelism during bulk user creation
+    this.anythingllmProvisioningService.provisionUser(user).catch((error) => {
+      // Log error but don't fail user creation
+      this.logger.error(
+        `Failed to provision user ${user.id} to AnythingLLM: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    });
+
+    return user;
   }
 
   findManyWithPagination({
@@ -267,7 +284,13 @@ export class UsersService {
       };
     }
 
-    return this.usersRepository.update(id, {
+    // Check if status is changing to inactive (for suspension sync)
+    const currentUser = await this.usersRepository.findById(id);
+    const statusChangingToInactive =
+      status?.id === StatusEnum.inactive &&
+      currentUser?.status?.id !== StatusEnum.inactive;
+
+    const updatedUser = await this.usersRepository.update(id, {
       // Do not remove comment below.
       // <updating-property-payload />
       firstName: updateUserDto.firstName,
@@ -280,9 +303,52 @@ export class UsersService {
       provider: updateUserDto.provider,
       socialId: updateUserDto.socialId,
     });
+
+    // Sync suspension to AnythingLLM if status changed to inactive
+    if (statusChangingToInactive && updatedUser) {
+      // Get AnythingLLM user ID
+      const anythingllmUserId =
+        await this.anythingllmProvisioningService.findAnythingLLMUserId(
+          String(id),
+        );
+      if (anythingllmUserId) {
+        // Suspend user asynchronously (fire-and-forget)
+        this.anythingllmProvisioningService
+          .suspendUser(anythingllmUserId, updatedUser)
+          .catch((error) => {
+            this.logger.error(
+              `Failed to sync suspension for user ${id} to AnythingLLM: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            );
+          });
+      }
+    }
+
+    return updatedUser;
   }
 
   async remove(id: User['id']): Promise<void> {
+    // Get user before deletion for suspension sync
+    const user = await this.usersRepository.findById(id);
+
+    // Sync suspension to AnythingLLM before soft-delete
+    if (user) {
+      const anythingllmUserId =
+        await this.anythingllmProvisioningService.findAnythingLLMUserId(
+          String(id),
+        );
+      if (anythingllmUserId) {
+        // Suspend user asynchronously (fire-and-forget)
+        // Note: We suspend instead of delete to comply with retention requirements
+        this.anythingllmProvisioningService
+          .suspendUser(anythingllmUserId, user)
+          .catch((error) => {
+            this.logger.error(
+              `Failed to sync suspension for user ${id} to AnythingLLM before deletion: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            );
+          });
+      }
+    }
+
     await this.usersRepository.remove(id);
   }
 }

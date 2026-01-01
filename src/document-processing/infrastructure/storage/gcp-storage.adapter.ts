@@ -47,6 +47,9 @@ export class GcpStorageAdapter implements StorageServicePort {
     // 2. ADC (Application Default Credentials) - recommended for local dev and GCP compute
     // 3. Impersonation credentials (if detected, will use ADC but may fail if IAM not configured)
     const credentialsPathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:49',message:'STORAGE: GOOGLE_APPLICATION_CREDENTIALS env var',data:{credentialsPathEnv,hasValue:!!credentialsPathEnv},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     // Resolve relative paths to absolute paths
     const credentialsPath = credentialsPathEnv
@@ -54,8 +57,14 @@ export class GcpStorageAdapter implements StorageServicePort {
         ? credentialsPathEnv
         : path.resolve(process.cwd(), credentialsPathEnv)
       : undefined;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:56',message:'STORAGE: Resolved credentials path',data:{credentialsPath,originalPath:credentialsPathEnv,isAbsolute:credentialsPathEnv?path.isAbsolute(credentialsPathEnv):null,cwd:process.cwd()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     const credentialInfo = this.detectCredentialType(credentialsPath);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:58',message:'STORAGE: Credential type detection result',data:{type:credentialInfo.type,exists:credentialInfo.exists,clientEmail:credentialInfo.clientEmail,credentialsPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
 
     if (credentialsPath && credentialInfo.type === 'service_account') {
       // Direct service account key - can use keyFilename (required for signed URLs)
@@ -63,14 +72,18 @@ export class GcpStorageAdapter implements StorageServicePort {
         `GCP Storage initialized with direct service account key: ${credentialsPath}`,
       );
       if (credentialInfo.clientEmail) {
-        this.logger.log(
-          `  Service account: ${credentialInfo.clientEmail}`,
-        );
+        this.logger.log(`  Service account: ${credentialInfo.clientEmail}`);
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:68',message:'STORAGE: Creating Storage with keyFilename',data:{keyFilename:credentialsPath,credentialType:credentialInfo.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       this.storage = new Storage({
         keyFilename: credentialsPath,
       });
-    } else if (credentialsPath && credentialInfo.type === 'impersonated_service_account') {
+    } else if (
+      credentialsPath &&
+      credentialInfo.type === 'impersonated_service_account'
+    ) {
       // Impersonation credentials detected - warn user
       this.logger.warn(
         '⚠️  [GCP STORAGE] Impersonation credentials detected. Signed URLs will not work with impersonation.',
@@ -78,9 +91,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.warn(
         '   For signed URLs, use a direct service account key file (type: service_account).',
       );
-      this.logger.warn(
-        '   Current file type: impersonated_service_account',
-      );
+      this.logger.warn('   Current file type: impersonated_service_account');
 
       // Still try to use ADC (library will read GOOGLE_APPLICATION_CREDENTIALS)
       this.storage = new Storage();
@@ -100,9 +111,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.error(
         `❌ [GCP STORAGE] Credentials file not found: ${credentialsPath}`,
       );
-      this.logger.error(
-        '   Falling back to ADC. Signed URLs will not work.',
-      );
+      this.logger.error('   Falling back to ADC. Signed URLs will not work.');
       this.storage = new Storage();
     } else {
       // No GOOGLE_APPLICATION_CREDENTIALS set - use ADC directly
@@ -145,7 +154,11 @@ export class GcpStorageAdapter implements StorageServicePort {
    * Returns information about the credential file
    */
   private detectCredentialType(credentialsPath?: string): {
-    type: 'service_account' | 'impersonated_service_account' | 'authorized_user' | 'unknown';
+    type:
+      | 'service_account'
+      | 'impersonated_service_account'
+      | 'authorized_user'
+      | 'unknown';
     exists: boolean;
     clientEmail?: string;
   } {
@@ -154,15 +167,30 @@ export class GcpStorageAdapter implements StorageServicePort {
     }
 
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:157',message:'STORAGE: detectCredentialType checking file',data:{credentialsPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       if (!fs.existsSync(credentialsPath)) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:158',message:'STORAGE: Credentials file does not exist',data:{credentialsPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         this.logger.warn(
           `[GCP STORAGE] Credentials file does not exist: ${credentialsPath}`,
         );
         return { type: 'unknown', exists: false };
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:165',message:'STORAGE: File exists, reading content',data:{credentialsPath,fileStats:fs.statSync(credentialsPath).size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       const keyContent = fs.readFileSync(credentialsPath, 'utf8');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:166',message:'STORAGE: File read, parsing JSON',data:{contentLength:keyContent.length,hasContent:!!keyContent},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const keyJson = JSON.parse(keyContent);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:168',message:'STORAGE: JSON parsed, checking type',data:{credentialType:keyJson.type,hasClientEmail:!!keyJson.client_email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
 
       const credentialType = keyJson.type;
 
@@ -192,6 +220,9 @@ export class GcpStorageAdapter implements StorageServicePort {
         };
       }
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:195',message:'STORAGE: Error parsing credentials file',data:{credentialsPath,errorMessage:(error as Error).message,errorName:(error as Error).name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       this.logger.warn(
         `[GCP STORAGE] Could not parse credentials file: ${this.sanitizeError(error)}`,
       );
@@ -203,9 +234,7 @@ export class GcpStorageAdapter implements StorageServicePort {
    * Detect if credentials file contains impersonation credentials
    * @deprecated Use detectCredentialType instead
    */
-  private detectImpersonationCredentials(
-    credentialsPath?: string,
-  ): boolean {
+  private detectImpersonationCredentials(credentialsPath?: string): boolean {
     const info = this.detectCredentialType(credentialsPath);
     return info.type === 'impersonated_service_account';
   }
@@ -240,12 +269,8 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.error(
         `❌ Service account key file not found: ${credentialsPath}`,
       );
-      this.logger.error(
-        `   Original path from env: ${credentialsPathEnv}`,
-      );
-      this.logger.error(
-        `   Resolved absolute path: ${credentialsPath}`,
-      );
+      this.logger.error(`   Original path from env: ${credentialsPathEnv}`);
+      this.logger.error(`   Resolved absolute path: ${credentialsPath}`);
       return;
     }
 
@@ -255,9 +280,7 @@ export class GcpStorageAdapter implements StorageServicePort {
         this.logger.log(
           `✅ Service account credentials validated: ${credentialInfo.clientEmail}`,
         );
-        this.logger.log(
-          `   File: ${credentialsPath}`,
-        );
+        this.logger.log(`   File: ${credentialsPath}`);
       } else {
         this.logger.error(
           `❌ Service account key file missing 'client_email' field: ${credentialsPath}`,
@@ -267,9 +290,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       this.logger.warn(
         `⚠️  Impersonation credentials detected. Signed URLs may not work reliably.`,
       );
-      this.logger.warn(
-        `   File: ${credentialsPath}`,
-      );
+      this.logger.warn(`   File: ${credentialsPath}`);
       this.logger.warn(
         '   For signed URLs, use a direct service account key (type: service_account).',
       );
@@ -281,21 +302,23 @@ export class GcpStorageAdapter implements StorageServicePort {
         '   For signed URLs, use a service account key file (type: service_account).',
       );
     } else {
-      this.logger.warn(
-        `⚠️  Unknown credential type. Signed URLs may fail.`,
-      );
-      this.logger.warn(
-        `   File: ${credentialsPath}`,
-      );
+      this.logger.warn(`⚠️  Unknown credential type. Signed URLs may fail.`);
+      this.logger.warn(`   File: ${credentialsPath}`);
     }
   }
 
   async storeRaw(fileBuffer: Buffer, metadata: FileMetadata): Promise<string> {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:280',message:'STORAGE: storeRaw entry',data:{documentId:metadata.documentId,fileName:metadata.fileName,credentialsPathEnv:process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     try {
       // Build deterministic object key: raw/{userId}/{documentId}_{fileName}
       const objectKey = `${this.rawPrefix}${metadata.userId}/${metadata.documentId}_${metadata.fileName}`;
 
       const file: File = this.bucket.file(objectKey);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:287',message:'STORAGE: About to call file.save',data:{bucketName:this.bucket.name,objectKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       // Upload with resumable upload (automatic for files > 5MB)
       await file.save(fileBuffer, {
@@ -316,6 +339,9 @@ export class GcpStorageAdapter implements StorageServicePort {
       });
 
       const gcsUri = `gs://${this.bucket.name}/${objectKey}`;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:305',message:'STORAGE: file.save succeeded',data:{documentId:metadata.documentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       // SECURITY: Only log at DEBUG level, mask URI
       this.logger.debug(
@@ -324,6 +350,9 @@ export class GcpStorageAdapter implements StorageServicePort {
 
       return gcsUri;
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gcp-storage.adapter.ts:313',message:'STORAGE: storeRaw error caught',data:{documentId:metadata.documentId,errorMessage:(error as Error).message,errorCode:(error as any).code,errorType:typeof error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       const authError = this.detectAuthError(error);
       if (authError) {
         this.logger.error(
@@ -363,9 +392,7 @@ export class GcpStorageAdapter implements StorageServicePort {
         this.logger.error(
           `[GCP STORAGE] Upload failed - invalid service account key format: ${this.sanitizeError(error)}`,
         );
-        this.logger.error(
-          `   Credentials file: ${credentialsPath}`,
-        );
+        this.logger.error(`   Credentials file: ${credentialsPath}`);
         this.logger.error(
           '   Verify the service account key file is valid and contains a proper client_email field.',
         );
@@ -425,7 +452,8 @@ export class GcpStorageAdapter implements StorageServicePort {
       // Check for impersonation errors
       const errorMessage = (error as Error).message || String(error);
       const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      const isImpersonationCredentials = this.detectImpersonationCredentials(credentialsPath);
+      const isImpersonationCredentials =
+        this.detectImpersonationCredentials(credentialsPath);
 
       if (
         (errorMessage.includes('unable to impersonate') ||
@@ -642,8 +670,9 @@ export class GcpStorageAdapter implements StorageServicePort {
         : undefined;
       const credentialInfo = this.detectCredentialType(credentialsPath);
 
-      const remediation = credentialInfo.type === 'impersonated_service_account'
-        ? `Service account impersonation is failing. For signed URLs, use a direct service account key (type: service_account).
+      const remediation =
+        credentialInfo.type === 'impersonated_service_account'
+          ? `Service account impersonation is failing. For signed URLs, use a direct service account key (type: service_account).
 
    Current file: ${credentialsPath || 'not set'}
    Detected type: ${credentialInfo.type}
@@ -655,8 +684,8 @@ export class GcpStorageAdapter implements StorageServicePort {
 
    2. Ensure GOOGLE_APPLICATION_CREDENTIALS points to this file:
       export GOOGLE_APPLICATION_CREDENTIALS=.secrets/keystone-doc-processing-key.json`
-        : credentialInfo.type === 'service_account'
-        ? `Service account key file detected but authentication is failing. Verify:
+          : credentialInfo.type === 'service_account'
+            ? `Service account key file detected but authentication is failing. Verify:
    1. File path: ${credentialsPath || 'not set'}
    2. File exists and is readable
    3. File contains valid JSON with type: "service_account" and client_email field
@@ -664,7 +693,7 @@ export class GcpStorageAdapter implements StorageServicePort {
    5. Regenerate the key if needed:
       gcloud iam service-accounts keys create .secrets/keystone-doc-processing-key.json \\
         --iam-account=SERVICE_ACCOUNT@PROJECT.iam.gserviceaccount.com`
-        : `GCP authentication failed. Verify:
+            : `GCP authentication failed. Verify:
    1. Check GOOGLE_APPLICATION_CREDENTIALS env var (if using service account)
    2. File path: ${credentialsPath || 'not set'}
    3. Or run: gcloud auth application-default login (for local dev)
@@ -702,6 +731,48 @@ export class GcpStorageAdapter implements StorageServicePort {
     }
 
     return null;
+  }
+
+  /**
+   * Health check for GCP Storage
+   * Verifies that the bucket is accessible and authenticated
+   */
+  public async healthCheck(): Promise<{
+    status: string;
+    bucket?: string;
+    accessible?: boolean;
+    error?: string;
+  }> {
+    try {
+      // Try to check if bucket exists and is accessible
+      const [exists] = await this.bucket.exists();
+      const bucketName = this.bucket.name;
+
+      if (exists) {
+        return {
+          status: 'healthy',
+          bucket: bucketName,
+          accessible: true,
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          bucket: bucketName,
+          accessible: false,
+          error: 'Bucket does not exist or is not accessible',
+        };
+      }
+    } catch (error) {
+      this.logger.error(
+        `GCP Storage health check failed: ${this.sanitizeError(error)}`,
+      );
+      return {
+        status: 'unhealthy',
+        bucket: this.bucket.name,
+        accessible: false,
+        error: this.sanitizeError(error),
+      };
+    }
   }
 
   /**

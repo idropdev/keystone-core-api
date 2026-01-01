@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Request,
   HttpStatus,
   HttpCode,
   SerializeOptions,
@@ -43,6 +44,11 @@ import { User } from './domain/user';
 import { UsersService } from './users.service';
 import { RolesGuard } from '../roles/roles.guard';
 import { infinityPagination } from '../utils/infinity-pagination';
+import { UserManagerAssignmentService } from './domain/services/user-manager-assignment.service';
+import { CreateUserManagerAssignmentDto } from './dto/create-user-manager-assignment.dto';
+import { UserManagerAssignmentResponseDto } from './dto/user-manager-assignment-response.dto';
+import { UserManagerAssignment } from './domain/entities/user-manager-assignment.entity';
+import { plainToClass } from 'class-transformer';
 
 @ApiBearerAuth()
 @Roles(RoleEnum.admin)
@@ -53,7 +59,10 @@ import { infinityPagination } from '../utils/infinity-pagination';
   version: '1',
 })
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly userManagerAssignmentService: UserManagerAssignmentService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -247,5 +256,203 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: User['id']): Promise<void> {
     return this.usersService.remove(id);
+  }
+
+  // ============================================
+  // Manager Assignment Endpoints
+  // ============================================
+
+  @Post(':userId/manager-assignments')
+  @ApiOperation({
+    summary: 'Assign User to Manager (Admin Only)',
+    description:
+      'Create a user-manager assignment relationship. This endpoint is restricted to administrators only.',
+  })
+  @ApiCreatedResponse({
+    type: UserManagerAssignmentResponseDto,
+    description: 'Assignment created successfully',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: Number,
+    required: true,
+    description: 'User ID',
+    example: 456,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid manager/user, duplicate assignment, or self-assignment',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User or manager not found',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async createManagerAssignment(
+    @Param('userId', { transform: (value) => parseInt(value, 10) })
+    userId: number,
+    @Body() dto: Omit<CreateUserManagerAssignmentDto, 'userId'>,
+    @Request() req: Request & { user: { id: number } },
+  ): Promise<UserManagerAssignmentResponseDto> {
+    // userId comes from path parameter, managerId from body
+    const assignmentDto: CreateUserManagerAssignmentDto = {
+      userId,
+      managerId: dto.managerId,
+    };
+    const assignment =
+      await this.userManagerAssignmentService.assignUserToManager(
+        assignmentDto,
+        req.user.id,
+      );
+    return this.toAssignmentResponseDto(assignment);
+  }
+
+  @Get(':userId/manager-assignments')
+  @ApiOperation({
+    summary: 'List Manager Assignments for User (Admin Only)',
+    description:
+      'Get all manager assignments for a specific user. This endpoint is restricted to administrators only.',
+  })
+  @ApiOkResponse({
+    type: [UserManagerAssignmentResponseDto],
+    description: 'List of manager assignments',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: Number,
+    required: true,
+    description: 'User ID',
+    example: 456,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiNotFoundResponse({
+    description: 'User not found',
+  })
+  @HttpCode(HttpStatus.OK)
+  async getManagerAssignments(
+    @Param('userId', { transform: (value) => parseInt(value, 10) })
+    userId: number,
+  ): Promise<UserManagerAssignmentResponseDto[]> {
+    const assignments =
+      await this.userManagerAssignmentService.getAssignmentsByUser(userId);
+    return assignments.map((assignment) =>
+      this.toAssignmentResponseDto(assignment),
+    );
+  }
+
+  @Delete(':userId/manager-assignments/:managerId')
+  @ApiOperation({
+    summary: 'Remove Manager Assignment (Admin Only)',
+    description:
+      'Remove a user-manager assignment relationship. This endpoint is restricted to administrators only.',
+  })
+  @ApiNoContentResponse({
+    description: 'Assignment removed successfully',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: Number,
+    required: true,
+    description: 'User ID',
+    example: 456,
+  })
+  @ApiParam({
+    name: 'managerId',
+    type: Number,
+    required: true,
+    description: 'Manager ID',
+    example: 123,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @ApiNotFoundResponse({
+    description: 'Assignment not found',
+  })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeManagerAssignment(
+    @Param('userId', { transform: (value) => parseInt(value, 10) })
+    userId: number,
+    @Param('managerId', { transform: (value) => parseInt(value, 10) })
+    managerId: number,
+    @Request() req: Request & { user: { id: number } },
+  ): Promise<void> {
+    await this.userManagerAssignmentService.removeAssignment(
+      userId,
+      managerId,
+      req.user.id,
+    );
+  }
+
+  @Get('managers/:managerId/assigned-users')
+  @ApiOperation({
+    summary: 'List Users Assigned to Manager (Admin Only)',
+    description:
+      'Get all users assigned to a specific manager. This endpoint is restricted to administrators only.',
+  })
+  @ApiOkResponse({
+    type: [UserManagerAssignmentResponseDto],
+    description: 'List of user assignments',
+  })
+  @ApiParam({
+    name: 'managerId',
+    type: Number,
+    required: true,
+    description: 'Manager ID',
+    example: 123,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions. Admin role required.',
+  })
+  @HttpCode(HttpStatus.OK)
+  async getAssignedUsers(
+    @Param('managerId', { transform: (value) => parseInt(value, 10) })
+    managerId: number,
+  ): Promise<UserManagerAssignmentResponseDto[]> {
+    const assignments =
+      await this.userManagerAssignmentService.getAssignmentsByManager(
+        managerId,
+      );
+    return assignments.map((assignment) =>
+      this.toAssignmentResponseDto(assignment),
+    );
+  }
+
+  /**
+   * Transform domain entity to response DTO
+   */
+  private toAssignmentResponseDto(
+    assignment: UserManagerAssignment,
+  ): UserManagerAssignmentResponseDto {
+    return plainToClass(
+      UserManagerAssignmentResponseDto,
+      {
+        id: assignment.id,
+        userId: assignment.userId,
+        managerId: assignment.managerId,
+        assignedById: assignment.assignedById,
+        assignedAt: assignment.assignedAt,
+        status: assignment.deletedAt ? 'deleted' : 'active',
+      } as UserManagerAssignmentResponseDto,
+      {
+        excludeExtraneousValues: true,
+      },
+    );
   }
 }

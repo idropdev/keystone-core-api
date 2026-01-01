@@ -76,7 +76,10 @@ export function extractLinesWithBoundingBoxes(
       })}`,
     );
     // Fallback: treat as plain text, no bounding boxes
-    const lines = extractLinesFromPlainText(ocrResult.text, ocrResult.pageCount || 1);
+    const lines = extractLinesFromPlainText(
+      ocrResult.text,
+      ocrResult.pageCount || 1,
+    );
     logger.log(
       `[LINE EXTRACTION] Plain text extraction complete - ${lines.length} lines extracted`,
     );
@@ -87,9 +90,7 @@ export function extractLinesWithBoundingBoxes(
 /**
  * Extract lines from Vision AI fullTextAnnotation
  */
-function extractLinesFromVisionAi(
-  fullResponse: any,
-): LineWithBoundingBox[] {
+function extractLinesFromVisionAi(fullResponse: any): LineWithBoundingBox[] {
   const lines: LineWithBoundingBox[] = [];
   const fullTextAnnotation = fullResponse.fullTextAnnotation;
 
@@ -160,8 +161,9 @@ function extractLinesFromVisionAi(
 
           const boundingBox = word.boundingBox;
           // Vision AI can use either 'vertices' (absolute) or 'normalizedVertices' (normalized)
-          const vertices = boundingBox?.vertices || boundingBox?.normalizedVertices;
-          
+          const vertices =
+            boundingBox?.vertices || boundingBox?.normalizedVertices;
+
           if (!vertices || vertices.length < 4) {
             logger.debug(
               `[VISION AI EXTRACTION] Skipping word without valid bounding box - has boundingBox: ${!!boundingBox}, vertices: ${boundingBox?.vertices?.length || 0}, normalizedVertices: ${boundingBox?.normalizedVertices?.length || 0}`,
@@ -177,13 +179,25 @@ function extractLinesFromVisionAi(
           const isNormalized = firstX <= 1 && firstY <= 1;
 
           let x0: number, y0: number, x1: number, y1: number;
-          
+
           if (isNormalized) {
             // Already normalized
-            x0 = Math.max(0, Math.min(1, Math.min(...vertices.map((v: any) => v.x || 0))));
-            y0 = Math.max(0, Math.min(1, Math.min(...vertices.map((v: any) => v.y || 0))));
-            x1 = Math.max(0, Math.min(1, Math.max(...vertices.map((v: any) => v.x || 0))));
-            y1 = Math.max(0, Math.min(1, Math.max(...vertices.map((v: any) => v.y || 0))));
+            x0 = Math.max(
+              0,
+              Math.min(1, Math.min(...vertices.map((v: any) => v.x || 0))),
+            );
+            y0 = Math.max(
+              0,
+              Math.min(1, Math.min(...vertices.map((v: any) => v.y || 0))),
+            );
+            x1 = Math.max(
+              0,
+              Math.min(1, Math.max(...vertices.map((v: any) => v.x || 0))),
+            );
+            y1 = Math.max(
+              0,
+              Math.min(1, Math.max(...vertices.map((v: any) => v.y || 0))),
+            );
           } else {
             // Absolute coordinates - normalize
             x0 = Math.min(...vertices.map((v: any) => v.x || 0)) / pageWidth;
@@ -264,8 +278,7 @@ function groupWordsIntoLines(
     // Find line with overlapping Y coordinates
     let foundLine = false;
     for (const line of lines) {
-      const overlap =
-        Math.min(line.y1, word.y1) - Math.max(line.y0, word.y0);
+      const overlap = Math.min(line.y1, word.y1) - Math.max(line.y0, word.y0);
       const lineHeight = line.y1 - line.y0;
       const wordHeight = word.y1 - word.y0;
       const overlapRatio = overlap / Math.max(lineHeight, wordHeight);
@@ -273,10 +286,22 @@ function groupWordsIntoLines(
       if (overlapRatio > 0.3) {
         // Same line - append word
         line.text += ' ' + word.text;
-        line.boundingBox.x0 = Math.min(line.boundingBox.x0, word.boundingBox.x0);
-        line.boundingBox.y0 = Math.min(line.boundingBox.y0, word.boundingBox.y0);
-        line.boundingBox.x1 = Math.max(line.boundingBox.x1, word.boundingBox.x1);
-        line.boundingBox.y1 = Math.max(line.boundingBox.y1, word.boundingBox.y1);
+        line.boundingBox.x0 = Math.min(
+          line.boundingBox.x0,
+          word.boundingBox.x0,
+        );
+        line.boundingBox.y0 = Math.min(
+          line.boundingBox.y0,
+          word.boundingBox.y0,
+        );
+        line.boundingBox.x1 = Math.max(
+          line.boundingBox.x1,
+          word.boundingBox.x1,
+        );
+        line.boundingBox.y1 = Math.max(
+          line.boundingBox.y1,
+          word.boundingBox.y1,
+        );
         line.y0 = Math.min(line.y0, word.y0);
         line.y1 = Math.max(line.y1, word.y1);
         foundLine = true;
@@ -360,13 +385,16 @@ function extractLinesFromDocumentAi(fullResponse: any): LineWithBoundingBox[] {
       logger.debug(
         `[DOCUMENT AI EXTRACTION] Paragraph has ${paragraph.lines?.length || 0} lines, has layout: ${!!paragraph.layout}`,
       );
-      
+
       // Check if paragraph has lines array
       if (paragraph.lines && paragraph.lines.length > 0) {
         // Standard structure: paragraph -> lines
         for (const line of paragraph.lines) {
           totalLinesInPage++;
-          const lineText = extractLineTextFromDocumentAi(line, fullResponse.text);
+          const lineText = extractLineTextFromDocumentAi(
+            line,
+            fullResponse.text,
+          );
           logger.debug(
             `[DOCUMENT AI EXTRACTION] Line ${lineIndex}: text length=${lineText.length}, has layout: ${!!line.layout}, has boundingPoly: ${!!line.layout?.boundingPoly}`,
           );
@@ -389,7 +417,10 @@ function extractLinesFromDocumentAi(fullResponse: any): LineWithBoundingBox[] {
         }
       } else if (paragraph.layout) {
         // Fallback: paragraph has layout but no lines - extract text directly from paragraph
-        const paragraphText = extractParagraphTextFromDocumentAi(paragraph, fullResponse.text);
+        const paragraphText = extractParagraphTextFromDocumentAi(
+          paragraph,
+          fullResponse.text,
+        );
         if (paragraphText && paragraphText.trim()) {
           totalLinesInPage++;
           logger.debug(
@@ -424,9 +455,7 @@ function extractLinesFromDocumentAi(fullResponse: any): LineWithBoundingBox[] {
     );
   }
 
-  logger.log(
-    `[DOCUMENT AI EXTRACTION] Total lines extracted: ${lines.length}`,
-  );
+  logger.log(`[DOCUMENT AI EXTRACTION] Total lines extracted: ${lines.length}`);
 
   return lines;
 }
@@ -441,7 +470,11 @@ function extractLineTextFromDocumentAi(line: any, fullText: string): string {
     for (const segment of line.layout.textAnchor.textSegments) {
       const startIndex = parseInt(segment.startIndex || '0', 10);
       const endIndex = parseInt(segment.endIndex || '0', 10);
-      if (fullText && startIndex < fullText.length && endIndex <= fullText.length) {
+      if (
+        fullText &&
+        startIndex < fullText.length &&
+        endIndex <= fullText.length
+      ) {
         lineText += fullText.substring(startIndex, endIndex);
       }
     }
@@ -455,14 +488,21 @@ function extractLineTextFromDocumentAi(line: any, fullText: string): string {
 /**
  * Extract paragraph text from Document AI paragraph object (when no lines are present)
  */
-function extractParagraphTextFromDocumentAi(paragraph: any, fullText: string): string {
+function extractParagraphTextFromDocumentAi(
+  paragraph: any,
+  fullText: string,
+): string {
   if (paragraph.layout?.textAnchor?.textSegments) {
     // Extract text using text segments
     let paragraphText = '';
     for (const segment of paragraph.layout.textAnchor.textSegments) {
       const startIndex = parseInt(segment.startIndex || '0', 10);
       const endIndex = parseInt(segment.endIndex || '0', 10);
-      if (fullText && startIndex < fullText.length && endIndex <= fullText.length) {
+      if (
+        fullText &&
+        startIndex < fullText.length &&
+        endIndex <= fullText.length
+      ) {
         paragraphText += fullText.substring(startIndex, endIndex);
       }
     }
@@ -551,4 +591,3 @@ function extractLinesFromPlainText(
 
   return lines;
 }
-
