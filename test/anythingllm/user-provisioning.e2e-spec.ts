@@ -188,22 +188,14 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
             .set('Authorization', `Bearer ${serviceToken}`)
             .set('X-Client-Service', 'keystone-test')
             .expect((res) => {
-              // Accept 200 (success) or 401 (auth required - AnythingLLM not configured)
+              // 401 means authentication failed - test should fail, not skip
               if (res.status === 401) {
-                console.log(
-                  '[SKIP] AnythingLLM requires service identity authentication, skipping verification',
+                throw new Error(
+                  `AnythingLLM authentication failed (401 Unauthorized). Service identity token was rejected. This indicates a configuration issue with AnythingLLM's service identity authentication.`,
                 );
               }
-              return res.status === 200 || res.status === 401;
+              return res.status === 200;
             });
-
-          if (listResponse.status === 401) {
-            // Service identity not configured - skip verification
-            console.log(
-              '[SKIP] Service identity authentication failed for AnythingLLM verification',
-            );
-            return;
-          }
 
           expect(listResponse.body).toHaveProperty('users');
           expect(Array.isArray(listResponse.body.users)).toBe(true);
@@ -229,10 +221,21 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
           // (exact user matching would require additional test infrastructure)
           userFound = users.length >= 0; // At minimum, the endpoint works
         } catch (error: any) {
-          if (error.status === 401 || error.status === 404) {
-            // Service identity not configured or AnythingLLM not available
+          // Check for 401 errors - can be in error.status, error.response?.status, or error message
+          const statusCode = error.status || error.response?.status;
+          const errorMessage = error.message || '';
+          const is401 = statusCode === 401 || errorMessage.includes('401') || errorMessage.includes('Unauthorized');
+          
+          if (is401) {
+            // 401 means authentication failed - test should fail, not skip
+            throw new Error(
+              `AnythingLLM authentication failed (401 Unauthorized). Service identity token was rejected. This indicates a configuration issue with AnythingLLM's service identity authentication.`,
+            );
+          }
+          if (statusCode === 404) {
+            // 404 means endpoint not found - might be AnythingLLM not available
             console.log(
-              '[SKIP] AnythingLLM not available or not configured, skipping verification',
+              '[SKIP] AnythingLLM endpoint not found (404), skipping verification',
             );
             return;
           }

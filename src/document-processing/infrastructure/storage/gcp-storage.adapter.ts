@@ -692,6 +692,45 @@ export class GcpStorageAdapter implements StorageServicePort {
   }
 
   /**
+   * Health check for GCP Storage
+   * Verifies that the bucket is accessible
+   */
+  async healthCheck(): Promise<{
+    status: string;
+    bucket?: string;
+    accessible?: boolean;
+    error?: string;
+  }> {
+    try {
+      const bucketName = this.bucket.name;
+      // Try to check if bucket exists and is accessible
+      const [exists] = await this.bucket.exists();
+      
+      if (exists) {
+        return {
+          status: 'healthy',
+          bucket: bucketName,
+          accessible: true,
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          bucket: bucketName,
+          accessible: false,
+          error: 'Bucket does not exist or is not accessible',
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        bucket: this.bucket.name,
+        accessible: false,
+        error: this.sanitizeError(error),
+      };
+    }
+  }
+
+  /**
    * Sanitize error messages to avoid exposing sensitive info
    */
   private sanitizeError(error: any): string {

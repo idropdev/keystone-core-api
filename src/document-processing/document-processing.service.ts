@@ -160,7 +160,7 @@ export class DocumentProcessingService {
   async getExtractedFields(
     documentId: string,
     actor: Actor,
-  ): Promise<ExtractedFieldResponseDto[]> {
+  ): Promise<ExtractedFieldsWithOcrResponseDto> {
     this.logger.log(
       `[APP SERVICE] Getting extracted fields for document ${documentId}`,
     );

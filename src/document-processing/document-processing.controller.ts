@@ -291,7 +291,7 @@ export class DocumentProcessingController {
   async getExtractedFields(
     @Request() req,
     @Param('documentId', ParseUUIDPipe) documentId: string,
-  ): Promise<ExtractedFieldResponseDto[]> {
+  ): Promise<ExtractedFieldsWithOcrResponseDto> {
     // Hard deny admins
     if (req.user?.role?.id === RoleEnum.admin) {
       throw new ForbiddenException('Admins do not have document-level access');

@@ -32,7 +32,6 @@ import { UserManagerAssignmentService } from '../../../users/domain/services/use
 import { ManagerRepositoryPort } from '../../../managers/domain/repositories/manager.repository.port';
 import { OcrMergeService } from '../../utils/ocr-merge.service';
 import { OcrPostProcessorService } from '../../utils/ocr-post-processor.service';
-import { OcrServicePort } from '../../domain/ports/ocr.service.port';
 
 // Use require for pdf-parse (CommonJS module)
 // pdf-parse exports { PDFParse } as a named export
