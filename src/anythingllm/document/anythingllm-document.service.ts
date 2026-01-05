@@ -1,9 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import {
   AnythingLLMRegistryClient,
   RegistryCallResult,
 } from '../registry/anythingllm-registry-client';
 import { AnythingLLMClientService } from '../services/anythingllm-client.service';
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
+import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
 import {
   DocumentUploadResponseSchema,
@@ -19,6 +21,7 @@ import {
   MoveFilesResponseSchema,
 } from '../registry/schemas';
 import { UpstreamError } from '../registry/upstream-error';
+import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 
 /**
  * AnythingLLM Document Service
@@ -35,7 +38,102 @@ export class AnythingLLMDocumentService {
   constructor(
     private readonly registryClient: AnythingLLMRegistryClient,
     private readonly clientService: AnythingLLMClientService,
+    private readonly orchestratorService: AnythingLLMOrchestratorService,
   ) {}
+
+  /**
+   * Upload document to AnythingLLM with multipart form data
+   * Supports delegated token (user JWT) or service identity authentication
+   *
+   * @param file - File buffer
+   * @param fileName - Original filename
+   * @param addToWorkspaces - Comma-separated workspace slugs (optional)
+   * @param externalOCRFields - JSON string of OCR fields (optional, validated but not parsed)
+   * @param requesterContext - User context if JWT present (optional)
+   * @returns Upstream response from AnythingLLM
+   */
+  async uploadDocument(
+    file: Buffer,
+    fileName: string,
+    addToWorkspaces?: string,
+    externalOCRFields?: string,
+    requesterContext?: RequesterContextDto,
+  ): Promise<Response> {
+    // Validate externalOCRFields if provided
+    if (externalOCRFields !== undefined && externalOCRFields !== null) {
+      if (typeof externalOCRFields !== 'string') {
+        throw new BadRequestException(
+          'externalOCRFields must be a JSON string',
+        );
+      }
+
+      try {
+        const parsed = JSON.parse(externalOCRFields);
+        // Validate it's an array (structure only, don't inspect contents)
+        if (!Array.isArray(parsed)) {
+          throw new BadRequestException(
+            'externalOCRFields must be a JSON array',
+          );
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException(
+          'externalOCRFields must be valid JSON',
+        );
+      }
+    }
+
+    // Create FormData for file upload
+    // Node.js 18+ has native FormData support (compatible with fetch)
+    // Use global FormData and convert Buffer to Blob for compatibility
+    const FormDataClass = globalThis.FormData;
+    if (!FormDataClass) {
+      throw new Error('FormData is not available. Node.js 18+ is required.');
+    }
+
+    const formData = new FormDataClass();
+    if (Buffer.isBuffer(file)) {
+      // Convert Buffer to Blob for FormData (Node.js 18+ global FormData requires Blob)
+      const uint8Array = new Uint8Array(file);
+      const blob = new Blob([uint8Array], { type: 'application/octet-stream' });
+      formData.append('file', blob, fileName);
+    } else {
+      formData.append('file', file as any, fileName);
+    }
+
+    // Add optional form fields
+    if (addToWorkspaces) {
+      formData.append('addToWorkspaces', addToWorkspaces);
+    }
+    if (externalOCRFields) {
+      formData.append('externalOCRFields', externalOCRFields);
+    }
+
+    const path = '/v1/document/upload';
+
+    // Route based on authentication type
+    if (requesterContext) {
+      // User JWT present → use orchestrator (policy check + delegated token)
+      return this.orchestratorService.executeOperation({
+        operation: AnythingLLMOperation.DOCUMENT_UPLOAD,
+        requesterContext,
+        endpoint: path,
+        method: 'POST',
+        body: formData,
+      });
+    } else {
+      // Service identity → call client directly (bypass policy)
+      return this.clientService.callAnythingLLM(path, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          // Don't set Content-Type - FormData will set it with boundary
+        },
+      });
+    }
+  }
 
   /**
    * Upload a file to AnythingLLM
@@ -57,38 +155,21 @@ export class AnythingLLMDocumentService {
       : '/v1/document/upload';
 
     // Create FormData for file upload
-    // Prefer form-data package in Node.js (accepts Buffer natively)
-    // Fall back to globalThis.FormData (browser-compatible, requires Blob)
-    let FormDataClass: any;
-    let isBrowserFormData = false;
-    try {
-      // Try to use form-data package first (Node.js native, accepts Buffer)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      FormDataClass = require('form-data');
-      // Verify it's actually the form-data package (has getHeaders method)
-      if (!FormDataClass.prototype.getHeaders) {
-        throw new Error('Invalid form-data package');
-      }
-    } catch {
-      // Fall back to globalThis.FormData (browser-compatible)
-      FormDataClass = globalThis.FormData;
-      isBrowserFormData = true;
+    // Node.js 18+ has native FormData support (compatible with fetch)
+    // Use global FormData and convert Buffer to Blob for compatibility
+    const FormDataClass = globalThis.FormData;
+    if (!FormDataClass) {
+      throw new Error('FormData is not available. Node.js 18+ is required.');
     }
 
     const formData = new FormDataClass();
     if (file instanceof File) {
       formData.append('file', file);
     } else if (Buffer.isBuffer(file)) {
-      if (isBrowserFormData) {
-        // Browser FormData: convert Buffer to Blob
-        // Convert Buffer to Uint8Array (which is a valid BlobPart)
-        const uint8Array = new Uint8Array(file);
-        const blob = new Blob([uint8Array], { type: 'application/octet-stream' });
-        formData.append('file', blob, fileName);
-      } else {
-        // form-data package: accepts Buffer directly
-        formData.append('file', file, fileName);
-      }
+      // Convert Buffer to Blob for FormData (Node.js 18+ global FormData requires Blob)
+      const uint8Array = new Uint8Array(file);
+      const blob = new Blob([uint8Array], { type: 'application/octet-stream' });
+      formData.append('file', blob, fileName);
     } else {
       // Fallback for other types
       formData.append('file', file as any, fileName);

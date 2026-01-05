@@ -7,6 +7,7 @@ import { WorkspaceMapperService } from '../provisioning/domain/workspace-mapper.
 import { AnythingLLMUserMappingRepository } from '../provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
 import {
   CreateWorkspaceRequestSchema,
+  CreateWorkspaceResponseSchema,
   WorkspaceResponseSchema,
   DocumentUploadResponseSchema,
   UploadRawTextRequestSchema,
@@ -173,18 +174,27 @@ export class AnythingLLMAdapterService {
       slug: workspaceSlug,
     };
 
-    const result = await this.workspaceService.createWorkspace(request);
+    const response = await this.workspaceService.createWorkspace(request);
 
-    if (!result.data.success || !result.data.workspace) {
+    if (!response.ok) {
+      const errorText = await response.text();
       throw new Error(
-        `Failed to create workspace: ${result.data.error || 'Unknown error'}`,
+        `Failed to create workspace: ${response.status} - ${errorText}`,
+      );
+    }
+
+    const result = (await response.json()) as CreateWorkspaceResponseSchema;
+
+    if (!result.workspace) {
+      throw new Error(
+        `Failed to create workspace: ${result.message || 'Unknown error'}`,
       );
     }
 
     return {
-      slug: result.data.workspace.slug,
-      id: result.data.workspace.id,
-      name: result.data.workspace.name,
+      slug: result.workspace.slug,
+      id: result.workspace.id,
+      name: result.workspace.name,
     };
   }
 

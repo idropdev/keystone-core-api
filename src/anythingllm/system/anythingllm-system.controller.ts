@@ -54,17 +54,13 @@ import { randomUUID } from 'crypto';
  * - Auth responses normalized (no raw AnythingLLM messages)
  */
 @ApiTags('AnythingLLM System')
-@Controller('api/anythingllm/v1/system')
+@Controller('anythingllm/v1/system')
 @UseGuards(OptionalJwtGuard)
 @ApiBearerAuth()
 export class AnythingLLMSystemController {
   private readonly logger = new Logger(AnythingLLMSystemController.name);
 
-  constructor(private readonly systemService: AnythingLLMSystemService) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-system.controller.ts:55',message:'Controller constructor called',data:{controllerPath:'anythingllm/v1'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-  }
+  constructor(private readonly systemService: AnythingLLMSystemService) {}
 
   /**
    * Map JWT payload to RequesterContextDto
@@ -151,10 +147,6 @@ export class AnythingLLMSystemController {
     @Request() request: ExpressRequest & { user?: JwtPayloadType },
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthCheckResponseSchema> {
-    // #region agent log
-    const expressReq = request as ExpressRequest;
-    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-system.controller.ts:142',message:'checkAuth endpoint called',data:{url:expressReq.url,method:expressReq.method,originalUrl:expressReq.originalUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const startTime = Date.now();
     const requestId = randomUUID();
     response.setHeader('X-Request-Id', requestId);
@@ -167,9 +159,6 @@ export class AnythingLLMSystemController {
       const result = await this.systemService.checkAuth(requesterContext);
 
       const durationMs = Date.now() - startTime;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-system.controller.ts:152',message:'checkAuth service result',data:{status:result.status,hasData:!!result.data,dataKeys:result.data?Object.keys(result.data):[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       this.logEndpointCall(
         '/v1/auth',
         AnythingLLMOperation.SYSTEM_AUTH_CHECK,
@@ -182,11 +171,7 @@ export class AnythingLLMSystemController {
       return result.data;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      // #region agent log
       const errorStatus = error instanceof HttpException ? error.getStatus() : 500;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-system.controller.ts:165',message:'checkAuth error caught',data:{errorStatus,errorMessage,errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
       this.logEndpointCall(
         '/v1/auth',
         AnythingLLMOperation.SYSTEM_AUTH_CHECK,

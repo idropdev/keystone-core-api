@@ -2,7 +2,10 @@ import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { AnythingLLMWorkspaceService } from './anythingllm-workspace.service';
 import { WorkspaceMapperService } from '../provisioning/domain/workspace-mapper.service';
 import { AnythingLLMUserMappingRepository } from '../provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
-import { CreateWorkspaceRequestSchema } from '../registry/schemas';
+import {
+  CreateWorkspaceRequestSchema,
+  CreateWorkspaceResponseSchema,
+} from '../registry/schemas';
 import { UpstreamError } from '../registry/upstream-error';
 
 /**
@@ -93,11 +96,20 @@ export class AnythingLLMWorkspaceProvisioningService {
           slug: workspaceSlug,
         };
 
-        const result = await this.workspaceService.createWorkspace(request);
+        const response = await this.workspaceService.createWorkspace(request);
 
-        if (!result.data.success || !result.data.workspace) {
+        if (!response.ok) {
+          const errorText = await response.text();
           throw new Error(
-            `Failed to create workspace: ${result.data.error || 'Unknown error'}`,
+            `Failed to create workspace: ${response.status} - ${errorText}`,
+          );
+        }
+
+        const result = (await response.json()) as CreateWorkspaceResponseSchema;
+
+        if (!result.workspace) {
+          throw new Error(
+            `Failed to create workspace: ${result.message || 'Unknown error'}`,
           );
         }
 

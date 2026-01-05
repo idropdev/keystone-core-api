@@ -12,7 +12,9 @@ API endpoints that enable programmatic reading, writing, and updating of your An
 
 ## Table of Contents
 
+- [Endpoint Implementation Matrix](#endpoint-implementation-matrix)
 - [Admin Endpoints (Implemented)](#admin-endpoints-implemented)
+- [System Endpoints (Implemented)](#system-endpoints-implemented)
 - [Authentication](#authentication)
 - [Reference: Other Endpoints](#reference-other-endpoints)
   - [Documents](#documents)
@@ -20,6 +22,83 @@ API endpoints that enable programmatic reading, writing, and updating of your An
   - [User Management](#user-management)
   - [OpenAI Compatible Endpoints](#openai-compatible-endpoints)
 - [Schemas](#schemas)
+
+---
+
+## Endpoint Implementation Matrix
+
+This matrix provides a quick overview of which AnythingLLM endpoints are implemented in Keystone Core API.
+
+### Legend
+- ✅ **Implemented**: Endpoint is fully implemented and exposed via Keystone Core API
+- ⚠️ **Internal Only**: Endpoint is implemented but only used internally (not exposed via controller)
+- ❌ **Not Implemented**: Endpoint is documented for reference but not implemented in Keystone Core API
+
+### Admin Endpoints
+
+| Endpoint | Method | Status | Keystone Path | Auth | Notes |
+|----------|--------|--------|---------------|------|-------|
+| Check multi-user mode | GET | ✅ | `/api/anythingllm/v1/admin/is-multi-user-mode` | Service Identity | |
+| List users | GET | ✅ | `/api/anythingllm/v1/admin/users` | Service Identity | |
+| Get user by external ID | GET | ✅ | `/api/anythingllm/v1/admin/users/external/:externalId` | Service Identity | Query param: `provider` (default: keystone) |
+| Create user | POST | ✅ | `/api/anythingllm/v1/admin/users/new` | Service Identity | |
+| Update user | POST | ✅ | `/api/anythingllm/v1/admin/users/:id` | Service Identity | |
+| Delete user | DELETE | ✅ | `/api/anythingllm/v1/admin/users/:id` | Service Identity | |
+| List invites | GET | ✅ | `/api/anythingllm/v1/admin/invites` | Service Identity | |
+| Create invite | POST | ✅ | `/api/anythingllm/v1/admin/invite/new` | Service Identity | |
+| Revoke invite | DELETE | ✅ | `/api/anythingllm/v1/admin/invite/:id` | Service Identity | |
+| Get workspace users | GET | ✅ | `/api/anythingllm/v1/admin/workspaces/:workspaceId/users` | Service Identity | |
+| Manage workspace users | POST | ✅ | `/api/anythingllm/v1/admin/workspaces/:workspaceSlug/manage-users` | Service Identity | |
+| Get workspace chats | POST | ✅ | `/api/anythingllm/v1/admin/workspace-chats` | Service Identity | |
+| Update preferences | POST | ✅ | `/api/anythingllm/v1/admin/preferences` | Service Identity | |
+
+**Summary:**
+- ✅ **Implemented (Exposed)**: 13 endpoints
+- **Total Admin Endpoints**: 13
+
+### System Endpoints
+
+| Endpoint | Method | Status | Keystone Path | Auth | Notes |
+|----------|--------|--------|---------------|------|-------|
+| Check auth | GET | ✅ | `/api/anythingllm/v1/system/auth` | Hybrid | Delegated preferred, service identity fallback |
+| Check token | GET | ✅ | `/api/anythingllm/v1/system/check-token` | Hybrid | Delegated preferred, service identity fallback |
+| Get system info | GET | ✅ | `/api/anythingllm/v1/system` | Delegated Preferred | Delegated preferred, service identity fallback |
+| Get vector count | GET | ✅ | `/api/anythingllm/v1/system/vector-count` | Delegated Preferred | Delegated preferred, service identity fallback |
+| Get workspace count | GET | ✅ | `/api/anythingllm/v1/system/workspace-count` | Delegated Preferred | Delegated preferred, service identity fallback |
+| Get document count | GET | ✅ | `/api/anythingllm/v1/system/document-count` | Delegated Preferred | Delegated preferred, service identity fallback |
+
+**Summary:**
+- ✅ **Implemented**: 6 endpoints
+- **Total System Endpoints**: 6
+
+### Reference Endpoints (Not Implemented)
+
+The following endpoint categories are documented for reference but are **not currently implemented** in Keystone Core API:
+
+| Category | Endpoints | Status |
+|----------|-----------|--------|
+| **Documents** | POST `/v1/document/upload`, POST `/v1/document/upload/{folderName}`, POST `/v1/document/upload-link` | ❌ Not Implemented |
+| **Workspaces & Threads** | GET `/v1/workspace/{slug}/thread/{threadSlug}/chats`, POST `/v1/workspace/{slug}/thread/{threadSlug}/chat`, POST `/v1/workspace/{slug}/thread/{threadSlug}/stream-chat` | ❌ Not Implemented |
+| **User Management** | GET `/v1/users`, GET `/v1/users/{id}/issue-auth-token` | ❌ Not Implemented |
+| **OpenAI Compatible** | GET `/v1/openai/models`, POST `/v1/openai/chat/completions`, POST `/v1/openai/embeddings`, GET `/v1/openai/vector_stores` | ❌ Not Implemented |
+
+**Summary:**
+- ❌ **Not Implemented**: ~10+ endpoints (documented for reference only)
+
+### Overall Summary
+
+| Category | Implemented (Exposed) | Internal Only | Not Implemented | Total |
+|----------|----------------------|---------------|-----------------|-------|
+| **Admin Endpoints** | 13 | 0 | 0 | 13 |
+| **System Endpoints** | 6 | 0 | 0 | 6 |
+| **Reference Endpoints** | 0 | 0 | ~10+ | ~10+ |
+| **TOTAL** | **19** | **0** | **~10+** | **~29+** |
+
+**Implementation Coverage:**
+- **Admin Endpoints**: 13/13 (100%) - All admin endpoints are implemented and exposed
+- **System Endpoints**: 6/6 (100%) - All system endpoints are implemented and exposed
+- **Total Implemented**: 19/19 (100%) of endpoints that are intended to be implemented
+- **Exposed via API**: 19 endpoints are publicly accessible
 
 ---
 
@@ -83,6 +162,45 @@ List all users in AnythingLLM.
       "suspended": 0
     }
   ]
+}
+```
+
+---
+
+### GET /api/anythingllm/v1/admin/users/external/:externalId
+
+Look up a user by external ID and provider.
+
+**Authentication:** Service Identity (GCP OIDC ID token)
+
+**Parameters:**
+- `externalId` (path, required): External user ID (e.g., Keystone UUID)
+- `provider` (query, optional): External provider (default: `keystone`)
+
+**Responses:**
+
+| Code | Description | Media Type |
+|------|-------------|------------|
+| 200 | User found | `application/json` |
+| 401 | Unauthorized | `application/json` |
+| 403 | Forbidden | `application/json` |
+| 404 | User not found | `application/json` |
+
+**Example Request:**
+```bash
+curl -X GET "http://localhost:3001/api/anythingllm/v1/admin/users/external/your-keystone-uuid?provider=keystone" \
+  -H "Authorization: Bearer <service-identity-token>"
+```
+
+**200 Response Example:**
+```json
+{
+  "id": 1,
+  "username": "user123",
+  "role": "default",
+  "suspended": 0,
+  "externalId": "550e8400-e29b-41d4-a716-446655440000",
+  "externalProvider": "keystone"
 }
 ```
 
@@ -311,21 +429,29 @@ Update system preferences.
 
 ---
 
-## Authentication
+## System Endpoints (Implemented)
 
-### GET /v1/auth
+> **Status:** ✅ **Implemented in Keystone Core API**  
+> **Authentication:** Hybrid (Delegated JWT preferred, Service Identity fallback)  
+> **Base Path:** `/api/anythingllm/v1/system`
 
-Verify the attached Authentication header contains a valid API token.
+These endpoints are **fully implemented** in Keystone Core API as a secure proxy to AnythingLLM. They support both user JWT tokens (with delegated authentication) and service identity authentication.
 
-> **Note:** This endpoint is part of AnythingLLM's native API and is not currently proxied through Keystone Core API.
+For implementation details, see [AnythingLLM Integration Architecture](./anythingllm-integration-architecture.md).
 
-**Parameters:** None
+---
+
+### GET /api/anythingllm/v1/system/auth
+
+Check AnythingLLM authentication status.
+
+**Authentication:** Hybrid (Delegated JWT preferred, Service Identity fallback)
 
 **Responses:**
 
 | Code | Description | Media Type |
 |------|-------------|------------|
-| 200 | Valid auth token was found | `application/json` |
+| 200 | Authentication status | `application/json` |
 | 401 | Unauthorized | `application/json` |
 | 403 | Forbidden | `application/json` |
 
@@ -336,12 +462,174 @@ Verify the attached Authentication header contains a valid API token.
 }
 ```
 
-**401/403 Response Example:**
+---
+
+### GET /api/anythingllm/v1/system/check-token
+
+Check token validity.
+
+**Authentication:** Hybrid (Delegated JWT preferred, Service Identity fallback)
+
+**Responses:**
+
+| Code | Description | Media Type |
+|------|-------------|------------|
+| 200 | Token validity status | `application/json` |
+| 401 | Unauthorized | `application/json` |
+| 403 | Forbidden | `application/json` |
+
+**200 Response Example:**
 ```json
 {
-  "message": "Invalid API Key"
+  "authenticated": true
 }
 ```
+
+---
+
+### GET /api/anythingllm/v1/system
+
+Get system information.
+
+**Authentication:** Delegated Preferred (Delegated JWT preferred, Service Identity fallback)
+
+**Responses:**
+
+| Code | Description | Media Type |
+|------|-------------|------------|
+| 200 | System information | `application/json` |
+| 401 | Unauthorized | `application/json` |
+| 403 | Forbidden | `application/json` |
+
+---
+
+### GET /api/anythingllm/v1/system/vector-count
+
+Get total vector count in the system.
+
+**Authentication:** Delegated Preferred (Delegated JWT preferred, Service Identity fallback)
+
+**Responses:**
+
+| Code | Description | Media Type |
+|------|-------------|------------|
+| 200 | Vector count | `application/json` |
+| 401 | Unauthorized | `application/json` |
+| 403 | Forbidden | `application/json` |
+
+**200 Response Example:**
+```json
+{
+  "count": 1234
+}
+```
+
+---
+
+### GET /api/anythingllm/v1/system/workspace-count
+
+Get total workspace count in the system.
+
+**Authentication:** Delegated Preferred (Delegated JWT preferred, Service Identity fallback)
+
+**Responses:**
+
+| Code | Description | Media Type |
+|------|-------------|------------|
+| 200 | Workspace count | `application/json` |
+| 401 | Unauthorized | `application/json` |
+| 403 | Forbidden | `application/json` |
+
+**200 Response Example:**
+```json
+{
+  "count": 56
+}
+```
+
+---
+
+### GET /api/anythingllm/v1/system/document-count
+
+Get total document count in the system.
+
+**Authentication:** Delegated Preferred (Delegated JWT preferred, Service Identity fallback)
+
+**Responses:**
+
+| Code | Description | Media Type |
+|------|-------------|------------|
+| 200 | Document count | `application/json` |
+| 401 | Unauthorized | `application/json` |
+| 403 | Forbidden | `application/json` |
+
+**200 Response Example:**
+```json
+{
+  "count": 789
+}
+```
+
+---
+
+## Authentication
+
+### Admin Endpoints (Keystone Core API)
+
+Admin endpoints require **Service Identity authentication** using GCP OIDC ID tokens:
+
+```
+Authorization: Bearer <gcp-oidc-id-token>
+```
+
+**Authentication Flow:**
+1. Keystone Core API mints OIDC ID token using GCP service account
+2. Token is automatically injected into requests to AnythingLLM
+3. AnythingLLM validates the OIDC token signature and audience
+
+**Error Responses:**
+- `401 Unauthorized`: Invalid or expired service identity token
+- `403 Forbidden`: User JWT token rejected (service identity required)
+
+### System Endpoints (Keystone Core API)
+
+System endpoints support **Hybrid authentication** with delegated JWT tokens preferred and service identity as fallback:
+
+**With User JWT Token:**
+```
+Authorization: Bearer <user-jwt-token>
+```
+- User context (userId, roles) is extracted from JWT
+- Delegated token is created with service identity and user context embedded
+- AnythingLLM receives delegated token with user context
+
+**Without User JWT Token:**
+```
+Authorization: Bearer <gcp-oidc-id-token>
+```
+- Pure service identity authentication is used
+- No user context is provided
+
+**Error Responses:**
+- `401 Unauthorized`: Invalid or expired token
+- `403 Forbidden`: Token is valid but lacks required permissions
+
+### Other Endpoints (AnythingLLM Native API)
+
+Other endpoints (documented for reference but not implemented in Keystone) require an API token in the Authorization header:
+
+```
+Authorization: Bearer <your-api-token>
+```
+
+**Authentication Flow:**
+1. Obtain an API token from your AnythingLLM instance
+2. Include the token in the `Authorization` header as `Bearer <token>`
+3. Use the `/v1/auth` endpoint to verify token validity
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
+- `403 Forbidden`: Token is valid but lacks required permissions
 
 ---
 
@@ -847,44 +1135,6 @@ Get vector stores (OpenAI compatible).
 **Used in:**
 - 401 Unauthorized responses
 - 403 Forbidden responses
-
----
-
-## Authentication
-
-### Admin Endpoints (Keystone Core API)
-
-Admin endpoints require **Service Identity authentication** using GCP OIDC ID tokens:
-
-```
-Authorization: Bearer <gcp-oidc-id-token>
-```
-
-**Authentication Flow:**
-1. Keystone Core API mints OIDC ID token using GCP service account
-2. Token is automatically injected into requests to AnythingLLM
-3. AnythingLLM validates the OIDC token signature and audience
-
-**Error Responses:**
-- `401 Unauthorized`: Invalid or expired service identity token
-- `403 Forbidden`: User JWT token rejected (service identity required)
-
-### Other Endpoints (AnythingLLM Native API)
-
-Other endpoints require an API token in the Authorization header:
-
-```
-Authorization: Bearer <your-api-token>
-```
-
-**Authentication Flow:**
-1. Obtain an API token from your AnythingLLM instance
-2. Include the token in the `Authorization` header as `Bearer <token>`
-3. Use the `/v1/auth` endpoint to verify token validity
-
-**Error Responses:**
-- `401 Unauthorized`: Missing or invalid token
-- `403 Forbidden`: Token is valid but lacks required permissions
 
 ---
 

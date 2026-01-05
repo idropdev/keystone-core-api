@@ -563,9 +563,10 @@ export class AnythingLLMPolicyService {
 
   /**
    * Authorize DOCUMENT_UPLOAD operation
-   * User: with origin manager selection
-   * Manager: as origin manager
-   * Admin: denied
+   * Admin: Allowed
+   * Manager: Allowed
+   * User: Denied
+   * Service Identity: Bypass (handled separately)
    */
   private async authorizeDocumentUpload(
     requesterContext: RequesterContextDto,
@@ -574,19 +575,28 @@ export class AnythingLLMPolicyService {
     isUser: boolean,
     isAdmin: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
-    if (isAdmin) {
+    // Admin and Manager are allowed
+    if (isAdmin || isManager) {
       return {
-        allowed: false,
-        scope: [],
-        reason: 'Admins cannot upload documents',
+        allowed: true,
+        scope: ['anythingllm:document:upload'],
       };
     }
 
-    // Users and managers can upload documents
-    // Origin manager verification happens in document service
+    // Users are denied
+    if (isUser) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'Users cannot upload documents to AnythingLLM',
+      };
+    }
+
+    // Default deny for unknown roles
     return {
-      allowed: true,
-      scope: ['anythingllm:document:upload'],
+      allowed: false,
+      scope: [],
+      reason: 'Insufficient permissions for document upload',
     };
   }
 

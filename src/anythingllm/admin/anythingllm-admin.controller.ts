@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -18,6 +19,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { ServiceIdentityGuard } from '../guards/service-identity.guard';
 import { AnythingLLMAdminService } from './anythingllm-admin.service';
@@ -97,6 +99,34 @@ export class AnythingLLMAdminController {
   async listUsers(): Promise<ListUsersResponseSchema> {
     try {
       const result = await this.adminService.listUsers();
+      return result.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  @Get('users/external/:externalId')
+  @ApiOperation({ summary: 'Get user by external ID' })
+  @ApiParam({ name: 'externalId', type: String, description: 'External user ID (e.g., Keystone UUID)' })
+  @ApiQuery({ name: 'provider', required: false, type: String, description: 'External provider (default: keystone)', example: 'keystone' })
+  @ApiResponse({
+    status: 200,
+    description: 'User found',
+    type: CreateUserResponseSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  async getUserByExternalId(
+    @Param('externalId') externalId: string,
+    @Query('provider') provider?: string,
+  ): Promise<CreateUserResponseSchema> {
+    try {
+      const result = await this.adminService.getUserByExternalId(
+        externalId,
+        provider || 'keystone',
+      );
       return result.data;
     } catch (error) {
       throw this.handleError(error);

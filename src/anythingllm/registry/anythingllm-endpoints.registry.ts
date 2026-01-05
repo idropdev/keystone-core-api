@@ -23,6 +23,9 @@ import {
   VectorCountResponseSchema,
   WorkspaceCountResponseSchema,
   DocumentCountResponseSchema,
+  DocumentUploadResponseSchema,
+  CreateWorkspaceRequestSchema,
+  CreateWorkspaceResponseSchema,
 } from './schemas';
 
 /**
@@ -109,10 +112,21 @@ export const AnythingLLMSystemEndpointIds = {
   VECTOR_COUNT: 'system.vectorCount',
   WORKSPACE_COUNT: 'system.workspaceCount',
   DOCUMENT_COUNT: 'system.documentCount',
+  WORKSPACE_CREATE: 'workspace.create',
 } as const;
 
 export type AnythingLLMSystemEndpointId =
   (typeof AnythingLLMSystemEndpointIds)[keyof typeof AnythingLLMSystemEndpointIds];
+
+/**
+ * AnythingLLM Document Endpoint IDs
+ */
+export const AnythingLLMDocumentEndpointIds = {
+  UPLOAD: 'document.upload',
+} as const;
+
+export type AnythingLLMDocumentEndpointId =
+  (typeof AnythingLLMDocumentEndpointIds)[keyof typeof AnythingLLMDocumentEndpointIds];
 
 /**
  * AnythingLLM Admin Endpoints Registry
@@ -363,6 +377,39 @@ export const AnythingLLMSystemEndpoints: Record<
     tags: ['system', 'metrics'],
     timeoutMs: 10000,
   },
+
+  [AnythingLLMSystemEndpointIds.WORKSPACE_CREATE]: {
+    id: AnythingLLMSystemEndpointIds.WORKSPACE_CREATE,
+    method: 'POST',
+    path: '/v1/workspace/new',
+    auth: 'delegatedPreferred',
+    requestSchema: CreateWorkspaceRequestSchema,
+    responseSchema: CreateWorkspaceResponseSchema,
+    tags: ['workspace'],
+    timeoutMs: 10000,
+  },
+};
+
+/**
+ * AnythingLLM Document Endpoints Registry
+ *
+ * Single source of truth for all AnythingLLM document API endpoints.
+ * Each endpoint definition includes method, path, auth policy, schemas, and metadata.
+ */
+export const AnythingLLMDocumentEndpoints: Record<
+  AnythingLLMDocumentEndpointId,
+  EndpointDefinition
+> = {
+  [AnythingLLMDocumentEndpointIds.UPLOAD]: {
+    id: AnythingLLMDocumentEndpointIds.UPLOAD,
+    method: 'POST',
+    path: '/v1/document/upload',
+    auth: 'delegatedPreferred',
+    requestSchema: null, // multipart/form-data, not JSON
+    responseSchema: DocumentUploadResponseSchema,
+    tags: ['document'],
+    timeoutMs: 60000, // 60 seconds for file uploads
+  },
 };
 
 /**
@@ -373,7 +420,8 @@ export function getEndpointDefinition(
 ): EndpointDefinition | undefined {
   return (
     AnythingLLMAdminEndpoints[endpointId as AnythingLLMAdminEndpointId] ||
-    AnythingLLMSystemEndpoints[endpointId as AnythingLLMSystemEndpointId]
+    AnythingLLMSystemEndpoints[endpointId as AnythingLLMSystemEndpointId] ||
+    AnythingLLMDocumentEndpoints[endpointId as AnythingLLMDocumentEndpointId]
   );
 }
 
@@ -387,7 +435,10 @@ export function getEndpointsByTags(tags: string[]): EndpointDefinition[] {
   const systemEndpoints = Object.values(AnythingLLMSystemEndpoints).filter(
     (endpoint) => tags.some((tag) => endpoint.tags.includes(tag)),
   );
-  return [...adminEndpoints, ...systemEndpoints];
+  const documentEndpoints = Object.values(AnythingLLMDocumentEndpoints).filter(
+    (endpoint) => tags.some((tag) => endpoint.tags.includes(tag)),
+  );
+  return [...adminEndpoints, ...systemEndpoints, ...documentEndpoints];
 }
 
 /**
@@ -397,5 +448,6 @@ export function getAllEndpointIds(): string[] {
   return [
     ...Object.keys(AnythingLLMAdminEndpoints),
     ...Object.keys(AnythingLLMSystemEndpoints),
+    ...Object.keys(AnythingLLMDocumentEndpoints),
   ];
 }

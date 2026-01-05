@@ -61,7 +61,7 @@ export class WorkspaceThreadSchema {
  * Request body for creating a workspace
  */
 export class CreateWorkspaceRequestSchema {
-  @ApiProperty({ example: 'My Workspace' })
+  @ApiProperty({ example: 'My New Workspace' })
   @IsString()
   name: string;
 
@@ -69,6 +69,41 @@ export class CreateWorkspaceRequestSchema {
   @IsOptional()
   @IsString()
   slug?: string;
+
+  @ApiPropertyOptional({ example: 0.7 })
+  @IsOptional()
+  @IsNumber()
+  similarityThreshold?: number;
+
+  @ApiPropertyOptional({ example: 0.7 })
+  @IsOptional()
+  @IsNumber()
+  openAiTemp?: number;
+
+  @ApiPropertyOptional({ example: 20 })
+  @IsOptional()
+  @IsNumber()
+  openAiHistory?: number;
+
+  @ApiPropertyOptional({ example: 'Custom prompt for responses' })
+  @IsOptional()
+  @IsString()
+  openAiPrompt?: string;
+
+  @ApiPropertyOptional({ example: 'Custom refusal message' })
+  @IsOptional()
+  @IsString()
+  queryRefusalResponse?: string;
+
+  @ApiPropertyOptional({ example: 'chat' })
+  @IsOptional()
+  @IsString()
+  chatMode?: string;
+
+  @ApiPropertyOptional({ example: 4 })
+  @IsOptional()
+  @IsNumber()
+  topN?: number;
 }
 
 /**
@@ -132,6 +167,31 @@ export class WorkspaceResponseSchema {
   @IsString()
   slug: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  createdAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  lastUpdatedAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  openAiTemp?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  openAiHistory?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  openAiPrompt?: string | null;
+
   @ApiPropertyOptional({ type: [WorkspaceDocumentSchema] })
   @IsOptional()
   @IsArray()
@@ -152,17 +212,13 @@ export class WorkspaceResponseSchema {
  * Response for create workspace endpoint
  */
 export class CreateWorkspaceResponseSchema {
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  success: boolean;
+  @ApiProperty({ type: WorkspaceResponseSchema })
+  @IsObject()
+  workspace: WorkspaceResponseSchema;
 
-  @ApiPropertyOptional({ type: WorkspaceResponseSchema })
-  @IsOptional()
-  workspace?: WorkspaceResponseSchema;
-
-  @ApiPropertyOptional({ example: null })
-  @IsOptional()
-  error?: string | null;
+  @ApiProperty({ example: 'Workspace created' })
+  @IsString()
+  message: string;
 }
 
 /**

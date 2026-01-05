@@ -36,22 +36,28 @@ export class AnythingLLMClientService {
     const method = options.method || 'GET';
     const startTime = Date.now();
 
-    // Get service identity token
-    let token: string;
-    try {
-      // Token minting logging moved to DEBUG level for HIPAA compliance
-      this.logger.debug(
-        `Minting service identity token for AnythingLLM request to ${endpoint}`,
-      );
-      token = await this.serviceIdentityService.getIdToken();
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      // Error logging: HIPAA-compliant, no endpoint details that might contain PHI
-      this.logger.error(
-        `Failed to mint service identity token for AnythingLLM request: ${errorMessage}`,
-      );
-      throw new Error(`Failed to mint service identity token: ${errorMessage}`);
+    // Check if Authorization header is already provided (delegated token from orchestrator)
+    const incomingHeaders = (options.headers as Record<string, string>) || {};
+    const hasIncomingAuth = !!incomingHeaders.Authorization || !!incomingHeaders.authorization;
+
+    // Get service identity token only if not already provided
+    let token: string = '';
+    if (!hasIncomingAuth) {
+      try {
+        // Token minting logging moved to DEBUG level for HIPAA compliance
+        this.logger.debug(
+          `Minting service identity token for AnythingLLM request to ${endpoint}`,
+        );
+        token = await this.serviceIdentityService.getIdToken();
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        // Error logging: HIPAA-compliant, no endpoint details that might contain PHI
+        this.logger.error(
+          `Failed to mint service identity token for AnythingLLM request: ${errorMessage}`,
+        );
+        throw new Error(`Failed to mint service identity token: ${errorMessage}`);
+      }
     }
 
     // Build full URL
@@ -75,19 +81,42 @@ export class AnythingLLMClientService {
     );
 
     try {
+      // Check if body is FormData (multipart/form-data)
+      const isFormData =
+        options.body &&
+        (options.body instanceof FormData ||
+          (typeof FormData !== 'undefined' &&
+            options.body instanceof FormData) ||
+          // Check for form-data package instance (Node.js)
+          (options.body.constructor &&
+            options.body.constructor.name === 'FormData' &&
+            typeof (options.body as any).getHeaders === 'function'));
+
       // Build headers for request
       const requestHeaders: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
         'X-Request-Id': requestId,
         'X-Client-Service': 'keystone',
-        'Content-Type': 'application/json',
         ...((options.headers as Record<string, string>) || {}),
       };
+
+      // Only set Authorization if not already provided (delegated token takes precedence)
+      if (!hasIncomingAuth) {
+        requestHeaders.Authorization = `Bearer ${token}`;
+      }
+
+      // Only set Content-Type for non-FormData bodies
+      // FormData will set its own Content-Type with boundary (don't override it)
+      if (!isFormData && !requestHeaders['Content-Type']) {
+        requestHeaders['Content-Type'] = 'application/json';
+      } else if (isFormData) {
+        // Remove Content-Type for FormData - let fetch/FormData set it with boundary
+        delete requestHeaders['Content-Type'];
+      }
 
       // REMOVED: Header logging for HIPAA compliance
       // Headers should not be logged in production
 
-      // Make request with service identity headers
+      // Make request with headers
       const response = await fetch(url, {
         ...options,
         headers: requestHeaders,

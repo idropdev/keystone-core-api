@@ -1,9 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException } from '@nestjs/common';
 import {
   AnythingLLMRegistryClient,
   RegistryCallResult,
 } from '../registry/anythingllm-registry-client';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
+import { AnythingLLMClientService } from '../services/anythingllm-client.service';
+import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
+import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import {
   CreateWorkspaceRequestSchema,
   CreateWorkspaceResponseSchema,
@@ -30,20 +33,46 @@ import {
 export class AnythingLLMWorkspaceService {
   private readonly logger = new Logger(AnythingLLMWorkspaceService.name);
 
-  constructor(private readonly registryClient: AnythingLLMRegistryClient) {}
+  constructor(
+    private readonly registryClient: AnythingLLMRegistryClient,
+    private readonly orchestratorService: AnythingLLMOrchestratorService,
+    private readonly clientService: AnythingLLMClientService,
+  ) {}
 
   /**
    * Create a new workspace
-   * TODO: Non-admin endpoints have been temporarily disabled
+   * Supports delegated token (user JWT) or service identity authentication
+   *
+   * @param request - Workspace creation request
+   * @param requesterContext - User context if JWT present (optional)
+   * @returns Upstream response from AnythingLLM
    */
   async createWorkspace(
     request: CreateWorkspaceRequestSchema,
-  ): Promise<RegistryCallResult<CreateWorkspaceResponseSchema>> {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
-    // return this.registryClient.call<
-    //   CreateWorkspaceResponseSchema,
-    //   CreateWorkspaceRequestSchema
-    // >(AnythingLLMAdminEndpointIds.CREATE_WORKSPACE, { body: request });
+    requesterContext?: RequesterContextDto,
+  ): Promise<Response> {
+    const path = '/v1/workspace/new';
+
+    // Route based on authentication type
+    if (requesterContext) {
+      // User JWT present → use orchestrator (policy check + delegated token)
+      return this.orchestratorService.executeOperation({
+        operation: AnythingLLMOperation.WORKSPACE_CREATE,
+        requesterContext,
+        endpoint: path,
+        method: 'POST',
+        body: request,
+      });
+    } else {
+      // Service identity → call client directly (bypass policy)
+      return this.clientService.callAnythingLLM(path, {
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    }
   }
 
   /**

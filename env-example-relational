@@ -317,6 +317,28 @@ ANYTHINGLLM_SERVICE_AUDIENCE=anythingllm-internal  # Must match ANYTHINGLLM_SERV
 # Example (local): http://localhost:3001/api
 ANYTHINGLLM_BASE_URL=http://localhost:3001/api
 
+# ============================================================================
+# ANYTHINGLLM DELEGATED TOKEN CONFIGURATION
+# ============================================================================
+# Enable delegated token issuance (RFC 8693) for embedding user context
+# in service-to-service tokens. Required for RBAC enforcement in AnythingLLM.
+#
+# TODO: Move secrets to GCP Secret Manager in production
+# ============================================================================
+
+# Enable delegated token issuance (set to 'true' to enable)
+ENABLE_DELEGATED_TOKENS=true
+
+# Secret for signing delegated tokens (MUST match AnythingLLM's KEYSTONE_DELEGATED_TOKEN_SECRET)
+# Generate with: node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
+ANYTHINGLLM_DELEGATED_TOKEN_SECRET=  # <SECRET_MANAGER> TODO: Move to GCP Secret Manager
+
+# Token expiration in seconds (default: 300 = 5 minutes)
+ANYTHINGLLM_DELEGATED_TOKEN_EXPIRES_IN=300
+
+# Token audience (must match AnythingLLM's KEYSTONE_AUDIENCE)
+ANYTHINGLLM_DELEGATED_TOKEN_AUDIENCE=anythingllm
+
 # ----------------------------------------------------------------------------
 # WORKER / BACKGROUND JOBS
 # ----------------------------------------------------------------------------

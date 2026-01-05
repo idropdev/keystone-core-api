@@ -40,14 +40,7 @@ export class AnythingLLMAuthDelegationService {
       { infer: true },
     ) ?? false;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-auth-delegation/service.ts:38',message:'Checking delegated token config',data:{enabled,envVar:process.env.ENABLE_DELEGATED_TOKENS},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
-
     if (!enabled) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-auth-delegation/service.ts:44',message:'Delegated tokens disabled',data:{enabled},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-      // #endregion
       throw new Error(
         'Delegated token issuance is disabled. Set ENABLE_DELEGATED_TOKENS=true',
       );

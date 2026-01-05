@@ -28,6 +28,9 @@ import { ManagersModule } from './managers/managers.module';
 import { AccessControlModule } from './access-control/access-control.module';
 import { RevocationModule } from './revocation/revocation.module';
 import { AnythingLLMAdminModule } from './anythingllm/admin/anythingllm-admin.module';
+import { AnythingLLMWorkspaceModule } from './anythingllm/workspace/anythingllm-workspace.module';
+import { AnythingLLMDocumentModule } from './anythingllm/document/anythingllm-document.module';
+import { AnythingLLMSystemModule } from './anythingllm/system/anythingllm-system.module';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { AllConfigType } from './config/config.type';
 import { SessionModule } from './session/session.module';
@@ -127,6 +130,9 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     AccessControlModule,
     RevocationModule,
     AnythingLLMAdminModule,
+    AnythingLLMWorkspaceModule,
+    AnythingLLMDocumentModule,
+    AnythingLLMSystemModule,
     // Import provisioning module via AnythingLLMAdminModule or directly
     // Note: AnythingLLMProvisioningModule is imported by UsersModule
   ],

@@ -66,24 +66,15 @@ export class AnythingLLMOrchestratorService {
     // Step 2: Issue delegated token
     let delegatedToken: string;
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-orchestrator/service.ts:69',message:'Attempting to issue delegated token',data:{operation:dto.operation,userId:dto.requesterContext.userId,hasScope:!!authResult.scope},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
       const tokenResult = await this.delegationService.issueDelegatedToken({
         requesterContext: dto.requesterContext,
         operation: dto.operation,
         scope: authResult.scope,
       });
       delegatedToken = tokenResult.token;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-orchestrator/service.ts:74',message:'Delegated token issued successfully',data:{hasToken:!!delegatedToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/4b3ccba3-55b0-467b-8ddb-33cba3067360',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'anythingllm-orchestrator/service.ts:76',message:'Delegated token issuance failed',data:{errorMessage,errorType:error?.constructor?.name,stack:error instanceof Error?error.stack?.substring(0,200):undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
       this.logger.error(
         `Failed to issue delegated token for operation ${dto.operation}: ${errorMessage}`,
       );
@@ -94,16 +85,43 @@ export class AnythingLLMOrchestratorService {
 
     // Step 3: Call AnythingLLM with delegated token
     try {
+      // Detect if body is FormData (multipart/form-data)
+      const isFormData =
+        dto.body &&
+        (dto.body instanceof FormData ||
+          (typeof FormData !== 'undefined' && dto.body instanceof FormData) ||
+          // Check for form-data package instance (Node.js)
+          (dto.body.constructor &&
+            dto.body.constructor.name === 'FormData' &&
+            typeof (dto.body as any).getHeaders === 'function'));
+
+      // Build headers - don't set Content-Type for FormData (let it set boundary)
+      const headers: Record<string, string> = {
+        ...dto.headers,
+        Authorization: `Bearer ${delegatedToken}`, // Pass delegated token in Authorization header
+      };
+
+      // Only set Content-Type for JSON bodies
+      if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      // Prepare body - pass FormData directly, stringify JSON
+      let requestBody: string | FormData | undefined;
+      if (dto.body) {
+        if (isFormData) {
+          requestBody = dto.body as FormData;
+        } else {
+          requestBody = JSON.stringify(dto.body);
+        }
+      }
+
       const response = await this.clientService.callAnythingLLM(
         dto.endpoint,
         {
           method: dto.method,
-          body: dto.body ? JSON.stringify(dto.body) : undefined,
-          headers: {
-            ...dto.headers,
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${delegatedToken}`, // Pass delegated token in Authorization header
-          },
+          body: requestBody,
+          headers,
         },
       );
 
