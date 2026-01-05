@@ -5,6 +5,7 @@ import {
   getEndpointDefinition,
   EndpointDefinition,
   AnythingLLMAdminEndpointId,
+  AnythingLLMSystemEndpointId,
 } from './anythingllm-endpoints.registry';
 import { UpstreamError } from './upstream-error';
 
@@ -14,11 +15,18 @@ import { UpstreamError } from './upstream-error';
 export type PathParams = Record<string, string | number>;
 
 /**
+ * Query parameters for URL query string building
+ */
+export type QueryParams = Record<string, string | number | undefined>;
+
+/**
  * Options for registry client calls
  */
 export interface RegistryCallOptions<TRequest = unknown> {
   /** Path parameters to substitute in URL template */
   params?: PathParams;
+  /** Query parameters to append to URL */
+  query?: QueryParams;
   /** Request body */
   body?: TRequest;
   /** Additional headers */
@@ -65,7 +73,7 @@ export class AnythingLLMRegistryClient {
    * @throws UpstreamError on API failure
    */
   async call<TResponse = unknown, TRequest = unknown>(
-    endpointId: AnythingLLMAdminEndpointId | string,
+    endpointId: AnythingLLMAdminEndpointId | AnythingLLMSystemEndpointId | string,
     options: RegistryCallOptions<TRequest> = {},
   ): Promise<RegistryCallResult<TResponse>> {
     const requestId = randomUUID();
@@ -83,8 +91,8 @@ export class AnythingLLMRegistryClient {
       );
     }
 
-    // Build URL path with parameter substitution
-    const path = this.buildPath(endpoint.path, options.params);
+    // Build URL path with parameter substitution and query parameters
+    const path = this.buildPath(endpoint.path, options.params, options.query);
 
     // Log call intent moved to DEBUG level for HIPAA compliance
     this.logger.debug(
@@ -171,28 +179,48 @@ export class AnythingLLMRegistryClient {
   }
 
   /**
-   * Build URL path by substituting parameters
+   * Build URL path by substituting parameters and appending query string
    *
    * @param pathTemplate - Path template with :param placeholders
    * @param params - Parameter values to substitute
-   * @returns Built URL path
+   * @param query - Query parameters to append
+   * @returns Built URL path with query string
    */
-  private buildPath(pathTemplate: string, params?: PathParams): string {
-    if (!params) {
-      return pathTemplate;
-    }
-
+  private buildPath(
+    pathTemplate: string,
+    params?: PathParams,
+    query?: QueryParams,
+  ): string {
     let path = pathTemplate;
-    for (const [key, value] of Object.entries(params)) {
-      path = path.replace(`:${key}`, encodeURIComponent(String(value)));
+
+    // Substitute path parameters
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        path = path.replace(`:${key}`, encodeURIComponent(String(value)));
+      }
+
+      // Check for any remaining unsubstituted parameters
+      const remaining = path.match(/:(\w+)/g);
+      if (remaining) {
+        throw new Error(
+          `Missing path parameters: ${remaining.join(', ')} for path ${pathTemplate}`,
+        );
+      }
     }
 
-    // Check for any remaining unsubstituted parameters
-    const remaining = path.match(/:(\w+)/g);
-    if (remaining) {
-      throw new Error(
-        `Missing path parameters: ${remaining.join(', ')} for path ${pathTemplate}`,
-      );
+    // Append query parameters
+    if (query) {
+      const queryString = Object.entries(query)
+        .filter(([_, value]) => value !== undefined && value !== null)
+        .map(
+          ([key, value]) =>
+            `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+        )
+        .join('&');
+
+      if (queryString) {
+        path = `${path}?${queryString}`;
+      }
     }
 
     return path;

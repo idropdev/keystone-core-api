@@ -17,6 +17,12 @@ import {
   WorkspaceChatsResponseSchema,
   UpdatePreferencesRequestSchema,
   UpdatePreferencesResponseSchema,
+  AuthCheckResponseSchema,
+  CheckTokenResponseSchema,
+  SystemInfoResponseSchema,
+  VectorCountResponseSchema,
+  WorkspaceCountResponseSchema,
+  DocumentCountResponseSchema,
 } from './schemas';
 
 /**
@@ -27,7 +33,12 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 /**
  * Authentication policy for endpoints
  */
-export type AuthPolicy = 'serviceIdentity' | 'userJwt' | 'none';
+export type AuthPolicy =
+  | 'serviceIdentity'        // ONLY service identity
+  | 'delegatedOnly'          // ONLY delegated JWT
+  | 'delegatedPreferred'     // delegated preferred, service identity fallback
+  | 'hybrid'                 // either, no preference
+  | 'none';
 
 /**
  * Retry policy configuration
@@ -72,6 +83,7 @@ export interface EndpointDefinition<TRequest = unknown, TResponse = unknown> {
 export const AnythingLLMAdminEndpointIds = {
   IS_MULTI_USER_MODE: 'admin.isMultiUserMode',
   LIST_USERS: 'admin.listUsers',
+  GET_USER_BY_EXTERNAL_ID: 'admin.getUserByExternalId',
   CREATE_USER: 'admin.createUser',
   UPDATE_USER: 'admin.updateUser',
   DELETE_USER: 'admin.deleteUser',
@@ -86,6 +98,21 @@ export const AnythingLLMAdminEndpointIds = {
 
 export type AnythingLLMAdminEndpointId =
   (typeof AnythingLLMAdminEndpointIds)[keyof typeof AnythingLLMAdminEndpointIds];
+
+/**
+ * AnythingLLM System Endpoint IDs
+ */
+export const AnythingLLMSystemEndpointIds = {
+  AUTH_CHECK: 'system.authCheck',
+  CHECK_TOKEN: 'system.checkToken',
+  SYSTEM_INFO: 'system.info',
+  VECTOR_COUNT: 'system.vectorCount',
+  WORKSPACE_COUNT: 'system.workspaceCount',
+  DOCUMENT_COUNT: 'system.documentCount',
+} as const;
+
+export type AnythingLLMSystemEndpointId =
+  (typeof AnythingLLMSystemEndpointIds)[keyof typeof AnythingLLMSystemEndpointIds];
 
 /**
  * AnythingLLM Admin Endpoints Registry
@@ -121,6 +148,17 @@ export const AnythingLLMAdminEndpoints: Record<
     auth: 'serviceIdentity',
     requestSchema: null,
     responseSchema: ListUsersResponseSchema,
+    tags: ['admin', 'users'],
+    timeoutMs: 10000,
+  },
+
+  [AnythingLLMAdminEndpointIds.GET_USER_BY_EXTERNAL_ID]: {
+    id: AnythingLLMAdminEndpointIds.GET_USER_BY_EXTERNAL_ID,
+    method: 'GET',
+    path: '/v1/admin/users/external/:externalId',
+    auth: 'serviceIdentity',
+    requestSchema: null,
+    responseSchema: CreateUserResponseSchema,
     tags: ['admin', 'users'],
     timeoutMs: 10000,
   },
@@ -246,26 +284,118 @@ export const AnythingLLMAdminEndpoints: Record<
 };
 
 /**
+ * AnythingLLM System Endpoints Registry
+ *
+ * Single source of truth for all AnythingLLM system API endpoints.
+ * Each endpoint definition includes method, path, auth policy, schemas, and metadata.
+ */
+export const AnythingLLMSystemEndpoints: Record<
+  AnythingLLMSystemEndpointId,
+  EndpointDefinition
+> = {
+  [AnythingLLMSystemEndpointIds.AUTH_CHECK]: {
+    id: AnythingLLMSystemEndpointIds.AUTH_CHECK,
+    method: 'GET',
+    path: '/v1/auth',
+    auth: 'hybrid',
+    requestSchema: null,
+    responseSchema: AuthCheckResponseSchema,
+    tags: ['system', 'auth'],
+    timeoutMs: 5000,
+    retryPolicy: {
+      maxRetries: 2,
+      retryDelayMs: 100,
+      retryOn: [500, 502, 503],
+    },
+  },
+
+  [AnythingLLMSystemEndpointIds.CHECK_TOKEN]: {
+    id: AnythingLLMSystemEndpointIds.CHECK_TOKEN,
+    method: 'GET',
+    path: '/v1/system/check-token',
+    auth: 'hybrid',
+    requestSchema: null,
+    responseSchema: CheckTokenResponseSchema,
+    tags: ['system', 'auth'],
+    timeoutMs: 5000,
+  },
+
+  [AnythingLLMSystemEndpointIds.SYSTEM_INFO]: {
+    id: AnythingLLMSystemEndpointIds.SYSTEM_INFO,
+    method: 'GET',
+    path: '/v1/system',
+    auth: 'delegatedPreferred',
+    requestSchema: null,
+    responseSchema: SystemInfoResponseSchema,
+    tags: ['system'],
+    timeoutMs: 10000,
+  },
+
+  [AnythingLLMSystemEndpointIds.VECTOR_COUNT]: {
+    id: AnythingLLMSystemEndpointIds.VECTOR_COUNT,
+    method: 'GET',
+    path: '/v1/system/vector-count',
+    auth: 'delegatedPreferred',
+    requestSchema: null,
+    responseSchema: VectorCountResponseSchema,
+    tags: ['system', 'metrics'],
+    timeoutMs: 10000,
+  },
+
+  [AnythingLLMSystemEndpointIds.WORKSPACE_COUNT]: {
+    id: AnythingLLMSystemEndpointIds.WORKSPACE_COUNT,
+    method: 'GET',
+    path: '/v1/system/workspace-count',
+    auth: 'delegatedPreferred',
+    requestSchema: null,
+    responseSchema: WorkspaceCountResponseSchema,
+    tags: ['system', 'metrics'],
+    timeoutMs: 10000,
+  },
+
+  [AnythingLLMSystemEndpointIds.DOCUMENT_COUNT]: {
+    id: AnythingLLMSystemEndpointIds.DOCUMENT_COUNT,
+    method: 'GET',
+    path: '/v1/system/document-count',
+    auth: 'delegatedPreferred',
+    requestSchema: null,
+    responseSchema: DocumentCountResponseSchema,
+    tags: ['system', 'metrics'],
+    timeoutMs: 10000,
+  },
+};
+
+/**
  * Get endpoint definition by ID
  */
 export function getEndpointDefinition(
   endpointId: string,
 ): EndpointDefinition | undefined {
-  return AnythingLLMAdminEndpoints[endpointId as AnythingLLMAdminEndpointId];
+  return (
+    AnythingLLMAdminEndpoints[endpointId as AnythingLLMAdminEndpointId] ||
+    AnythingLLMSystemEndpoints[endpointId as AnythingLLMSystemEndpointId]
+  );
 }
 
 /**
  * Get all endpoints matching given tags
  */
 export function getEndpointsByTags(tags: string[]): EndpointDefinition[] {
-  return Object.values(AnythingLLMAdminEndpoints).filter((endpoint) =>
-    tags.some((tag) => endpoint.tags.includes(tag)),
+  const adminEndpoints = Object.values(AnythingLLMAdminEndpoints).filter(
+    (endpoint) => tags.some((tag) => endpoint.tags.includes(tag)),
   );
+  const systemEndpoints = Object.values(AnythingLLMSystemEndpoints).filter(
+    (endpoint) => tags.some((tag) => endpoint.tags.includes(tag)),
+  );
+  return [...adminEndpoints, ...systemEndpoints];
 }
 
 /**
  * Get all endpoint IDs
  */
 export function getAllEndpointIds(): string[] {
-  return Object.keys(AnythingLLMAdminEndpoints);
+  return [
+    ...Object.keys(AnythingLLMAdminEndpoints),
+    ...Object.keys(AnythingLLMSystemEndpoints),
+  ];
 }

@@ -67,6 +67,22 @@ export class AnythingLLMAdminService {
   }
 
   /**
+   * Get user by external ID and provider
+   */
+  async getUserByExternalId(
+    externalId: string,
+    provider: string = 'keystone',
+  ): Promise<RegistryCallResult<CreateUserResponseSchema>> {
+    return this.registryClient.call<CreateUserResponseSchema>(
+      AnythingLLMAdminEndpointIds.GET_USER_BY_EXTERNAL_ID,
+      {
+        params: { externalId },
+        query: { provider },
+      },
+    );
+  }
+
+  /**
    * Create a new user in AnythingLLM
    */
   async createUser(

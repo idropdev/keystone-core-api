@@ -11,6 +11,7 @@ import { AuditService, AuthEventType } from '../../audit/audit.service';
 import { WorkspaceMapperService } from './domain/workspace-mapper.service';
 import { AnythingLLMUserMappingRepository } from './infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
 import { AllConfigType } from '../../config/config.type';
+import { RoleEnum } from '../../roles/roles.enum';
 
 /**
  * AnythingLLM User Provisioning Service
@@ -70,10 +71,14 @@ export class AnythingLLMUserProvisioningService {
     });
 
     try {
+      // Map Keystone role to AnythingLLM role (for audit logging and user creation)
+      const roleId = user.role?.id;
+      const anythingllmRole = this.mapKeystoneRoleToAnythingLLMRole(roleId);
+
       // Step 1: Create user in AnythingLLM (or find existing)
       const anythingllmUserId = await this.createUserInAnythingLLM(user);
 
-      // Step 2: Generate workspace slug
+      // Step 2: Generate workspace slug (for mapping purposes)
       const workspaceSlug = this.workspaceMapper.getWorkspaceSlugForUser(user);
 
       // Step 3: Store mapping
@@ -83,10 +88,25 @@ export class AnythingLLMUserProvisioningService {
         workspaceSlug,
       });
 
-      // Step 4: Assign user to workspace
-      await this.assignUserToWorkspace(anythingllmUserId, workspaceSlug, user);
+      // Step 4: Assign user to workspace (only for default users)
+      // Admin and Manager roles have access to ALL workspaces automatically,
+      // so workspace assignment is not necessary for them.
+      if (anythingllmRole === 'default') {
+        // TODO: Workspace creation and assignment for default users
+        // Currently skipping workspace assignment as workspace must exist first
+        // Workspace creation/assignment should be handled separately or implemented here
+        this.logger.log(
+          `Skipping workspace assignment for user ${keystoneUserId} - workspace creation not yet implemented. Default users will need manual workspace assignment.`,
+        );
+        // await this.assignUserToWorkspace(anythingllmUserId, workspaceSlug, user);
+      } else {
+        // Admin and manager roles don't need workspace assignment (they have access to all)
+        this.logger.log(
+          `Skipping workspace assignment for ${anythingllmRole} user ${keystoneUserId} - ${anythingllmRole} users have access to all workspaces automatically`,
+        );
+      }
 
-      // Log provisioning succeeded
+      // Log provisioning succeeded with role mapping details
       this.auditService.logAuthEvent({
         userId: keystoneUserId,
         provider: 'anythingllm',
@@ -95,6 +115,8 @@ export class AnythingLLMUserProvisioningService {
         metadata: {
           anythingllmUserId,
           workspaceSlug,
+          keystoneRoleId: roleId,
+          anythingllmRole,
         },
       });
 
@@ -123,6 +145,43 @@ export class AnythingLLMUserProvisioningService {
   }
 
   /**
+   * Map Keystone role to AnythingLLM role
+   *
+   * Maps Keystone RoleEnum values to AnythingLLM role strings:
+   * - RoleEnum.admin (1) → 'admin'
+   * - RoleEnum.manager (3) → 'manager'
+   * - RoleEnum.user (2) → 'default'
+   * - null/undefined → 'default' (fallback)
+   *
+   * @param roleId - Keystone role ID (RoleEnum value)
+   * @returns AnythingLLM role string
+   */
+  private mapKeystoneRoleToAnythingLLMRole(roleId: number | string | null | undefined): string {
+    if (roleId === null || roleId === undefined) {
+      return 'default';
+    }
+
+    // Handle both numeric and string role IDs
+    const numericRoleId = typeof roleId === 'string' ? parseInt(roleId, 10) : roleId;
+
+    if (numericRoleId === RoleEnum.admin) {
+      return 'admin';
+    }
+    if (numericRoleId === RoleEnum.manager) {
+      return 'manager';
+    }
+    if (numericRoleId === RoleEnum.user) {
+      return 'default';
+    }
+
+    // Fallback to default for unknown roles
+    this.logger.warn(
+      `Unknown role ID ${roleId}, defaulting to 'default' role`,
+    );
+    return 'default';
+  }
+
+  /**
    * Create user in AnythingLLM
    *
    * Implements idempotency check: if user exists (by externalId), return existing user ID.
@@ -146,19 +205,32 @@ export class AnythingLLMUserProvisioningService {
       }
     }
 
-    // TODO: Option B (check-before-create pattern) - O(n) complexity
-    // This should be replaced with Option A (direct externalId lookup) once AnythingLLM API supports it
+    // Check if user already exists by externalId (idempotency check)
     try {
-      const listResult = await this.adminService.listUsers();
-      if (listResult.data.users) {
-        // Check if user exists by externalId (requires AnythingLLM to return externalId in response)
-        // For now, we'll create the user and handle duplicates via error handling
-        // Note: This assumes externalId is available in the response
+      const existingUserResult = await this.adminService.getUserByExternalId(
+        keystoneUserId,
+        'keystone',
+      );
+
+      if (existingUserResult.data.user) {
+        const existingUserId = existingUserResult.data.user.id;
+        this.logger.log(
+          `User ${keystoneUserId} already exists in AnythingLLM (user ID: ${existingUserId})`,
+        );
+        return existingUserId;
       }
     } catch (error) {
-      this.logger.warn(
-        `Failed to list users for idempotency check: ${error instanceof Error ? error.message : 'Unknown error'}. Proceeding with user creation.`,
-      );
+      // User doesn't exist (404) or other error - proceed with user creation
+      // 404 is expected when user doesn't exist, so we continue
+      const isNotFound =
+        error instanceof UpstreamError &&
+        error.status === 404;
+      
+      if (!isNotFound) {
+        this.logger.warn(
+          `Failed to check for existing user by externalId: ${error instanceof Error ? error.message : 'Unknown error'}. Proceeding with user creation.`,
+        );
+      }
     }
 
     // Generate username (non-PII, deterministic hash)
@@ -167,11 +239,21 @@ export class AnythingLLMUserProvisioningService {
     // Generate secure password (will be discarded after API call)
     const password = this.generateSecurePassword();
 
-    // Create user
+    // Map Keystone role to AnythingLLM role
+    const roleId = user.role?.id;
+    const anythingllmRole = this.mapKeystoneRoleToAnythingLLMRole(roleId);
+
+    this.logger.log(
+      `Mapping Keystone role ${roleId} to AnythingLLM role '${anythingllmRole}' for user ${keystoneUserId}`,
+    );
+
+    // Create user with mapped role and external identity fields
     const createRequest: CreateUserRequestSchema = {
       username,
       password,
-      role: 'default',
+      role: anythingllmRole,
+      externalId: keystoneUserId,
+      externalProvider: 'keystone',
     };
 
     try {
@@ -193,7 +275,7 @@ export class AnythingLLMUserProvisioningService {
       // This is a permanent invariant: passwords are never persisted
 
       this.logger.log(
-        `Created user in AnythingLLM: ${anythingllmUserId} (username: ${username})`,
+        `Created user in AnythingLLM: ${anythingllmUserId} (username: ${username}, role: ${anythingllmRole}, keystoneUserId: ${keystoneUserId})`,
       );
 
       return anythingllmUserId;
