@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsArray,
   IsObject,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -60,6 +61,65 @@ export class ExportChatsResponseSchema {
   @ApiProperty({ type: [ChatExportSchema] })
   @IsArray()
   chats: ChatExportSchema[];
+}
+
+/**
+ * Response for auth check endpoint
+ */
+export class AuthCheckResponseSchema {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  authenticated: boolean;
+}
+
+/**
+ * Response for check token endpoint
+ */
+export class CheckTokenResponseSchema {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  authenticated: boolean;
+}
+
+/**
+ * Response for system info endpoint
+ */
+export class SystemInfoResponseSchema {
+  @ApiProperty({ example: '1.0.0' })
+  @IsString()
+  version: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  info?: Record<string, unknown>;
+}
+
+/**
+ * Response for vector count endpoint
+ */
+export class VectorCountResponseSchema {
+  @ApiProperty({ example: 1000 })
+  @IsNumber()
+  count: number;
+}
+
+/**
+ * Response for workspace count endpoint
+ */
+export class WorkspaceCountResponseSchema {
+  @ApiProperty({ example: 10 })
+  @IsNumber()
+  count: number;
+}
+
+/**
+ * Response for document count endpoint
+ */
+export class DocumentCountResponseSchema {
+  @ApiProperty({ example: 50 })
+  @IsNumber()
+  count: number;
 }
 
 

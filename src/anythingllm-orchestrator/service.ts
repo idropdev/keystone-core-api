@@ -102,9 +102,9 @@ export class AnythingLLMOrchestratorService {
           headers: {
             ...dto.headers,
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${delegatedToken}`, // Pass delegated token in Authorization header
           },
         },
-        delegatedToken, // Pass delegated token
       );
 
       // HIPAA-compliant logging (no PHI, no tokens)

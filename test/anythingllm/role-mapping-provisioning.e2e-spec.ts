@@ -239,7 +239,6 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
         return;
       }
 
-      expect(found).toBe(true);
       expect(user.role).toBe('admin');
       // Verify external identity fields if they exist in the response
       if (user.externalId !== undefined) {
@@ -327,7 +326,6 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
         return;
       }
 
-      expect(found).toBe(true);
       expect(user.role).toBe('manager');
       // Verify external identity fields if they exist in the response
       if (user.externalId !== undefined) {
@@ -415,7 +413,6 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
         return;
       }
 
-      expect(found).toBe(true);
       expect(user.role).toBe('default');
       // Verify external identity fields if they exist in the response
       if (user.externalId !== undefined) {
@@ -485,7 +482,7 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
       // Verify that provisioning still works (should map undefined/null role to 'default' in AnythingLLM)
       if (!SKIP_ANYTHINGLLM_TESTS) {
         const keystoneUserId = String(createdUser.id);
-        const { user, found } = await waitForUserInAnythingLLM(
+        const { user } = await waitForUserInAnythingLLM(
           keystoneUserId,
           'default',
         );
