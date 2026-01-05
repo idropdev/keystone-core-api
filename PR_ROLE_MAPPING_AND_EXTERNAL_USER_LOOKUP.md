@@ -135,6 +135,20 @@ Unit tests for the role mapping function:
 
 ## 🧪 Testing
 
+### Running Tests
+
+To verify role mapping functionality, run the following command:
+
+```bash
+npm run test:e2e -- role-mapping-provisioning.e2e-spec.ts
+```
+
+This command runs the comprehensive E2E test suite that verifies:
+- Role mapping for admin, manager, and default/user roles
+- External identity field propagation (`externalId`, `externalProvider`)
+- Edge cases (null/undefined roles, unknown role IDs)
+- Graceful degradation when AnythingLLM is unavailable
+
 ### Test Results
 
 All tests passing:
