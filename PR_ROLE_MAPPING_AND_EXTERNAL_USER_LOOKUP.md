@@ -6,7 +6,7 @@
 
 **Related Issue(s):** <!-- Add issue numbers if applicable -->
 
-This PR implements comprehensive role mapping from Keystone to AnythingLLM and adds external user lookup capabilities. Users created in Keystone are now automatically provisioned to AnythingLLM with appropriate role mappings (`admin`, `manager`, `default`), and the system can efficiently lookup users by their external ID.
+This PR implements comprehensive role mapping from Keystone to AnythingLLM, external user lookup capabilities, and token delegation services. Users created in Keystone are now automatically provisioned to AnythingLLM with appropriate role mappings (`admin`, `manager`, `default`), and the system can efficiently lookup users by their external ID. Token delegation enables secure S2S authentication between Keystone and AnythingLLM.
 
 ---
 
@@ -18,13 +18,17 @@ This PR implements comprehensive role mapping from Keystone to AnythingLLM and a
 - Extended registry client to support query parameters
 - Updated schemas to include `externalId` and `externalProvider` fields
 - Optimized workspace assignment (skip for admin/manager roles)
-- Added comprehensive test coverage (E2E and unit tests)
+- Added token delegation service for S2S authentication between Keystone and AnythingLLM
+- Added system endpoints support for AnythingLLM system information
+- Added comprehensive test coverage (E2E and unit tests for role mapping, external user lookup, token delegation, and system endpoints)
 
 ### Why Changed
 - Enable automatic role-based provisioning when users are created in Keystone
 - Improve idempotency checks with efficient O(1) lookups instead of O(n) list-and-filter
 - Support AnythingLLM's external user management requirements
 - Ensure proper role mapping alignment with AnythingLLM's role system
+- Enable secure S2S authentication via token delegation for AnythingLLM API calls
+- Support system endpoints for monitoring and system information retrieval
 
 ---
 
