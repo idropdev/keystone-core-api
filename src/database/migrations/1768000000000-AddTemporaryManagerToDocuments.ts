@@ -33,7 +33,16 @@ export class AddTemporaryManagerToDocuments1768000000000
       }),
     );
 
-    // 3. Add foreign key constraint for temporary_manager_id
+    // 3. Handle existing documents with NULL origin_manager_id
+    // For documents that have NULL origin_manager_id, set temporary_manager_id to user_id
+    // This assumes those documents were uploaded by users before the manager system
+    await queryRunner.query(
+      `UPDATE documents 
+       SET temporary_manager_id = user_id 
+       WHERE origin_manager_id IS NULL AND temporary_manager_id IS NULL`,
+    );
+
+    // 4. Add foreign key constraint for temporary_manager_id
     await queryRunner.createForeignKey(
       'documents',
       new TableForeignKey({
@@ -44,7 +53,8 @@ export class AddTemporaryManagerToDocuments1768000000000
       }),
     );
 
-    // 4. Add check constraint: exactly one of origin_manager_id or temporary_manager_id must be set
+    // 5. Add check constraint: exactly one of origin_manager_id or temporary_manager_id must be set
+    // This will now pass because we've ensured all existing documents have at least one set
     await queryRunner.query(
       `ALTER TABLE documents 
        ADD CONSTRAINT CHK_documents_origin_exclusive 
@@ -54,7 +64,7 @@ export class AddTemporaryManagerToDocuments1768000000000
        )`,
     );
 
-    // 5. Add index on temporary_manager_id for fast lookups
+    // 6. Add index on temporary_manager_id for fast lookups
     await queryRunner.createIndex(
       'documents',
       new TableIndex({
