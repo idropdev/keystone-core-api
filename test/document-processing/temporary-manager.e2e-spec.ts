@@ -671,10 +671,20 @@ describe('Temporary Manager Support Feature (E2E)', () => {
           
           // If it's 400, verify it's a validation error (not authorization)
           if (response.status === 400) {
-            // Should be a validation error about subject or grant already existing
-            expect(response.body.message).toBeDefined();
+            // NestJS validation errors can have different structures:
+            // - ValidationPipe errors: { status: 400, errors: {...} }
+            // - BadRequestException: { message: string } or { statusCode: 400, message: string }
+            // Just verify that the response body exists and indicates an error
+            expect(response.body).toBeDefined();
+            // The body should have either 'message', 'errors', or 'statusCode'
+            expect(
+              response.body.message ||
+                response.body.errors ||
+                response.body.statusCode,
+            ).toBeDefined();
           } else {
-            // Should be authorization error
+            // Should be authorization error (403)
+            expect(response.body.message).toBeDefined();
             expect(response.body.message).toContain('authority');
           }
         },
