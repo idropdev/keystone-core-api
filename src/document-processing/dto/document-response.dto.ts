@@ -61,6 +61,10 @@ export class DocumentResponseDto {
   @Expose()
   createdAt: Date;
 
+  @ApiProperty()
+  @Expose()
+  updatedAt: Date;
+
   @ApiProperty({
     description: 'Origin manager ID (Manager ID, not User ID). Null if temporary manager is set.',
     required: false,

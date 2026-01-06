@@ -348,6 +348,7 @@ export class DocumentProcessingService {
         uploadedAt: document.uploadedAt,
         processedAt: document.processedAt,
         createdAt: document.createdAt,
+        updatedAt: document.updatedAt,
         originManagerId: document.originManagerId ?? null,
         temporaryManagerId: document.temporaryManagerId ?? null,
       },
