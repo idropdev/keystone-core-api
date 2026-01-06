@@ -32,6 +32,9 @@ import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-any
 @Injectable()
 export class AnythingLLMUserProvisioningService {
   private readonly logger = new Logger(AnythingLLMUserProvisioningService.name);
+  // System admin ID for service-initiated provisioning (when no admin context available)
+  // This is the seeded admin user (ID: 1) used for system operations
+  private readonly SYSTEM_ADMIN_ID = 1;
 
   constructor(
     private readonly adminService: AnythingLLMAdminService,
@@ -211,40 +214,37 @@ export class AnythingLLMUserProvisioningService {
     }
 
     // Check if user already exists by externalId (idempotency check)
-    // Use delegated token if adminUserId is provided, otherwise fall back to service identity
+    // Always use delegated tokens (HS256) with admin context
     try {
-      let existingUserResult;
-      if (adminUserId) {
-        // Use delegated token with admin context (HS256)
-        const requesterContext: RequesterContextDto = {
-          userId: String(adminUserId),
-          roles: ['admin'],
-        };
-        const response = await this.orchestratorService.executeOperation({
-          requesterContext,
-          operation: AnythingLLMOperation.SYSTEM_READ,
-          endpoint: `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
-          method: 'GET',
-        });
-        if (!response.ok) {
-          // Convert HTTP error to UpstreamError for consistent error handling
-          const body = await response.text();
-          throw UpstreamError.fromResponse(
-            response,
-            response.headers.get('X-Request-Id') || 'unknown',
-            `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
-            null,
-          );
-        }
-        const data = await response.json();
-        existingUserResult = { data };
-      } else {
-        // Fall back to service identity (RS256) for backward compatibility
-        existingUserResult = await this.adminService.getUserByExternalId(
-          keystoneUserId,
-          'keystone',
+      // Always use delegated tokens (HS256) with admin context
+      // If no admin context provided, use system admin ID
+      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
+      
+      const requesterContext: RequesterContextDto = {
+        userId: String(effectiveAdminId),
+        roles: ['admin'],
+      };
+      
+      const response = await this.orchestratorService.executeOperation({
+        requesterContext,
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        endpoint: `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        // Convert HTTP error to UpstreamError for consistent error handling
+        const body = await response.text();
+        throw UpstreamError.fromResponse(
+          response,
+          response.headers.get('X-Request-Id') || 'unknown',
+          `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
+          null,
         );
       }
+      
+      const data = await response.json();
+      const existingUserResult = { data };
 
       if (existingUserResult.data.user) {
         const existingUserId = existingUserResult.data.user.id;
@@ -291,36 +291,36 @@ export class AnythingLLMUserProvisioningService {
     };
 
     try {
-      let result;
-      if (adminUserId) {
-        // Use delegated token with admin context (HS256)
-        const requesterContext: RequesterContextDto = {
-          userId: String(adminUserId),
-          roles: ['admin'],
-        };
-        const response = await this.orchestratorService.executeOperation({
-          requesterContext,
-          operation: AnythingLLMOperation.SYSTEM_READ,
-          endpoint: '/v1/admin/users/new',
-          method: 'POST',
-          body: createRequest,
-        });
-        if (!response.ok) {
-          // Convert HTTP error to UpstreamError for consistent error handling
-          const body = await response.text();
-          throw await UpstreamError.fromResponse(
-            response,
-            response.headers.get('X-Request-Id') || 'unknown',
-            '/v1/admin/users/new',
-            createRequest,
-          );
-        }
-        const data = await response.json();
-        result = { data };
-      } else {
-        // Fall back to service identity (RS256) for backward compatibility
-        result = await this.adminService.createUser(createRequest);
+      // Always use delegated tokens (HS256) with admin context
+      // If no admin context provided, use system admin ID
+      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
+      
+      const requesterContext: RequesterContextDto = {
+        userId: String(effectiveAdminId),
+        roles: ['admin'],
+      };
+      
+      const response = await this.orchestratorService.executeOperation({
+        requesterContext,
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        endpoint: '/v1/admin/users/new',
+        method: 'POST',
+        body: createRequest,
+      });
+      
+      if (!response.ok) {
+        // Convert HTTP error to UpstreamError for consistent error handling
+        const body = await response.text();
+        throw await UpstreamError.fromResponse(
+          response,
+          response.headers.get('X-Request-Id') || 'unknown',
+          '/v1/admin/users/new',
+          createRequest,
+        );
       }
+      
+      const data = await response.json();
+      const result = { data };
 
       if (result.data.error) {
         throw new Error(
