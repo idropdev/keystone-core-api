@@ -34,13 +34,25 @@ export class DocumentEntity extends EntityRelationalHelper {
   // Origin authority (IMMUTABLE - set at creation, never changes)
   // TODO: Enforce immutability at application level - originManagerId cannot be updated after creation
   // NOTE: originManagerId references managers.id, not user.id
-  @ManyToOne(() => ManagerEntity, { nullable: false, eager: false })
+  // NOTE: originManagerId is nullable - if null, temporaryManagerId must be set
+  @ManyToOne(() => ManagerEntity, { nullable: true, eager: false })
   @JoinColumn({ name: 'origin_manager_id' })
   @Index()
-  originManager: ManagerEntity;
+  originManager?: ManagerEntity;
 
-  @Column({ name: 'origin_manager_id' })
-  originManagerId: number;
+  @Column({ name: 'origin_manager_id', nullable: true })
+  originManagerId?: number;
+
+  // Temporary manager (user who uploaded without a manager)
+  // NOTE: If temporaryManagerId is set, originManagerId must be null
+  // When a real manager is assigned, temporaryManagerId is cleared and originManagerId is set
+  @ManyToOne(() => UserEntity, { nullable: true, eager: false })
+  @JoinColumn({ name: 'temporary_manager_id' })
+  @Index()
+  temporaryManager?: UserEntity;
+
+  @Column({ name: 'temporary_manager_id', nullable: true })
+  temporaryManagerId?: number;
 
   // Optional: user who uploaded (intake context, not ownership)
   // Visible only to origin manager and auditors

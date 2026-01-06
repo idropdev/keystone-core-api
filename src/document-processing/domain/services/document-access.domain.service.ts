@@ -233,25 +233,32 @@ export class DocumentAccessDomainService {
       return false;
     }
 
-    // 3. Check if actor is origin manager
+    // 3. Check if actor is origin manager or temporary manager
     // NOTE: actor.id is the User ID, but originManagerId is the Manager ID
     // We need to resolve the Manager ID from the User ID
     let isOriginManager = false;
+    let isTemporaryManager = false;
+    
     if (actor.type === 'manager') {
       const manager = await this.managerRepository.findByUserId(actor.id);
       if (manager && document.originManagerId === manager.id) {
         isOriginManager = true;
       }
+    } else if (actor.type === 'user') {
+      // Check if user is temporary manager
+      if (document.temporaryManagerId === actor.id) {
+        isTemporaryManager = true;
+      }
     }
 
-    // 4. Origin manager operations (only origin manager can perform)
+    // 4. Origin manager/temporary manager operations (only they can perform)
     if (operation === 'trigger-ocr' || operation === 'delete') {
-      return isOriginManager;
+      return isOriginManager || isTemporaryManager;
     }
 
-    // 5. View/Download operations (origin manager OR granted access)
+    // 5. View/Download operations (origin manager/temporary manager OR granted access)
     if (operation === 'view' || operation === 'download') {
-      if (isOriginManager) {
+      if (isOriginManager || isTemporaryManager) {
         return true;
       }
 

@@ -46,6 +46,7 @@ import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-
 import { extractActorFromRequest } from './utils/actor-extractor.util';
 import { RoleEnum } from '../roles/roles.enum';
 import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
+import { AssignManagerDto } from './dto/assign-manager.dto';
 
 /**
  * Document Processing Controller
@@ -458,9 +459,9 @@ export class DocumentProcessingController {
   @Post(':documentId/ocr/trigger')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: 'Trigger OCR Processing (Origin Manager Only)',
+    summary: 'Trigger OCR Processing (Origin Manager or Temporary Manager)',
     description:
-      'Manually trigger OCR processing for a document. Only the origin manager can trigger OCR. Document must be in STORED, PROCESSED, or FAILED state.',
+      'Manually trigger OCR processing for a document. Only the origin manager or temporary manager can trigger OCR. Document must be in STORED, PROCESSED, or FAILED state.',
   })
   @ApiParam({
     name: 'documentId',
@@ -479,7 +480,7 @@ export class DocumentProcessingController {
     description: 'Invalid or expired access token',
   })
   @ApiForbiddenResponse({
-    description: 'Only origin manager can trigger OCR processing',
+    description: 'Only origin manager or temporary manager can trigger OCR processing',
   })
   @ApiNotFoundResponse({
     description: 'Document not found',
@@ -589,6 +590,55 @@ export class DocumentProcessingController {
     const actor = extractActorFromRequest(req);
     return this.documentProcessingService.getDocumentAiOutput(
       documentId,
+      actor,
+    );
+  }
+
+  @Post(':documentId/assign-manager')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign Real Manager (Temporary Manager Only)',
+    description:
+      'Transfer document authority from temporary manager to a real manager. Only the temporary manager can initiate this transfer. After transfer, temporary manager loses all privileges and real manager gains full authority.',
+  })
+  @ApiParam({
+    name: 'documentId',
+    type: String,
+    format: 'uuid',
+    description: 'Document UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Manager assigned successfully',
+    type: DocumentResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Document already has an origin manager assigned',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'Only the temporary manager can assign a real manager to this document',
+  })
+  @ApiNotFoundResponse({
+    description: 'Document or manager not found',
+  })
+  async assignManager(
+    @Request() req,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() dto: AssignManagerDto,
+  ): Promise<DocumentResponseDto> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.assignManager(
+      documentId,
+      dto.managerId,
       actor,
     );
   }

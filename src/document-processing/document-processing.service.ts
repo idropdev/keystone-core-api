@@ -315,6 +315,19 @@ export class DocumentProcessingService {
     return this.domainService.triggerOcr(documentId, actor);
   }
 
+  async assignManager(
+    documentId: string,
+    managerId: number,
+    actor: Actor,
+  ): Promise<DocumentResponseDto> {
+    const document = await this.domainService.assignManager(
+      documentId,
+      managerId,
+      actor,
+    );
+    return this.toResponseDto(document);
+  }
+
   /**
    * Transform domain entity to response DTO
    * SECURITY: Only expose safe fields, never internal URIs

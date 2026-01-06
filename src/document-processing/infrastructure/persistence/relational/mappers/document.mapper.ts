@@ -6,7 +6,8 @@ export class DocumentMapper {
     const domain = new Document();
     domain.id = entity.id;
     domain.userId = entity.userId || entity.user?.id; // Use direct userId or relation
-    domain.originManagerId = entity.originManagerId;
+    domain.originManagerId = entity.originManagerId || undefined;
+    domain.temporaryManagerId = entity.temporaryManagerId || undefined;
     domain.originUserContextId = entity.originUserContextId || undefined;
     domain.documentType = entity.documentType;
     domain.status = entity.status;
@@ -47,6 +48,7 @@ export class DocumentMapper {
 
     // Set origin manager ID (IMMUTABLE - set at creation only)
     entity.originManagerId = domain.originManagerId;
+    entity.temporaryManagerId = domain.temporaryManagerId;
     entity.originUserContextId = domain.originUserContextId;
 
     entity.documentType = domain.documentType;

@@ -72,13 +72,17 @@ export class AccessGrantDomainService {
       return false;
     }
 
-    // 2. Check if actor is origin manager (implicit access)
-    // Only managers can be origin managers
-    // NOTE: actorId is the User ID, but originManagerId is the Manager ID
-    // We need to resolve the Manager ID from the User ID
+    // 2. Check if actor is origin manager or temporary manager (implicit access)
+    // Origin managers: managers with originManagerId set
+    // Temporary managers: users with temporaryManagerId set
     if (actorType === 'manager') {
       const manager = await this.managerRepository.findByUserId(actorId);
       if (manager && document.originManagerId === manager.id) {
+        return true;
+      }
+    } else if (actorType === 'user') {
+      // Check if user is temporary manager
+      if (document.temporaryManagerId === actorId) {
         return true;
       }
     }
@@ -135,13 +139,20 @@ export class AccessGrantDomainService {
       );
     }
 
-    // 3. Validate subject is not origin manager (they have implicit access)
+    // 3. Validate subject is not origin manager or temporary manager (they have implicit access)
     // NOTE: dto.subjectId is the User ID, but originManagerId is the Manager ID
     if (dto.subjectType === 'manager') {
       const manager = await this.managerRepository.findByUserId(dto.subjectId);
       if (manager && document.originManagerId === manager.id) {
         throw new BadRequestException(
           'Cannot create grant for origin manager (they have implicit access)',
+        );
+      }
+    } else if (dto.subjectType === 'user') {
+      // Check if subject is temporary manager
+      if (document.temporaryManagerId === dto.subjectId) {
+        throw new BadRequestException(
+          'Cannot create grant for temporary manager (they have implicit access)',
         );
       }
     }
@@ -204,13 +215,20 @@ export class AccessGrantDomainService {
       throw new NotFoundException('Document not found');
     }
 
-    // Origin manager can revoke any grant
+    // Origin manager or temporary manager can revoke any grant
     // NOTE: revoker.id is the User ID, but originManagerId is the Manager ID
     let isOriginManager = false;
+    let isTemporaryManager = false;
+    
     if (revoker.type === 'manager') {
       const manager = await this.managerRepository.findByUserId(revoker.id);
       if (manager && document.originManagerId === manager.id) {
         isOriginManager = true;
+      }
+    } else if (revoker.type === 'user') {
+      // Check if user is temporary manager
+      if (document.temporaryManagerId === revoker.id) {
+        isTemporaryManager = true;
       }
     }
 
@@ -218,7 +236,7 @@ export class AccessGrantDomainService {
     const isGrantCreator =
       grant.grantedByType === revoker.type && grant.grantedById === revoker.id;
 
-    if (!isOriginManager && !isGrantCreator) {
+    if (!isOriginManager && !isTemporaryManager && !isGrantCreator) {
       throw new ForbiddenException(
         'Revoker does not have authority to revoke this grant',
       );
