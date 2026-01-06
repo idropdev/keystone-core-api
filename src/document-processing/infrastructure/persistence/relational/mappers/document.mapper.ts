@@ -47,9 +47,10 @@ export class DocumentMapper {
         : domain.userId;
 
     // Set origin manager ID (IMMUTABLE - set at creation only)
-    entity.originManagerId = domain.originManagerId;
-    entity.temporaryManagerId = domain.temporaryManagerId;
-    entity.originUserContextId = domain.originUserContextId;
+    // Convert undefined to null for nullable fields to ensure TypeORM properly clears them
+    entity.originManagerId = domain.originManagerId ?? null;
+    entity.temporaryManagerId = domain.temporaryManagerId ?? null;
+    entity.originUserContextId = domain.originUserContextId ?? null;
 
     entity.documentType = domain.documentType;
     entity.status = domain.status;

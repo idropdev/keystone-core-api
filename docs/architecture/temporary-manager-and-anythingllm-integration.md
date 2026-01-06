@@ -18,7 +18,7 @@
 - [Complete End-to-End Workflow](#complete-end-to-end-workflow)
 - [Key Architectural Decisions](#key-architectural-decisions)
   - [1. HS256 Delegated Tokens (Standardized)](#1-hs256-delegated-tokens-standardized)
-  - [2. Automatic OCR on Upload](#2-automatic-ocr-on-upload)
+  - [2. Manual OCR Trigger (Never Automatic)](#2-manual-ocr-trigger-never-automatic)
   - [3. Temporary Manager Authority](#3-temporary-manager-authority)
   - [4. Atomic Authority Transfer](#4-atomic-authority-transfer)
   - [5. Asynchronous Provisioning](#5-asynchronous-provisioning)

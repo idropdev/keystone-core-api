@@ -1865,8 +1865,10 @@ export class DocumentProcessingDomainService {
 
     // 6. Update document: set originManagerId, clear temporaryManagerId
     // This is the only place where originManagerId can be set after creation
+    // IMPORTANT: Use null (not undefined) to ensure TypeORM clears the field in database
+    // The mapper will convert null properly to clear the database field
     document.originManagerId = manager.id;
-    document.temporaryManagerId = undefined;
+    document.temporaryManagerId = null as unknown as number | undefined; // Explicitly set to null to clear field
     document.updatedAt = new Date();
 
     const updatedDocument = await this.documentRepository.save(document);
