@@ -41,7 +41,7 @@ export class DocumentEntity extends EntityRelationalHelper {
   originManager?: ManagerEntity;
 
   @Column({ name: 'origin_manager_id', nullable: true })
-  originManagerId?: number;
+  originManagerId?: number | null;
 
   // Temporary manager (user who uploaded without a manager)
   // NOTE: If temporaryManagerId is set, originManagerId must be null
@@ -52,7 +52,7 @@ export class DocumentEntity extends EntityRelationalHelper {
   temporaryManager?: UserEntity;
 
   @Column({ name: 'temporary_manager_id', nullable: true })
-  temporaryManagerId?: number;
+  temporaryManagerId?: number | null;
 
   // Optional: user who uploaded (intake context, not ownership)
   // Visible only to origin manager and auditors
@@ -61,7 +61,7 @@ export class DocumentEntity extends EntityRelationalHelper {
   originUserContext?: UserEntity;
 
   @Column({ name: 'origin_user_context_id', nullable: true })
-  originUserContextId?: number;
+  originUserContextId?: number | null;
 
   @Column({ name: 'document_type', type: 'varchar', length: 50 })
   @Index()
