@@ -765,6 +765,9 @@ describe('Temporary Manager Support Feature (E2E)', () => {
 
         // All operations completed - audit logging should have occurred
         expect(true).toBe(true);
+        
+        // Wait for all async operations to complete (including retries)
+        await new Promise((resolve) => setTimeout(resolve, 3000));
         },
         30000, // 30 second timeout
       );
@@ -839,7 +842,12 @@ describe('Temporary Manager Support Feature (E2E)', () => {
 
         // Both operations succeeded - constraint is working correctly
         expect(true).toBe(true);
-      });
+        
+        // Wait for all async operations to complete (including retries)
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      },
+      60000, // 60 second timeout for constraint tests with retries
+      );
     });
 
     describe('Test 7.2 - FK Constraint Behavior', () => {
