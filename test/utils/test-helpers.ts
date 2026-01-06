@@ -94,6 +94,38 @@ async function retryOnRateLimit<T>(
 }
 
 /**
+ * Execute a supertest request with automatic retry on rate limit (429)
+ * 
+ * @param requestFn - Function that returns a supertest Test (chainable request)
+ * @param operation - Description of the operation for logging
+ * @param maxRetries - Maximum number of retries (default: 5)
+ * @returns Promise resolving to the response
+ */
+export async function requestWithRetry(
+  requestFn: () => request.Test,
+  operation = 'API request',
+  maxRetries = 5,
+): Promise<request.Response> {
+  return retryOnRateLimit(
+    async () => {
+      const response = await requestFn();
+      // Check if response status is 429
+      if (response.status === 429) {
+        const error: any = new Error(`Rate limited: ${operation}`);
+        error.status = 429;
+        error.response = response;
+        throw error;
+      }
+      return response;
+    },
+    maxRetries,
+    1000,
+    operation,
+    false,
+  );
+}
+
+/**
  * Create a test user with the specified role
  */
 export async function createTestUser(
