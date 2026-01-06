@@ -25,6 +25,14 @@ export class ConfigKeystoreAdapter implements KeystorePort {
       );
     }
 
+    // Validate that secret is a symmetric key (not an RSA key)
+    // RSA keys start with "-----BEGIN" which would cause jsonwebtoken to infer RS256
+    if (secret.trim().startsWith('-----BEGIN')) {
+      throw new Error(
+        'ANYTHINGLLM_DELEGATED_TOKEN_SECRET appears to be an RSA key, but HS256 requires a symmetric key (plain string). Please use a symmetric secret for delegated tokens.',
+      );
+    }
+
     return secret;
   }
 
@@ -32,6 +40,8 @@ export class ConfigKeystoreAdapter implements KeystorePort {
     return this.configService.get<string>('auth.jwtIssuer', { infer: true });
   }
 }
+
+
 
 
 

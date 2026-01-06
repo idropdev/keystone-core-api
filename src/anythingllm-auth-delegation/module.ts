@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { AnythingLLMAuthDelegationService } from './service';
 import { JwtSignerAdapter } from './infrastructure/jwt/jwt-signer.adapter';
@@ -8,7 +7,9 @@ import { JwtSignerPort } from './infrastructure/jwt/jwt-signer.port';
 import { KeystorePort } from './infrastructure/keystore/keystore.port';
 
 @Module({
-  imports: [JwtModule.register({}), ConfigModule],
+  imports: [
+    ConfigModule,
+  ],
   providers: [
     AnythingLLMAuthDelegationService,
     {

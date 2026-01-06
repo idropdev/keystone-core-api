@@ -90,8 +90,11 @@ export class UsersController {
     groups: ['admin'],
   })
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createProfileDto: CreateUserDto): Promise<User> {
-    return this.usersService.create(createProfileDto);
+  create(
+    @Body() createProfileDto: CreateUserDto,
+    @Request() req: Request & { user: { id: number } },
+  ): Promise<User> {
+    return this.usersService.create(createProfileDto, req.user.id);
   }
 
   @Get()

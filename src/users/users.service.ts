@@ -31,7 +31,7 @@ export class UsersService {
     private readonly anythingllmProvisioningService: AnythingLLMUserProvisioningService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto, adminUserId?: number): Promise<User> {
     // Do not remove comment below.
     // <creating-property />
 
@@ -135,7 +135,8 @@ export class UsersService {
     // Trigger AnythingLLM provisioning asynchronously
     // Fire-and-forget: don't await, log errors if provisioning service rejects
     // TODO: Use bounded async executor to prevent unbounded parallelism during bulk user creation
-    this.anythingllmProvisioningService.provisionUser(user).catch((error) => {
+    // Pass adminUserId to use delegated tokens (HS256) instead of service identity (RS256)
+    this.anythingllmProvisioningService.provisionUser(user, adminUserId).catch((error) => {
       // Log error but don't fail user creation
       this.logger.error(
         `Failed to provision user ${user.id} to AnythingLLM: ${error instanceof Error ? error.message : 'Unknown error'}`,

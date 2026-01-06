@@ -12,6 +12,9 @@ import { WorkspaceMapperService } from './domain/workspace-mapper.service';
 import { AnythingLLMUserMappingRepository } from './infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
 import { AllConfigType } from '../../config/config.type';
 import { RoleEnum } from '../../roles/roles.enum';
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
+import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
+import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 
 /**
  * AnythingLLM User Provisioning Service
@@ -32,6 +35,7 @@ export class AnythingLLMUserProvisioningService {
 
   constructor(
     private readonly adminService: AnythingLLMAdminService,
+    private readonly orchestratorService: AnythingLLMOrchestratorService,
     private readonly auditService: AuditService,
     private readonly workspaceMapper: WorkspaceMapperService,
     private readonly configService: ConfigService<AllConfigType>,
@@ -47,8 +51,9 @@ export class AnythingLLMUserProvisioningService {
    * Throws error if any step fails (for retry logic).
    *
    * @param user - Keystone user to provision
+   * @param adminUserId - Optional admin user ID for delegated token context (required for HS256 tokens)
    */
-  async provisionUser(user: User): Promise<void> {
+  async provisionUser(user: User, adminUserId?: string | number): Promise<void> {
     // Check if repository is available (only works with relational databases)
     if (!this.mappingRepository) {
       this.logger.warn(
@@ -76,7 +81,7 @@ export class AnythingLLMUserProvisioningService {
       const anythingllmRole = this.mapKeystoneRoleToAnythingLLMRole(roleId);
 
       // Step 1: Create user in AnythingLLM (or find existing)
-      const anythingllmUserId = await this.createUserInAnythingLLM(user);
+      const anythingllmUserId = await this.createUserInAnythingLLM(user, adminUserId);
 
       // Step 2: Generate workspace slug (for mapping purposes)
       const workspaceSlug = this.workspaceMapper.getWorkspaceSlugForUser(user);
@@ -190,7 +195,7 @@ export class AnythingLLMUserProvisioningService {
    * @param user - Keystone user
    * @returns AnythingLLM user ID
    */
-  async createUserInAnythingLLM(user: User): Promise<number> {
+  async createUserInAnythingLLM(user: User, adminUserId?: string | number): Promise<number> {
     const keystoneUserId = String(user.id);
 
     // Check if user already exists (idempotency check)
@@ -206,11 +211,40 @@ export class AnythingLLMUserProvisioningService {
     }
 
     // Check if user already exists by externalId (idempotency check)
+    // Use delegated token if adminUserId is provided, otherwise fall back to service identity
     try {
-      const existingUserResult = await this.adminService.getUserByExternalId(
-        keystoneUserId,
-        'keystone',
-      );
+      let existingUserResult;
+      if (adminUserId) {
+        // Use delegated token with admin context (HS256)
+        const requesterContext: RequesterContextDto = {
+          userId: String(adminUserId),
+          roles: ['admin'],
+        };
+        const response = await this.orchestratorService.executeOperation({
+          requesterContext,
+          operation: AnythingLLMOperation.SYSTEM_READ,
+          endpoint: `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
+          method: 'GET',
+        });
+        if (!response.ok) {
+          // Convert HTTP error to UpstreamError for consistent error handling
+          const body = await response.text();
+          throw UpstreamError.fromResponse(
+            response,
+            response.headers.get('X-Request-Id') || 'unknown',
+            `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
+            null,
+          );
+        }
+        const data = await response.json();
+        existingUserResult = { data };
+      } else {
+        // Fall back to service identity (RS256) for backward compatibility
+        existingUserResult = await this.adminService.getUserByExternalId(
+          keystoneUserId,
+          'keystone',
+        );
+      }
 
       if (existingUserResult.data.user) {
         const existingUserId = existingUserResult.data.user.id;
@@ -257,7 +291,36 @@ export class AnythingLLMUserProvisioningService {
     };
 
     try {
-      const result = await this.adminService.createUser(createRequest);
+      let result;
+      if (adminUserId) {
+        // Use delegated token with admin context (HS256)
+        const requesterContext: RequesterContextDto = {
+          userId: String(adminUserId),
+          roles: ['admin'],
+        };
+        const response = await this.orchestratorService.executeOperation({
+          requesterContext,
+          operation: AnythingLLMOperation.SYSTEM_READ,
+          endpoint: '/v1/admin/users/new',
+          method: 'POST',
+          body: createRequest,
+        });
+        if (!response.ok) {
+          // Convert HTTP error to UpstreamError for consistent error handling
+          const body = await response.text();
+          throw await UpstreamError.fromResponse(
+            response,
+            response.headers.get('X-Request-Id') || 'unknown',
+            '/v1/admin/users/new',
+            createRequest,
+          );
+        }
+        const data = await response.json();
+        result = { data };
+      } else {
+        // Fall back to service identity (RS256) for backward compatibility
+        result = await this.adminService.createUser(createRequest);
+      }
 
       if (result.data.error) {
         throw new Error(

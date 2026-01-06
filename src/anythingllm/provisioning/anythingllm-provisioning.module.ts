@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AnythingLLMAdminModule } from '../admin/anythingllm-admin.module';
+import { AnythingLLMOrchestratorModule } from '../../anythingllm-orchestrator/module';
 import { AuditModule } from '../../audit/audit.module';
 import { AnythingLLMUserProvisioningService } from './anythingllm-user-provisioning.service';
 import { WorkspaceMapperService } from './domain/workspace-mapper.service';
@@ -17,6 +18,7 @@ import { AnythingLLMProvisioningPersistenceModule } from './infrastructure/persi
 @Module({
   imports: [
     AnythingLLMAdminModule,
+    AnythingLLMOrchestratorModule,
     AuditModule,
     AnythingLLMProvisioningPersistenceModule,
   ],
