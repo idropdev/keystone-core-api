@@ -249,7 +249,12 @@ export class DocumentProcessingDomainService {
         `Document uploaded: ${savedDocument.id} (actor: ${actor.type}:${actor.id}, originManager: ${originManagerId || 'none'}, temporaryManager: ${temporaryManagerId || 'none'})`,
       );
 
-      // 6. Trigger async processing (don't await) - pass buffer for PDF analysis
+      // 6. Automatically trigger OCR processing on upload (async, don't await)
+      // This ensures OCR happens immediately without requiring manual trigger
+      // Domain architecture: Processing is initiated automatically, maintaining role-based access control
+      this.logger.log(
+        `[AUTO-OCR] Automatically triggering OCR processing for document ${savedDocument.id} on upload`,
+      );
       this.startProcessing(
         savedDocument.id,
         gcsUri,
@@ -257,7 +262,7 @@ export class DocumentProcessingDomainService {
         fileBuffer,
       ).catch((error) => {
         this.logger.error(
-          `Failed to start processing for document ${savedDocument.id}: ${error.message}`,
+          `[AUTO-OCR] Failed to start automatic OCR processing for document ${savedDocument.id}: ${error.message}`,
         );
       });
 
@@ -1683,9 +1688,14 @@ export class DocumentProcessingDomainService {
    * @throws BadRequestException if document state doesn't allow processing
    */
   /**
-   * Trigger OCR processing for a document
+   * Manually trigger OCR processing for a document (re-processing)
    *
-   * HIPAA Requirement: Only verified origin managers can trigger OCR
+   * NOTE: OCR is automatically triggered on document upload. This endpoint is for:
+   * - Re-processing failed documents
+   * - Re-processing documents that need updated OCR results
+   * - Manual re-trigger by origin manager or temporary manager
+   *
+   * HIPAA Requirement: Only verified origin managers or temporary managers can trigger OCR
    */
   async triggerOcr(documentId: string, actor: Actor): Promise<void> {
     // 1. Get document
