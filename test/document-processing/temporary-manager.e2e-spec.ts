@@ -502,51 +502,57 @@ describe('Temporary Manager Support Feature (E2E)', () => {
       it(
         'should handle user deletion gracefully (FK constraint)',
         async () => {
-          // Create a user and document
-          const testUser = await createTestUser(RoleEnum.user, 'delete-test');
-          
-          // Wait for user creation to complete
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          
-          const pdfBuffer = readPdfFile(getTestPdfPath());
+          let testUser;
+          try {
+            // Create a user and document - ensure all async operations complete
+            testUser = await createTestUser(RoleEnum.user, 'delete-test');
+            
+            // Wait for user creation and any async operations to complete
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            
+            const pdfBuffer = readPdfFile(getTestPdfPath());
 
-          const uploadResponse = await request(APP_URL)
-            .post('/api/v1/documents/upload')
-            .auth(testUser.token, { type: 'bearer' })
-            .field('documentType', 'LAB_RESULT')
-            .attach('file', pdfBuffer, 'delete-test.pdf');
+            const uploadResponse = await request(APP_URL)
+              .post('/api/v1/documents/upload')
+              .auth(testUser.token, { type: 'bearer' })
+              .field('documentType', 'LAB_RESULT')
+              .attach('file', pdfBuffer, 'delete-test.pdf');
 
-          if (uploadResponse.status !== 201) {
-            console.warn('Skipping - document upload failed');
-            return;
-          }
+            if (uploadResponse.status !== 201) {
+              console.warn('Skipping - document upload failed');
+              return;
+            }
 
-          const documentId = uploadResponse.body.id;
+            const documentId = uploadResponse.body.id;
 
-          // Wait before deletion
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Delete user (should set temporary_manager_id to NULL via FK constraint)
-          const deleteResponse = await request(APP_URL)
-            .delete(`/api/v1/users/${testUser.id}`)
-            .auth(adminToken, { type: 'bearer' });
-
-          // User deletion may be soft delete, so check status
-          if (deleteResponse.status === 200 || deleteResponse.status === 204) {
-            // Wait for deletion to propagate
+            // Wait before deletion
             await new Promise((resolve) => setTimeout(resolve, 1000));
 
-            // Verify document still exists but temporary_manager_id is NULL
-            const docResponse = await request(APP_URL)
-              .get(`/api/v1/documents/${documentId}`)
-              .auth(managerUser.token, { type: 'bearer' }); // Manager should still have access if they were granted
+            // Delete user (should set temporary_manager_id to NULL via FK constraint)
+            const deleteResponse = await request(APP_URL)
+              .delete(`/api/v1/users/${testUser.id}`)
+              .auth(adminToken, { type: 'bearer' });
 
-            // Document should still exist (soft delete doesn't cascade to documents)
-            // But temporary_manager_id should be NULL due to FK constraint
-            expect([200, 403, 404]).toContain(docResponse.status);
+            // User deletion may be soft delete, so check status
+            if (deleteResponse.status === 200 || deleteResponse.status === 204) {
+              // Wait for deletion to propagate
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+
+              // Verify document still exists but temporary_manager_id is NULL
+              const docResponse = await request(APP_URL)
+                .get(`/api/v1/documents/${documentId}`)
+                .auth(managerUser.token, { type: 'bearer' }); // Manager should still have access if they were granted
+
+              // Document should still exist (soft delete doesn't cascade to documents)
+              // But temporary_manager_id should be NULL due to FK constraint
+              expect([200, 403, 404]).toContain(docResponse.status);
+            }
+          } finally {
+            // Ensure all async operations complete before test ends
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         },
-        15000, // 15 second timeout
+        30000, // 30 second timeout to allow for rate limiting retries
       );
     });
   });
@@ -755,53 +761,59 @@ describe('Temporary Manager Support Feature (E2E)', () => {
       it(
         'should handle user deletion with SET NULL on temporary_manager_id',
         async () => {
-          // Create user and document
-          const testUser = await createTestUser(RoleEnum.user, 'fk-test');
-          
-          // Wait for user creation to complete
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          
-          const pdfBuffer = readPdfFile(getTestPdfPath());
-
-        const uploadResponse = await request(APP_URL)
-          .post('/api/v1/documents/upload')
-          .auth(testUser.token, { type: 'bearer' })
-          .field('documentType', 'LAB_RESULT')
-          .attach('file', pdfBuffer, 'fk-test.pdf');
-
-        if (uploadResponse.status !== 201) {
-          console.warn('Skipping - document upload failed');
-          return;
-        }
-
-          const documentId = uploadResponse.body.id;
-          expect(uploadResponse.body.temporaryManagerId).toBe(testUser.id);
-
-          // Wait before deletion
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Delete user (soft delete)
-          const deleteResponse = await request(APP_URL)
-            .delete(`/api/v1/users/${testUser.id}`)
-            .auth(adminToken, { type: 'bearer' });
-
-          // User deletion should succeed
-          // FK constraint should set temporary_manager_id to NULL
-          // Document should still exist
-          if (deleteResponse.status === 200 || deleteResponse.status === 204) {
-            // Wait for deletion to propagate
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+          let testUser;
+          try {
+            // Create user and document - ensure all async operations complete
+            testUser = await createTestUser(RoleEnum.user, 'fk-test');
             
-            // Verify document still exists (may need manager access)
-            const docResponse = await request(APP_URL)
-              .get(`/api/v1/documents/${documentId}`)
-              .auth(managerUser.token, { type: 'bearer' });
+            // Wait for user creation and any async operations to complete
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            
+            const pdfBuffer = readPdfFile(getTestPdfPath());
 
+            const uploadResponse = await request(APP_URL)
+              .post('/api/v1/documents/upload')
+              .auth(testUser.token, { type: 'bearer' })
+              .field('documentType', 'LAB_RESULT')
+              .attach('file', pdfBuffer, 'fk-test.pdf');
+
+            if (uploadResponse.status !== 201) {
+              console.warn('Skipping - document upload failed');
+              return;
+            }
+
+            const documentId = uploadResponse.body.id;
+            expect(uploadResponse.body.temporaryManagerId).toBe(testUser.id);
+
+            // Wait before deletion
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Delete user (soft delete)
+            const deleteResponse = await request(APP_URL)
+              .delete(`/api/v1/users/${testUser.id}`)
+              .auth(adminToken, { type: 'bearer' });
+
+            // User deletion should succeed
+            // FK constraint should set temporary_manager_id to NULL
             // Document should still exist
-            expect([200, 403, 404]).toContain(docResponse.status);
+            if (deleteResponse.status === 200 || deleteResponse.status === 204) {
+              // Wait for deletion to propagate
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              
+              // Verify document still exists (may need manager access)
+              const docResponse = await request(APP_URL)
+                .get(`/api/v1/documents/${documentId}`)
+                .auth(managerUser.token, { type: 'bearer' });
+
+              // Document should still exist
+              expect([200, 403, 404]).toContain(docResponse.status);
+            }
+          } finally {
+            // Ensure all async operations complete before test ends
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         },
-        15000, // 15 second timeout
+        30000, // 30 second timeout to allow for rate limiting retries
       );
     });
   });
