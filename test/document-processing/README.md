@@ -23,6 +23,16 @@ This directory contains comprehensive end-to-end tests for the document processi
 - Access grant scenarios
 - Endpoint validation and error handling
 
+### `temporary-manager.e2e-spec.ts`
+**Temporary Manager Support Feature tests:**
+- User upload without manager (becomes temporary manager)
+- Manager upload (unchanged behavior)
+- Temporary manager capabilities (OCR, grants, metadata)
+- Authority transfer (temporary to real manager)
+- Edge cases and security scenarios
+- Database constraints and validation
+- API schema validation
+
 ## Running the Tests
 
 ### Run all document processing tests:
