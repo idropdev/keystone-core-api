@@ -348,7 +348,8 @@ export class DocumentProcessingService {
         uploadedAt: document.uploadedAt,
         processedAt: document.processedAt,
         createdAt: document.createdAt,
-        originManagerId: document.originManagerId,
+        originManagerId: document.originManagerId ?? null,
+        temporaryManagerId: document.temporaryManagerId ?? null,
       },
       { excludeExtraneousValues: true },
     );
