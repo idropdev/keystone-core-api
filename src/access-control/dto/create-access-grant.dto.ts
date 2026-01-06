@@ -17,11 +17,11 @@ export class CreateAccessGrantDto {
   @IsNotEmpty()
   grantType: 'owner' | 'delegated' | 'derived';
 
+  // These fields are populated from the authenticated user context, not from the request
+  // They are optional in the DTO but will be set from the actor in the service layer
   @IsEnum(['user', 'manager'])
-  @IsNotEmpty()
-  grantedByType: 'user' | 'manager';
+  grantedByType?: 'user' | 'manager';
 
   @IsNumber()
-  @IsNotEmpty()
-  grantedById: number;
+  grantedById?: number;
 }
