@@ -249,22 +249,12 @@ export class DocumentProcessingDomainService {
         `Document uploaded: ${savedDocument.id} (actor: ${actor.type}:${actor.id}, originManager: ${originManagerId || 'none'}, temporaryManager: ${temporaryManagerId || 'none'})`,
       );
 
-      // 6. Automatically trigger OCR processing on upload (async, don't await)
-      // This ensures OCR happens immediately without requiring manual trigger
-      // Domain architecture: Processing is initiated automatically, maintaining role-based access control
+      // 6. Document is now in STORED state, ready for OCR processing
+      // OCR must be manually triggered via POST /v1/documents/:documentId/ocr/trigger
+      // This avoids overhead of automatic processing and maintains domain architecture
       this.logger.log(
-        `[AUTO-OCR] Automatically triggering OCR processing for document ${savedDocument.id} on upload`,
+        `Document ${savedDocument.id} uploaded and stored. OCR processing must be manually triggered by origin manager or temporary manager.`,
       );
-      this.startProcessing(
-        savedDocument.id,
-        gcsUri,
-        mimeType,
-        fileBuffer,
-      ).catch((error) => {
-        this.logger.error(
-          `[AUTO-OCR] Failed to start automatic OCR processing for document ${savedDocument.id}: ${error.message}`,
-        );
-      });
 
       return savedDocument;
     } catch (error) {
@@ -1688,12 +1678,11 @@ export class DocumentProcessingDomainService {
    * @throws BadRequestException if document state doesn't allow processing
    */
   /**
-   * Manually trigger OCR processing for a document (re-processing)
+   * Manually trigger OCR processing for a document
    *
-   * NOTE: OCR is automatically triggered on document upload. This endpoint is for:
-   * - Re-processing failed documents
-   * - Re-processing documents that need updated OCR results
-   * - Manual re-trigger by origin manager or temporary manager
+   * OCR processing is always manual - it must be explicitly triggered by the origin manager
+   * or temporary manager via this endpoint. This avoids overhead of automatic processing
+   * and maintains domain architecture with role-based access control.
    *
    * HIPAA Requirement: Only verified origin managers or temporary managers can trigger OCR
    */

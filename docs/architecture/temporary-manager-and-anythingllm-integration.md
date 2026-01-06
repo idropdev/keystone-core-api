@@ -8,13 +8,29 @@
 
 ## Table of Contents
 
-1. [System Architecture Overview](#system-architecture-overview)
-2. [Temporary Manager Upload Flow](#temporary-manager-upload-flow)
-3. [Manager Assignment & Authority Transfer](#manager-assignment--authority-transfer)
-4. [AnythingLLM User Provisioning Flow](#anythingllm-user-provisioning-flow)
-5. [Token Delegation Architecture](#token-delegation-architecture)
-6. [Document Access Control Flow](#document-access-control-flow)
-7. [Complete End-to-End Workflow](#complete-end-to-end-workflow)
+- [Table of Contents](#table-of-contents)
+- [System Architecture Overview](#system-architecture-overview)
+- [Temporary Manager Upload Flow](#temporary-manager-upload-flow)
+- [Manager Assignment \& Authority Transfer](#manager-assignment--authority-transfer)
+- [AnythingLLM User Provisioning Flow](#anythingllm-user-provisioning-flow)
+- [Token Delegation Architecture](#token-delegation-architecture)
+- [Document Access Control Flow](#document-access-control-flow)
+- [Complete End-to-End Workflow](#complete-end-to-end-workflow)
+- [Key Architectural Decisions](#key-architectural-decisions)
+  - [1. HS256 Delegated Tokens (Standardized)](#1-hs256-delegated-tokens-standardized)
+  - [2. Automatic OCR on Upload](#2-automatic-ocr-on-upload)
+  - [3. Temporary Manager Authority](#3-temporary-manager-authority)
+  - [4. Atomic Authority Transfer](#4-atomic-authority-transfer)
+  - [5. Asynchronous Provisioning](#5-asynchronous-provisioning)
+- [Security Considerations](#security-considerations)
+  - [Token Security](#token-security)
+  - [Access Control](#access-control)
+  - [Audit \& Compliance](#audit--compliance)
+- [Configuration Requirements](#configuration-requirements)
+  - [Environment Variables](#environment-variables)
+  - [Database Constraints](#database-constraints)
+- [Future Enhancements](#future-enhancements)
+- [References](#references)
 
 ---
 
@@ -188,26 +204,18 @@ sequenceDiagram
     DocService->>Audit: Log DOCUMENT_UPLOADED
     Audit->>DB: Store audit event
     
-    Note over DocService: Automatic OCR Trigger<br/>(Domain Service)
-    
-    DocService->>DocService: startProcessing()<br/>(async, automatic)
-    DocService->>DB: UPDATE status: PROCESSING
-    DocService->>DocAI: Process document<br/>(OCR extraction)
-    DocAI-->>DocService: OCR results
-    DocService->>DB: UPDATE status: PROCESSED<br/>Store OCR output
-    
-    DocService-->>API: Document created<br/>{ id: 123, temporaryManagerId: userId }
+    DocService-->>API: Document created<br/>{ id: 123, temporaryManagerId: userId, status: STORED }
     
     API-->>User: 201 Created<br/>{ document, temporaryManagerId }
     
-    Note over User,DB: User is now temporary manager<br/>OCR automatically triggered on upload
+    Note over User,DB: User is now temporary manager<br/>Document in STORED state<br/>OCR must be manually triggered
 ```
 
 **Key Points:**
 
 1. **User uploads without manager**: No `originManagerId` required
 2. **Temporary manager assignment**: `temporaryManagerId` is set to user's ID
-3. **Automatic OCR**: OCR is automatically triggered on upload (domain service handles this)
+3. **Manual OCR**: OCR must be manually triggered via trigger endpoint (avoids overhead)
 4. **Full authority**: User gets all origin manager capabilities (OCR, sharing, editing)
 5. **Owner grant**: Automatic owner grant created for the uploading user
 6. **Domain architecture**: Processing follows domain-driven design, maintaining role-based access control
@@ -575,20 +583,20 @@ sequenceDiagram
 - All provisioning operations use orchestrator with delegated tokens
 - No RS256 fallback paths
 
-### 2. Automatic OCR on Upload
+### 2. Manual OCR Trigger (Never Automatic)
 
-**Decision**: OCR is automatically triggered when a document is uploaded, without requiring manual intervention.
+**Decision**: OCR processing is always manual and must be explicitly triggered via the trigger endpoint. OCR is never automatic.
 
 **Rationale**:
-- Reduces overhead by eliminating need for manual trigger
-- Ensures all documents are processed immediately
+- Avoids overhead of automatic processing
+- Gives users control over when processing happens
 - Maintains domain architecture (processing handled by domain service)
-- Role-based access control is maintained (only authorized actors can upload)
+- Role-based access control is maintained (only origin manager or temporary manager can trigger)
 
 **Implementation**:
-- `uploadDocument()` automatically calls `startProcessing()` after file storage
-- Processing happens asynchronously (non-blocking)
-- Manual trigger endpoint available for re-processing failed documents
+- `uploadDocument()` stores document in STORED state (ready for processing)
+- OCR must be manually triggered via `POST /v1/documents/:documentId/ocr/trigger`
+- Only origin manager or temporary manager can trigger OCR
 - Domain service maintains control over processing flow
 
 ### 3. Temporary Manager Authority

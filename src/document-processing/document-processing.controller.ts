@@ -459,11 +459,11 @@ export class DocumentProcessingController {
   @Post(':documentId/ocr/trigger')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: 'Manually Trigger OCR Processing (Re-processing)',
+    summary: 'Trigger OCR Processing (Manual)',
     description:
-      'Manually trigger OCR processing for a document. NOTE: OCR is automatically triggered when a document is uploaded. ' +
-      'This endpoint is for re-processing failed documents or documents that need updated OCR results. ' +
-      'Only the origin manager or temporary manager can trigger OCR. Document must be in STORED, PROCESSED, or FAILED state.',
+      'Manually trigger OCR processing for a document. OCR processing is always manual and must be explicitly triggered ' +
+      'by the origin manager or temporary manager. This avoids overhead of automatic processing. ' +
+      'Document must be in STORED, PROCESSED, or FAILED state.',
   })
   @ApiParam({
     name: 'documentId',
