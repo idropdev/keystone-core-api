@@ -1,5 +1,5 @@
 import * as path from 'path';
-import request from 'supertest';
+import request, { Response } from 'supertest';
 import { APP_URL } from '../utils/constants';
 import {
   createTestUser,
@@ -474,7 +474,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
     describe('Test 5.1 - Multiple Rapid Uploads', () => {
       it('should handle multiple rapid uploads correctly', async () => {
         const pdfBuffer = readPdfFile(getTestPdfPath());
-        const uploads = [];
+        const uploads: Promise<Response>[] = [];
 
         // Upload 3 documents rapidly
         for (let i = 0; i < 3; i++) {
@@ -490,7 +490,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
 
         const responses = await Promise.all(uploads);
 
-        responses.forEach((response, index) => {
+        responses.forEach((response) => {
           expect(response.status).toBe(201);
           expect(response.body).toHaveProperty('temporaryManagerId', regularUser.id);
           expect(response.body.originManagerId).toBeNull();
