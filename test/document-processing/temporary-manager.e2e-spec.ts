@@ -906,11 +906,11 @@ describe('Temporary Manager Support Feature (E2E)', () => {
               expect([200, 403, 404]).toContain(docResponse.status);
             }
           } finally {
-            // Ensure all async operations complete before test ends
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Ensure all async operations complete before test ends (including retries)
+            await new Promise((resolve) => setTimeout(resolve, 5000));
           }
         },
-        30000, // 30 second timeout to allow for rate limiting retries
+        60000, // 60 second timeout to allow for rate limiting retries
       );
     });
   });
