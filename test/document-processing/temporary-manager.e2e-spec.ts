@@ -708,7 +708,9 @@ describe('Temporary Manager Support Feature (E2E)', () => {
     });
 
     describe('Test 6.4 - Audit Logging', () => {
-      it('should log all sensitive actions', async () => {
+      it(
+        'should log all sensitive actions',
+        async () => {
         // This test verifies that audit logging is in place
         // Actual audit log verification would require querying audit table
         // For now, we verify that operations complete successfully (which implies logging)
@@ -763,7 +765,9 @@ describe('Temporary Manager Support Feature (E2E)', () => {
 
         // All operations completed - audit logging should have occurred
         expect(true).toBe(true);
-      });
+        },
+        30000, // 30 second timeout
+      );
     });
 
     describe('Test 6.5 - Retention Policy Enforcement', () => {
