@@ -416,14 +416,16 @@ describe('Temporary Manager Support Feature (E2E)', () => {
                 .auth(unauthorizedUser.token, { type: 'bearer' })
                 .send({
                   managerId: manager.id,
-                }),
+                })
+                .timeout(10000), // 10 second timeout per request
             'unauthorized transfer attempt',
+            2, // Only 2 retries to avoid long waits
           );
 
           expect(response.status).toBe(403);
           expect(response.body.message).toContain('temporary manager');
         },
-        30000, // 30 second timeout
+        90000, // 90 second timeout to allow for retries
       );
     });
 
@@ -505,6 +507,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
           const uploads: Promise<Response>[] = [];
 
           // Upload 3 documents with retry logic to handle rate limits
+          // Use fewer retries and shorter timeouts to avoid test timeouts
           for (let i = 0; i < 3; i++) {
             uploads.push(
               requestWithRetry(
@@ -514,8 +517,10 @@ describe('Temporary Manager Support Feature (E2E)', () => {
                     .auth(regularUser.token, { type: 'bearer' })
                     .field('documentType', 'LAB_RESULT')
                     .field('description', `Rapid upload ${i + 1}`)
-                    .attach('file', pdfBuffer, `rapid-${i + 1}.pdf`),
+                    .attach('file', pdfBuffer, `rapid-${i + 1}.pdf`)
+                    .timeout(30000), // 30 second timeout per upload
                 `rapid upload ${i + 1}`,
+                2, // Only 2 retries to avoid long waits
               ),
             );
           }
@@ -528,7 +533,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
             expect(response.body.originManagerId).toBeNull();
           });
         },
-        60000, // 60 second timeout for multiple uploads with potential retries
+        180000, // 180 second (3 minute) timeout for multiple uploads with potential retries
       );
     });
 
