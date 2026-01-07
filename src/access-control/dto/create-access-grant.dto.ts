@@ -1,4 +1,10 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsUUID } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateAccessGrantDto {
   @IsUUID()
@@ -19,9 +25,12 @@ export class CreateAccessGrantDto {
 
   // These fields are populated from the authenticated user context, not from the request
   // They are optional in the DTO but will be set from the actor in the service layer
+  // @IsOptional() ensures validation is skipped when these fields are not provided
+  @IsOptional()
   @IsEnum(['user', 'manager'])
   grantedByType?: 'user' | 'manager';
 
+  @IsOptional()
   @IsNumber()
   grantedById?: number;
 }
