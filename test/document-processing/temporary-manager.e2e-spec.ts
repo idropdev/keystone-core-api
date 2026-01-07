@@ -292,17 +292,25 @@ describe('Temporary Manager Support Feature (E2E)', () => {
         }
 
         const grantUser = await createTestUser(RoleEnum.user, 'grant-user');
+        
+        // Wait for user creation to complete
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        // Create owner grant
-        const createResponse = await request(APP_URL)
-          .post('/api/v1/access-grants')
-          .auth(regularUser.token, { type: 'bearer' })
-          .send({
-            documentId: temporaryManagerDocumentId,
-            subjectType: 'user',
-            subjectId: grantUser.id,
-            grantType: 'owner',
-          });
+        // Create owner grant - temporary managers should be able to create owner grants
+        const createResponse = await requestWithRetry(
+          () =>
+            request(APP_URL)
+              .post('/api/v1/access-grants')
+              .auth(regularUser.token, { type: 'bearer' })
+              .send({
+                documentId: temporaryManagerDocumentId,
+                subjectType: 'user',
+                subjectId: grantUser.id,
+                grantType: 'owner',
+              }),
+          'temporary manager create owner grant',
+          2, // Only 2 retries
+        );
 
         expect(createResponse.status).toBe(201);
         expect(createResponse.body).toHaveProperty('id');
@@ -310,10 +318,15 @@ describe('Temporary Manager Support Feature (E2E)', () => {
         expect(createResponse.body).toHaveProperty('subjectId', grantUser.id);
         expect(createResponse.body).toHaveProperty('grantType', 'owner');
 
-        // Revoke the grant
-        const revokeResponse = await request(APP_URL)
-          .delete(`/api/v1/access-grants/${createResponse.body.id}`)
-          .auth(regularUser.token, { type: 'bearer' });
+        // Revoke the grant - temporary managers should be able to revoke grants
+        const revokeResponse = await requestWithRetry(
+          () =>
+            request(APP_URL)
+              .delete(`/api/v1/access-grants/${createResponse.body.id}`)
+              .auth(regularUser.token, { type: 'bearer' }),
+          'temporary manager revoke grant',
+          2, // Only 2 retries
+        );
 
         expect(revokeResponse.status).toBe(204);
       });

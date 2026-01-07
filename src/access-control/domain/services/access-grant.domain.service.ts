@@ -107,8 +107,11 @@ export class AccessGrantDomainService {
    *
    * Validation:
    * - Document must exist
-   * - Grantor must have authority (origin manager or user with delegated grant)
-   * - Subject cannot be origin manager (they have implicit access)
+   * - Grantor must have authority:
+   *   - Origin manager: can create any grant (owner, delegated, derived)
+   *   - Temporary manager: can create any grant (owner, delegated, derived)
+   *   - Users with delegated grants: can create derived grants
+   * - Subject cannot be origin manager or temporary manager (they have implicit access)
    *
    * @param dto - Grant creation data
    * @param grantor - Actor creating the grant
@@ -126,6 +129,7 @@ export class AccessGrantDomainService {
 
     // 2. Validate grantor has authority
     // Origin manager can create any grant
+    // Temporary manager can create any grant (same authority as origin manager)
     // Users with delegated grants can create derived grants
     const grantorHasAccess = await this.hasAccess(
       dto.documentId,
