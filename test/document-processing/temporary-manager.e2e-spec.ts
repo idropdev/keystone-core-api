@@ -285,7 +285,9 @@ describe('Temporary Manager Support Feature (E2E)', () => {
     });
 
     describe('Test 3.4 - Temporary Manager Can Create/Revoke Grants', () => {
-      it('should allow temporary manager to create access grants', async () => {
+      it(
+        'should allow temporary manager to create access grants',
+        async () => {
         if (!temporaryManagerDocumentId) {
           console.warn('Skipping grant creation test - no temporary manager document');
           return;
@@ -329,29 +331,51 @@ describe('Temporary Manager Support Feature (E2E)', () => {
         );
 
         expect(revokeResponse.status).toBe(204);
-      });
+        
+        // Wait for all async operations to complete
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        },
+        90000, // 90 second timeout to allow for retries
+      );
     });
 
     describe('Test 3.5 - Temporary Manager Cannot Create Grant for Themselves', () => {
-      it('should reject grant creation for temporary manager themselves', async () => {
+      it(
+        'should reject grant creation for temporary manager themselves',
+        async () => {
         if (!temporaryManagerDocumentId) {
           console.warn('Skipping self-grant test - no temporary manager document');
           return;
         }
 
-        const response = await request(APP_URL)
-          .post('/api/v1/access-grants')
-          .auth(regularUser.token, { type: 'bearer' })
-          .send({
-            documentId: temporaryManagerDocumentId,
-            subjectType: 'user',
-            subjectId: regularUser.id, // Trying to grant to themselves
-            grantType: 'owner',
-          });
+        const response = await requestWithRetry(
+          () =>
+            request(APP_URL)
+              .post('/api/v1/access-grants')
+              .auth(regularUser.token, { type: 'bearer' })
+              .send({
+                documentId: temporaryManagerDocumentId,
+                subjectType: 'user',
+                subjectId: regularUser.id, // Trying to grant to themselves
+                grantType: 'owner',
+              }),
+          'temporary manager create grant for themselves (should fail)',
+          2, // Only 2 retries
+        );
 
         expect(response.status).toBe(400);
-        expect(response.body.message).toContain('temporary manager');
-      });
+        // NestJS validation errors can have different structures
+        const errorMessage =
+          response.body.message ||
+          response.body.errors?.subjectId ||
+          JSON.stringify(response.body);
+        expect(errorMessage).toContain('temporary manager');
+        
+        // Wait for all async operations to complete
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        },
+        60000, // 60 second timeout
+      );
     });
   });
 
@@ -992,10 +1016,11 @@ describe('Temporary Manager Support Feature (E2E)', () => {
             }
           } finally {
             // Ensure all async operations complete before test ends (including retries)
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            // User deletion may trigger AnythingLLM calls that take time
+            await new Promise((resolve) => setTimeout(resolve, 10000));
           }
         },
-        60000, // 60 second timeout to allow for rate limiting retries
+        120000, // 120 second (2 minute) timeout to allow for user deletion and retries
       );
     });
   });
