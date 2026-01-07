@@ -907,25 +907,42 @@ describe('Temporary Manager Support Feature (E2E)', () => {
             // Wait before deletion
             await new Promise((resolve) => setTimeout(resolve, 1000));
 
-            // Delete user (soft delete)
-            const deleteResponse = await request(APP_URL)
-              .delete(`/api/v1/users/${testUser.id}`)
-              .auth(adminToken, { type: 'bearer' });
+            // Delete user (soft delete) with timeout and retry
+            // Note: User deletion may call AnythingLLM which could be slow
+            const deleteResponse = await requestWithRetry(
+              () =>
+                request(APP_URL)
+                  .delete(`/api/v1/users/${testUser.id}`)
+                  .auth(adminToken, { type: 'bearer' })
+                  .timeout(30000), // 30 second timeout for delete request
+              'user deletion',
+              3, // Only 3 retries for deletion
+            );
 
             // User deletion should succeed
             // FK constraint should set temporary_manager_id to NULL
             // Document should still exist
-            if (deleteResponse.status === 200 || deleteResponse.status === 204) {
-              // Wait for deletion to propagate
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-              
-              // Verify document still exists (may need manager access)
-              const docResponse = await request(APP_URL)
-                .get(`/api/v1/documents/${documentId}`)
-                .auth(managerUser.token, { type: 'bearer' });
+            expect([200, 204]).toContain(deleteResponse.status);
+            
+            // Wait for deletion to propagate and FK constraint to apply
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            
+            // Verify document still exists (may need manager access)
+            // After user deletion, temporary_manager_id should be NULL due to FK constraint
+            const docResponse = await requestWithRetry(
+              () =>
+                request(APP_URL)
+                  .get(`/api/v1/documents/${documentId}`)
+                  .auth(managerUser.token, { type: 'bearer' }),
+              'document retrieval after user deletion',
+            );
 
-              // Document should still exist
-              expect([200, 403, 404]).toContain(docResponse.status);
+            // Document should still exist (FK constraint sets temporary_manager_id to NULL, not delete)
+            expect([200, 403, 404]).toContain(docResponse.status);
+            
+            // If we can access the document, verify temporary_manager_id is NULL
+            if (docResponse.status === 200) {
+              expect(docResponse.body.temporaryManagerId).toBeNull();
             }
           } finally {
             // Ensure all async operations complete before test ends (including retries)
