@@ -4,6 +4,7 @@ import { AnythingLLMAdminController } from './anythingllm-admin.controller';
 import { AnythingLLMAdminService } from './anythingllm-admin.service';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
 import { ServiceIdentityGuard } from '../guards/service-identity.guard';
+import { AnythingLLMOrchestratorModule } from '../../anythingllm-orchestrator/module';
 
 /**
  * AnythingLLM Admin Module
@@ -12,7 +13,7 @@ import { ServiceIdentityGuard } from '../guards/service-identity.guard';
  * All endpoints require service identity authentication.
  */
 @Module({
-  imports: [AnythingLLMModule],
+  imports: [AnythingLLMModule, AnythingLLMOrchestratorModule],
   controllers: [AnythingLLMAdminController],
   providers: [
     AnythingLLMAdminService,

@@ -116,6 +116,7 @@ export class AnythingLLMClientService {
       // REMOVED: Header logging for HIPAA compliance
       // Headers should not be logged in production
 
+      
       // Make request with headers
       const response = await fetch(url, {
         ...options,

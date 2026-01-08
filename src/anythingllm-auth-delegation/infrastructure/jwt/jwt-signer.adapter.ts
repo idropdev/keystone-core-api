@@ -36,6 +36,23 @@ export class JwtSignerAdapter implements JwtSignerPort {
         } else if (!token) {
           reject(new Error('Token signing returned undefined'));
         } else {
+          // Verify the token was signed with HS256 by decoding header
+          try {
+            const decoded = jwt.decode(token, { complete: true }) as any;
+            if (decoded?.header?.alg !== 'HS256') {
+              reject(
+                new Error(
+                  `Token was signed with algorithm ${decoded?.header?.alg} but expected HS256. This is a critical error - check that secret is not an RSA key and algorithm is explicitly set.`,
+                ),
+              );
+              return;
+            }
+          } catch (decodeErr) {
+            // If we can't decode, log warning but don't fail (token might still be valid)
+            console.warn(
+              'Warning: Could not verify token algorithm after signing',
+            );
+          }
           resolve(token);
         }
       });

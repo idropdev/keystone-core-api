@@ -106,7 +106,10 @@ export class AnythingLLMAdminController {
   }
 
   @Get('users/external/:externalId')
-  @ApiOperation({ summary: 'Get user by external ID' })
+  @ApiOperation({ 
+    summary: 'Get user by external ID',
+    description: 'Look up a user by their external identity (externalId + externalProvider). Uses delegated tokens (HS256) for AnythingLLM authentication.',
+  })
   @ApiParam({ name: 'externalId', type: String, description: 'External user ID (e.g., Keystone UUID)' })
   @ApiQuery({ name: 'provider', required: false, type: String, description: 'External provider (default: keystone)', example: 'keystone' })
   @ApiResponse({
@@ -115,8 +118,20 @@ export class AnythingLLMAdminController {
     type: CreateUserResponseSchema,
   })
   @ApiResponse({
+    status: 401,
+    description: 'Unauthorized (invalid service identity)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden',
+  })
+  @ApiResponse({
     status: 404,
-    description: 'User not found',
+    description: 'User not found with the given external identity',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal Server Error',
   })
   async getUserByExternalId(
     @Param('externalId') externalId: string,

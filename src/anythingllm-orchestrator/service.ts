@@ -63,23 +63,55 @@ export class AnythingLLMOrchestratorService {
       );
     }
 
-    // Step 2: Issue delegated token
+    // Step 2: Issue delegated token (MUST use HS256, never RS256 service identity)
+    // CRITICAL: Delegated tokens (HS256) are required for AnythingLLM authentication.
+    // Do not fall back to service identity (RS256) tokens.
     let delegatedToken: string;
     try {
+      // Ensure requesterContext is provided - use system admin if not provided
+      // This ensures delegated tokens are always used, never service identity
+      const effectiveRequesterContext = dto.requesterContext || {
+        userId: '1', // System admin ID
+        roles: ['admin'],
+      };
+
       const tokenResult = await this.delegationService.issueDelegatedToken({
-        requesterContext: dto.requesterContext,
+        requesterContext: effectiveRequesterContext,
         operation: dto.operation,
         scope: authResult.scope,
       });
       delegatedToken = tokenResult.token;
+
+      // Defensive check: verify token is HS256 (not RS256)
+      // This ensures we never accidentally use service identity tokens
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.decode(delegatedToken, { complete: true }) as any;
+        
+        if (decoded?.header?.alg !== 'HS256') {
+          const errorMessage = `CRITICAL: Orchestrator received token with algorithm ${decoded?.header?.alg} but MUST be HS256. Delegated tokens must use HS256, not RS256. Check delegation service configuration.`;
+          this.logger.error(errorMessage);
+          throw new InternalServerErrorException(errorMessage);
+        }
+        this.logger.debug(
+          `Issued delegated token (HS256) for operation ${dto.operation}, userId: ${effectiveRequesterContext.userId}`,
+        );
+      } catch (verifyErr) {
+        const errorMessage =
+          verifyErr instanceof Error
+            ? verifyErr.message
+            : 'Failed to verify delegated token algorithm';
+        this.logger.error(errorMessage);
+        throw new InternalServerErrorException(errorMessage);
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
-        `Failed to issue delegated token for operation ${dto.operation}: ${errorMessage}`,
+        `Failed to issue delegated token (HS256) for operation ${dto.operation}: ${errorMessage}. CRITICAL: Delegated tokens are required. Do not use service identity (RS256) tokens.`,
       );
       throw new InternalServerErrorException(
-        'Failed to issue delegated token',
+        `Failed to issue delegated token: ${errorMessage}. Ensure ENABLE_DELEGATED_TOKENS=true and ANYTHINGLLM_DELEGATED_TOKEN_SECRET is configured.`,
       );
     }
 

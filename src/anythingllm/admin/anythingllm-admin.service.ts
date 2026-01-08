@@ -23,20 +23,30 @@ import {
   UpdatePreferencesRequestSchema,
   UpdatePreferencesResponseSchema,
 } from '../registry/schemas';
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
+import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
+import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
+import { UpstreamError } from '../registry/upstream-error';
 
 /**
  * AnythingLLM Admin Service
  *
  * Provides typed methods for all AnythingLLM admin operations.
- * Uses the registry client for consistent request handling and error normalization.
+ * CRITICAL: All operations MUST use delegated tokens (HS256) via orchestrator.
+ * NEVER use service identity (RS256) tokens.
  *
  * HIPAA Compliance: Never logs tokens or sensitive authentication data.
  */
 @Injectable()
 export class AnythingLLMAdminService {
   private readonly logger = new Logger(AnythingLLMAdminService.name);
+  // System admin ID for service-initiated operations (when no user context available)
+  private readonly SYSTEM_ADMIN_ID = 1;
 
-  constructor(private readonly registryClient: AnythingLLMRegistryClient) {}
+  constructor(
+    private readonly registryClient: AnythingLLMRegistryClient,
+    private readonly orchestratorService: AnythingLLMOrchestratorService,
+  ) {}
 
   // ============================================================
   // System Status
@@ -68,18 +78,82 @@ export class AnythingLLMAdminService {
 
   /**
    * Get user by external ID and provider
+   *
+   * CRITICAL: Uses delegated tokens (HS256) via orchestrator - NEVER service identity (RS256).
+   * If no requesterContext provided, uses system admin (ID: 1) for delegated token context.
+   *
+   * @param externalId - External user ID (e.g., Keystone UUID)
+   * @param provider - External provider (default: keystone)
+   * @param requesterContext - Optional requester context for delegated token (falls back to system admin)
+   * @returns User response from AnythingLLM
    */
   async getUserByExternalId(
     externalId: string,
     provider: string = 'keystone',
+    requesterContext?: RequesterContextDto,
   ): Promise<RegistryCallResult<CreateUserResponseSchema>> {
-    return this.registryClient.call<CreateUserResponseSchema>(
-      AnythingLLMAdminEndpointIds.GET_USER_BY_EXTERNAL_ID,
-      {
-        params: { externalId },
-        query: { provider },
-      },
-    );
+    // Always use delegated tokens (HS256) with admin context via orchestrator
+    // If no requesterContext provided, use system admin ID
+    const effectiveRequesterContext: RequesterContextDto = requesterContext || {
+      userId: String(this.SYSTEM_ADMIN_ID),
+      roles: ['admin'],
+    };
+
+    const endpoint = `/v1/admin/users/external/${externalId}${provider ? `?provider=${provider}` : ''}`;
+
+    try {
+      const response = await this.orchestratorService.executeOperation({
+        requesterContext: effectiveRequesterContext,
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        endpoint,
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        // Extract request ID from response headers
+        const requestId = response.headers.get('X-Request-Id') || 'unknown';
+        
+        // Parse error body
+        const body = await response.text();
+        throw await UpstreamError.fromResponse(
+          response,
+          requestId,
+          endpoint,
+          null,
+        );
+      }
+
+      // Parse response
+      const data = (await response.json()) as CreateUserResponseSchema;
+
+      // Extract request ID for return value
+      const requestId = response.headers.get('X-Request-Id') || 'unknown';
+
+      return {
+        data,
+        requestId,
+        status: response.status,
+      };
+    } catch (error) {
+      // Re-throw UpstreamError as-is
+      if (error instanceof UpstreamError) {
+        throw error;
+      }
+
+      // Wrap other errors as UpstreamError
+      const upstreamError = UpstreamError.fromNetworkError(
+        error instanceof Error ? error : new Error(String(error)),
+        'unknown',
+        endpoint,
+        null,
+      );
+
+      this.logger.error(
+        `Failed to get user by external ID ${externalId} (provider: ${provider}): ${upstreamError.message}`,
+      );
+
+      throw upstreamError;
+    }
   }
 
   /**

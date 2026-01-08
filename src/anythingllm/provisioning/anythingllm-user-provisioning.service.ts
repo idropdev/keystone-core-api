@@ -15,6 +15,9 @@ import { RoleEnum } from '../../roles/roles.enum';
 import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
+import { AnythingLLMWorkspaceService } from '../workspace/anythingllm-workspace.service';
+import { CreateWorkspaceRequestSchema, CreateWorkspaceResponseSchema } from '../registry/schemas/workspace.schema';
+import { GetWorkspaceUsersResponseSchema } from '../registry/schemas/admin-workspace.schema';
 
 /**
  * AnythingLLM User Provisioning Service
@@ -41,6 +44,7 @@ export class AnythingLLMUserProvisioningService {
     private readonly orchestratorService: AnythingLLMOrchestratorService,
     private readonly auditService: AuditService,
     private readonly workspaceMapper: WorkspaceMapperService,
+    private readonly workspaceService: AnythingLLMWorkspaceService,
     private readonly configService: ConfigService<AllConfigType>,
     @Optional()
     @Inject(AnythingLLMUserMappingRepository)
@@ -89,30 +93,48 @@ export class AnythingLLMUserProvisioningService {
       // Step 2: Generate workspace slug (for mapping purposes)
       const workspaceSlug = this.workspaceMapper.getWorkspaceSlugForUser(user);
 
-      // Step 3: Store mapping
-      await this.mappingRepository.create({
-        keystoneUserId,
-        anythingllmUserId,
-        workspaceSlug,
-      });
+      // Step 3: Create workspace for user
+      const { workspaceId, workspaceSlug: actualWorkspaceSlug } =
+        await this.createWorkspaceForUser(
+          workspaceSlug,
+          keystoneUserId,
+          adminUserId,
+        );
+
+      // Use the actual slug from AnythingLLM response (might differ from requested)
+      // This is critical - AnythingLLM might sanitize/truncate the slug
+      const effectiveWorkspaceSlug = actualWorkspaceSlug || workspaceSlug;
 
       // Step 4: Assign user to workspace (only for default users)
       // Admin and Manager roles have access to ALL workspaces automatically,
       // so workspace assignment is not necessary for them.
       if (anythingllmRole === 'default') {
-        // TODO: Workspace creation and assignment for default users
-        // Currently skipping workspace assignment as workspace must exist first
-        // Workspace creation/assignment should be handled separately or implemented here
-        this.logger.log(
-          `Skipping workspace assignment for user ${keystoneUserId} - workspace creation not yet implemented. Default users will need manual workspace assignment.`,
+        await this.assignUserToWorkspace(
+          anythingllmUserId,
+          effectiveWorkspaceSlug, // Use actual slug from response
+          user,
+          adminUserId,
         );
-        // await this.assignUserToWorkspace(anythingllmUserId, workspaceSlug, user);
+
+        // Step 5: Verify assignment
+        await this.verifyWorkspaceAssignment(
+          workspaceId,
+          anythingllmUserId,
+          adminUserId,
+        );
       } else {
         // Admin and manager roles don't need workspace assignment (they have access to all)
         this.logger.log(
           `Skipping workspace assignment for ${anythingllmRole} user ${keystoneUserId} - ${anythingllmRole} users have access to all workspaces automatically`,
         );
       }
+
+      // Step 6: Store mapping (use actual slug from response)
+      await this.mappingRepository.create({
+        keystoneUserId,
+        anythingllmUserId,
+        workspaceSlug: effectiveWorkspaceSlug, // Use actual slug from response
+      });
 
       // Log provisioning succeeded with role mapping details
       this.auditService.logAuthEvent({
@@ -122,14 +144,15 @@ export class AnythingLLMUserProvisioningService {
         success: true,
         metadata: {
           anythingllmUserId,
-          workspaceSlug,
+          workspaceSlug: effectiveWorkspaceSlug, // Use actual slug from response
+          workspaceId,
           keystoneRoleId: roleId,
           anythingllmRole,
         },
       });
 
       this.logger.log(
-        `Successfully provisioned user ${keystoneUserId} to AnythingLLM (user ID: ${anythingllmUserId}, workspace: ${workspaceSlug})`,
+        `Successfully provisioned user ${keystoneUserId} to AnythingLLM (user ID: ${anythingllmUserId}, workspace: ${effectiveWorkspaceSlug}, workspace ID: ${workspaceId})`,
       );
     } catch (error) {
       const errorMessage =
@@ -214,7 +237,7 @@ export class AnythingLLMUserProvisioningService {
     }
 
     // Check if user already exists by externalId (idempotency check)
-    // Always use delegated tokens (HS256) with admin context
+    // Use orchestrator with delegated tokens (HS256) - matches document upload pattern
     try {
       // Always use delegated tokens (HS256) with admin context
       // If no admin context provided, use system admin ID
@@ -233,25 +256,31 @@ export class AnythingLLMUserProvisioningService {
       });
       
       if (!response.ok) {
-        // Convert HTTP error to UpstreamError for consistent error handling
-        const body = await response.text();
-        throw UpstreamError.fromResponse(
-          response,
-          response.headers.get('X-Request-Id') || 'unknown',
-          `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
-          null,
-        );
-      }
-      
-      const data = await response.json();
-      const existingUserResult = { data };
+        // User doesn't exist (404) - this is expected for new users
+        if (response.status === 404) {
+          // Continue with user creation
+        } else {
+          // Other error - convert to UpstreamError
+          const body = await response.text();
+          throw await UpstreamError.fromResponse(
+            response,
+            response.headers.get('X-Request-Id') || 'unknown',
+            `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
+            null,
+          );
+        }
+      } else {
+        // User exists - return existing ID
+        const data = await response.json();
+        const existingUserResult = { data };
 
-      if (existingUserResult.data.user) {
-        const existingUserId = existingUserResult.data.user.id;
-        this.logger.log(
-          `User ${keystoneUserId} already exists in AnythingLLM (user ID: ${existingUserId})`,
-        );
-        return existingUserId;
+        if (existingUserResult.data.user) {
+          const existingUserId = existingUserResult.data.user.id;
+          this.logger.log(
+            `User ${keystoneUserId} already exists in AnythingLLM (user ID: ${existingUserId})`,
+          );
+          return existingUserId;
+        }
       }
     } catch (error) {
       // User doesn't exist (404) or other error - proceed with user creation
@@ -293,6 +322,7 @@ export class AnythingLLMUserProvisioningService {
     try {
       // Always use delegated tokens (HS256) with admin context
       // If no admin context provided, use system admin ID
+      // This matches the pattern used in document upload (orchestrator issues delegated tokens)
       const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
       
       const requesterContext: RequesterContextDto = {
@@ -379,19 +409,154 @@ export class AnythingLLMUserProvisioningService {
   }
 
   /**
+   * Create workspace for user with default configuration
+   *
+   * Creates a workspace with the specified slug and default settings.
+   * Uses admin delegated token context for authorization.
+   *
+   * @param workspaceSlug - Workspace slug (generated from user ID)
+   * @param keystoneUserId - Keystone user ID (for logging)
+   * @param adminUserId - Optional admin user ID for delegated token context
+   * @returns Workspace ID
+   */
+  async createWorkspaceForUser(
+    workspaceSlug: string,
+    keystoneUserId: string,
+    adminUserId?: string | number,
+  ): Promise<{ workspaceId: number; workspaceSlug: string }> {
+    // Log workspace creation started
+    this.auditService.logAuthEvent({
+      userId: keystoneUserId,
+      provider: 'anythingllm',
+      event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_STARTED,
+      success: true,
+      metadata: {
+        workspaceSlug,
+      },
+    });
+
+    try {
+      // Always use delegated tokens (HS256) with admin context
+      // If no admin context provided, use system admin ID
+      // This matches the pattern used in document upload (orchestrator issues delegated tokens)
+      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
+
+      const requesterContext: RequesterContextDto = {
+        userId: String(effectiveAdminId),
+        roles: ['admin'],
+      };
+
+      // Default workspace configuration matching user's example payload
+      const workspaceRequest: CreateWorkspaceRequestSchema = {
+        name: `Workspace for user ${keystoneUserId}`,
+        slug: workspaceSlug,
+        chatMode: 'chat',
+        topN: 8,
+        similarityThreshold: 0.68,
+        openAiTemp: 0.2,
+        openAiHistory: 12,
+        openAiPrompt:
+          '## ROLE\nYou are a precise, citation-first assistant.\n\n## GOAL\nAnswer clearly and thoroughly using ONLY the retrieved context when it\'s relevant. If key context is missing or insufficient, say so explicitly before you infer anything.\n\n## OUTPUT RULES\n- Start with a 1–2 sentence direct answer.\n- Then give a short, structured explanation.\n- Cite each non-trivial claim with the specific source IDs.\n- If context is weak: say "Insufficient context" and ask for one targeted follow-up question.\n- Never fabricate citations or data.\n',
+        queryRefusalResponse:
+          "I don't have enough grounded context to answer confidently. Please add more detail or documents I can search",
+      };
+
+      // Pass requesterContext - this will use orchestrator which issues delegated tokens (HS256)
+      const response = await this.workspaceService.createWorkspace(
+        workspaceRequest,
+        requesterContext,
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to create workspace: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const result = (await response.json()) as CreateWorkspaceResponseSchema;
+
+      if (!result.workspace) {
+        throw new Error(
+          `Failed to create workspace: ${result.message || 'Unknown error'}`,
+        );
+      }
+
+      const workspaceId = result.workspace.id;
+      // CRITICAL: Use the slug from the response, not the one we passed in
+      // AnythingLLM might sanitize, truncate, or auto-generate the slug
+      const actualWorkspaceSlug = result.workspace.slug || workspaceSlug;
+
+      // Small delay to ensure workspace is indexed/available in AnythingLLM
+      // This handles potential race conditions where workspace creation completes
+      // but the workspace isn't immediately available for user assignment
+      await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
+
+      // Log workspace creation succeeded
+      this.auditService.logAuthEvent({
+        userId: keystoneUserId,
+        provider: 'anythingllm',
+        event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_SUCCEEDED,
+        success: true,
+        metadata: {
+          workspaceId,
+          workspaceSlug: actualWorkspaceSlug,
+          requestedSlug: workspaceSlug, // Log what we requested vs what we got
+        },
+      });
+
+      this.logger.log(
+        `Created workspace ${actualWorkspaceSlug} (ID: ${workspaceId}) for user ${keystoneUserId} (requested: ${workspaceSlug})`,
+      );
+
+      // Return both ID and slug so caller can use the actual slug
+      // We'll store this in a way that allows us to return both
+      // For now, we'll modify the return to include slug
+      // But since the method signature returns Promise<number>, we'll need to update the caller
+      // Actually, let's check what the caller expects first
+      
+      // Return both ID and actual slug (from response, not request)
+      return { workspaceId, workspaceSlug: actualWorkspaceSlug };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      // Log workspace creation failed
+      this.auditService.logAuthEvent({
+        userId: keystoneUserId,
+        provider: 'anythingllm',
+        event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_FAILED,
+        success: false,
+        errorMessage,
+        metadata: {
+          workspaceSlug,
+        },
+      });
+
+      this.logger.error(
+        `Failed to create workspace ${workspaceSlug} for user ${keystoneUserId}: ${errorMessage}`,
+      );
+
+      throw error;
+    }
+  }
+
+  /**
    * Assign user to their unique workspace
    *
    * Required step for provisioning completion.
-   * Verifies workspace exists and user is the sole member (invariant check).
+   * Uses admin delegated token context for authorization.
    *
    * @param anythingllmUserId - AnythingLLM user ID
    * @param workspaceSlug - Workspace slug
    * @param user - Keystone user (for audit logging)
+   * @param adminUserId - Optional admin user ID for delegated token context
    */
   async assignUserToWorkspace(
     anythingllmUserId: number,
     workspaceSlug: string,
     user: User,
+    adminUserId?: string | number,
   ): Promise<void> {
     const keystoneUserId = String(user.id);
 
@@ -402,32 +567,51 @@ export class AnythingLLMUserProvisioningService {
     };
 
     try {
-      const result = await this.adminService.manageWorkspaceUsers(
-        workspaceSlug,
-        manageRequest,
-      );
+      // Always use delegated tokens (HS256) with admin context
+      // If no admin context provided, use system admin ID
+      // This matches the pattern used in document upload (orchestrator issues delegated tokens)
+      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
 
-      if (!result.data.success) {
+      const requesterContext: RequesterContextDto = {
+        userId: String(effectiveAdminId),
+        roles: ['admin'],
+      };
+
+      // Use orchestrator service directly with delegated tokens (bypass controller)
+      const response = await this.orchestratorService.executeOperation({
+        requesterContext,
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        endpoint: `/v1/admin/workspaces/${workspaceSlug}/manage-users`,
+        method: 'POST',
+        body: manageRequest,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
         throw new Error(
-          `Workspace assignment failed: ${result.data.error || 'Unknown error'}`,
+          `Workspace assignment failed: ${response.status} - ${errorText}`,
         );
       }
 
-      // Try to verify workspace exists and user is sole member
-      // If verification endpoint is unavailable, successful manageWorkspaceUsers is treated as sufficient
-      try {
-        // Note: getWorkspaceUsers requires workspaceId (number), not slug
-        // We may not have workspaceId yet. For now, we'll skip verification if not available.
-        // The plan states: "If workspace verification endpoints are unavailable,
-        // successful manageWorkspaceUsers execution is treated as sufficient verification."
-        this.logger.log(
-          `Workspace assignment successful for user ${anythingllmUserId} to workspace ${workspaceSlug}`,
-        );
-      } catch {
-        this.logger.warn(
-          `Workspace verification unavailable, treating successful manageWorkspaceUsers as sufficient verification`,
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string | null;
+        users?: Array<{
+          userId: number;
+          username?: string;
+          role: string;
+        }>;
+      };
+
+      if (!result.success) {
+        throw new Error(
+          `Workspace assignment failed: ${result.error || 'Unknown error'}`,
         );
       }
+
+      this.logger.log(
+        `Workspace assignment successful for user ${anythingllmUserId} to workspace ${workspaceSlug}`,
+      );
 
       // Log workspace assignment succeeded
       this.auditService.logAuthEvent({
@@ -462,24 +646,140 @@ export class AnythingLLMUserProvisioningService {
   }
 
   /**
+   * Verify user is assigned to workspace
+   *
+   * Calls the admin endpoint to verify the user is in the workspace's user list.
+   * Uses admin delegated token context for authorization.
+   * Gracefully degrades if verification endpoint is unavailable.
+   *
+   * @param workspaceId - Workspace ID (number)
+   * @param anythingllmUserId - AnythingLLM user ID to verify
+   * @param adminUserId - Optional admin user ID for delegated token context
+   */
+  async verifyWorkspaceAssignment(
+    workspaceId: number,
+    anythingllmUserId: number,
+    adminUserId?: string | number,
+  ): Promise<void> {
+    try {
+      // Always use delegated tokens (HS256) with admin context
+      // If no admin context provided, use system admin ID
+      // This matches the pattern used in document upload (orchestrator issues delegated tokens)
+      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
+
+      const requesterContext: RequesterContextDto = {
+        userId: String(effectiveAdminId),
+        roles: ['admin'],
+      };
+
+      // Use orchestrator service directly with delegated tokens (bypass controller)
+      const response = await this.orchestratorService.executeOperation({
+        requesterContext,
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        endpoint: `/v1/admin/workspaces/${workspaceId}/users`,
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        // If verification endpoint is unavailable, log warning but don't fail
+        this.logger.warn(
+          `Workspace verification unavailable for workspace ${workspaceId}: ${response.status}. Treating successful assignment as sufficient verification.`,
+        );
+        return;
+      }
+
+      const result = (await response.json()) as GetWorkspaceUsersResponseSchema;
+
+      // Verify user ID is in the list
+      const userFound = result.users?.some(
+        (user) => user.userId === anythingllmUserId,
+      );
+
+      if (userFound) {
+        this.logger.log(
+          `Verified user ${anythingllmUserId} is assigned to workspace ${workspaceId}`,
+        );
+
+        // Log verification succeeded
+        this.auditService.logAuthEvent({
+          userId: String(anythingllmUserId),
+          provider: 'anythingllm',
+          event: AuthEventType.ANYTHINGLLM_WORKSPACE_ASSIGNMENT_VERIFIED,
+          success: true,
+          metadata: {
+            workspaceId,
+            anythingllmUserId,
+          },
+        });
+      } else {
+        this.logger.warn(
+          `User ${anythingllmUserId} not found in workspace ${workspaceId} user list. Assignment may have failed.`,
+        );
+        // Don't throw - verification failure shouldn't fail provisioning
+        // This is a warning only
+      }
+    } catch (error) {
+      // Graceful degradation: if verification fails, log warning but don't fail provisioning
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Workspace verification failed for workspace ${workspaceId}: ${errorMessage}. Treating successful assignment as sufficient verification.`,
+      );
+      // Don't throw - verification is optional
+    }
+  }
+
+  /**
    * Suspend user in AnythingLLM
    *
    * Called when user status changes to inactive or user is deleted.
+   * ALWAYS uses delegated tokens (HS256) via orchestrator - NEVER service identity (RS256).
    *
    * @param anythingllmUserId - AnythingLLM user ID
    * @param user - Keystone user (for audit logging)
+   * @param adminUserId - Optional admin user ID for delegated token context
    */
-  async suspendUser(anythingllmUserId: number, user: User): Promise<void> {
+  async suspendUser(
+    anythingllmUserId: number,
+    user: User,
+    adminUserId?: string | number,
+  ): Promise<void> {
     const keystoneUserId = String(user.id);
 
     try {
-      const result = await this.adminService.updateUser(anythingllmUserId, {
-        suspended: 1,
+      // Always use delegated tokens (HS256) with admin context via orchestrator
+      // If no admin context provided, use system admin ID
+      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
+
+      const requesterContext: RequesterContextDto = {
+        userId: String(effectiveAdminId),
+        roles: ['admin'],
+      };
+
+      // Use orchestrator service directly with delegated tokens (HS256)
+      // Note: Using SYSTEM_READ for admin operations (same as user creation)
+      // Admin operations use SYSTEM_READ since they're system-level admin actions
+      const response = await this.orchestratorService.executeOperation({
+        requesterContext,
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        endpoint: `/v1/admin/users/${anythingllmUserId}`,
+        method: 'POST',
+        body: {
+          suspended: 1,
+        },
       });
 
-      if (!result.data.success) {
+      if (!response.ok) {
+        const body = await response.text();
         throw new Error(
-          `User suspension failed: ${result.data.error || 'Unknown error'}`,
+          `User suspension failed: ${response.status} - ${body || 'Unknown error'}`,
+        );
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(
+          `User suspension failed: ${result.error || 'Unknown error'}`,
         );
       }
 

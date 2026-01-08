@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AnythingLLMAdminModule } from '../admin/anythingllm-admin.module';
 import { AnythingLLMOrchestratorModule } from '../../anythingllm-orchestrator/module';
 import { AuditModule } from '../../audit/audit.module';
+import { AnythingLLMWorkspaceModule } from '../workspace/anythingllm-workspace.module';
 import { AnythingLLMUserProvisioningService } from './anythingllm-user-provisioning.service';
 import { WorkspaceMapperService } from './domain/workspace-mapper.service';
 import { AnythingLLMProvisioningPersistenceModule } from './infrastructure/persistence/persistence.module';
@@ -20,6 +21,7 @@ import { AnythingLLMProvisioningPersistenceModule } from './infrastructure/persi
     AnythingLLMAdminModule,
     AnythingLLMOrchestratorModule,
     AuditModule,
+    forwardRef(() => AnythingLLMWorkspaceModule),
     AnythingLLMProvisioningPersistenceModule,
   ],
   providers: [AnythingLLMUserProvisioningService, WorkspaceMapperService],

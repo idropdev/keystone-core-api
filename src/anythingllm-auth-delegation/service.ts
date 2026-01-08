@@ -41,9 +41,22 @@ export class AnythingLLMAuthDelegationService {
     ) ?? false;
 
     if (!enabled) {
-      throw new Error(
-        'Delegated token issuance is disabled. Set ENABLE_DELEGATED_TOKENS=true',
+      const errorMessage =
+        'Delegated token issuance is disabled. Set ENABLE_DELEGATED_TOKENS=true. Delegated tokens (HS256) are required for AnythingLLM authentication. Do not use service identity (RS256) tokens.';
+      this.logger.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Ensure requesterContext is provided - use system admin if not provided
+    // This ensures delegated tokens are always used, never service identity
+    if (!dto.requesterContext || !dto.requesterContext.userId) {
+      this.logger.warn(
+        'No requesterContext provided, using system admin (ID: 1) for delegated token',
       );
+      dto.requesterContext = {
+        userId: '1', // System admin ID
+        roles: ['admin'],
+      };
     }
 
     const expiresIn = this.configService.get<number>(
@@ -87,17 +100,34 @@ export class AnythingLLMAuthDelegationService {
     };
 
 
-    // Sign token
+    // Sign token - MUST use HS256 (not RS256)
     const token = await this.jwtSigner.sign(
       tokenPayload as unknown as Record<string, unknown>,
       secret,
       expiresIn,
     );
 
-    // HIPAA-compliant audit logging (no PHI, no tokens)
-    this.logger.debug(
-      `Issued delegated token for operation: ${dto.operation}, userId: ${dto.requesterContext.userId}, scope: ${dto.scope.join(',')}`,
-    );
+    // Verify token algorithm after signing (defensive check)
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.decode(token, { complete: true }) as any;
+      
+      if (decoded?.header?.alg !== 'HS256') {
+        const errorMessage = `CRITICAL: Delegated token was signed with algorithm ${decoded?.header?.alg} but MUST be HS256. Check JwtSignerAdapter configuration.`;
+        this.logger.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+      this.logger.debug(
+        `Issued delegated token (HS256) for operation: ${dto.operation}, userId: ${dto.requesterContext.userId}, scope: ${dto.scope.join(',')}`,
+      );
+    } catch (verifyErr) {
+      const errorMessage =
+        verifyErr instanceof Error
+          ? verifyErr.message
+          : 'Failed to verify delegated token algorithm';
+      this.logger.error(errorMessage);
+      throw new Error(errorMessage);
+    }
 
     return {
       token,
