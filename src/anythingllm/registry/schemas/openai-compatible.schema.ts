@@ -164,8 +164,3 @@ export class OpenAIEmbeddingsResponseSchema {
     total_tokens: number;
   };
 }
-
-
-
-
-

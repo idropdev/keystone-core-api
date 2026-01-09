@@ -19,11 +19,7 @@ import { AuthModule } from '../../auth/auth.module';
     AuthModule, // For JWT strategy
   ],
   controllers: [AnythingLLMSystemController],
-  providers: [
-    AnythingLLMSystemService,
-    AnythingLLMRegistryClient,
-  ],
+  providers: [AnythingLLMSystemService, AnythingLLMRegistryClient],
   exports: [AnythingLLMSystemService],
 })
 export class AnythingLLMSystemModule {}
-

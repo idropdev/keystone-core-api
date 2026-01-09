@@ -79,9 +79,7 @@ export class AnythingLLMDocumentService {
         if (error instanceof BadRequestException) {
           throw error;
         }
-        throw new BadRequestException(
-          'externalOCRFields must be valid JSON',
-        );
+        throw new BadRequestException('externalOCRFields must be valid JSON');
       }
     }
 
@@ -185,12 +183,10 @@ export class AnythingLLMDocumentService {
       });
 
       if (!response.ok) {
-        throw await UpstreamError.fromResponse(
-          response,
-          'upload-file',
-          path,
-          { fileName, folderName },
-        );
+        throw await UpstreamError.fromResponse(response, 'upload-file', path, {
+          fileName,
+          folderName,
+        });
       }
 
       const data = (await response.json()) as DocumentUploadResponseSchema;
@@ -220,7 +216,9 @@ export class AnythingLLMDocumentService {
   async uploadLink(
     request: UploadLinkRequestSchema,
   ): Promise<RegistryCallResult<DocumentUploadResponseSchema>> {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   DocumentUploadResponseSchema,
     //   UploadLinkRequestSchema
@@ -235,7 +233,9 @@ export class AnythingLLMDocumentService {
     request: UploadRawTextRequestSchema,
     folderName?: string,
   ): Promise<RegistryCallResult<DocumentUploadResponseSchema>> {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // const endpointId = AnythingLLMAdminEndpointIds.UPLOAD_DOCUMENT_RAW_TEXT;
     // return this.registryClient.call<
     //   DocumentUploadResponseSchema,
@@ -250,7 +250,9 @@ export class AnythingLLMDocumentService {
   async listDocuments(): Promise<
     RegistryCallResult<ListDocumentsResponseSchema>
   > {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<ListDocumentsResponseSchema>(
     //   AnythingLLMAdminEndpointIds.LIST_DOCUMENTS,
     // );
@@ -263,7 +265,9 @@ export class AnythingLLMDocumentService {
   async listDocumentsInFolder(
     folderName: string,
   ): Promise<RegistryCallResult<ListDocumentsResponseSchema>> {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<ListDocumentsResponseSchema>(
     //   AnythingLLMAdminEndpointIds.LIST_DOCUMENTS_FOLDER,
     //   { params: { folderName } },
@@ -277,7 +281,9 @@ export class AnythingLLMDocumentService {
   async getDocument(
     docName: string,
   ): Promise<RegistryCallResult<GetDocumentResponseSchema>> {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<GetDocumentResponseSchema>(
     //   AnythingLLMAdminEndpointIds.GET_DOCUMENT,
     //   { params: { docName } },
@@ -291,7 +297,9 @@ export class AnythingLLMDocumentService {
   async getAcceptedFileTypes(): Promise<
     RegistryCallResult<AcceptedFileTypesResponseSchema>
   > {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<AcceptedFileTypesResponseSchema>(
     //   AnythingLLMAdminEndpointIds.GET_ACCEPTED_FILE_TYPES,
     // );
@@ -304,7 +312,9 @@ export class AnythingLLMDocumentService {
   async getMetadataSchema(): Promise<
     RegistryCallResult<MetadataSchemaResponseSchema>
   > {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<MetadataSchemaResponseSchema>(
     //   AnythingLLMAdminEndpointIds.GET_METADATA_SCHEMA,
     // );
@@ -411,11 +421,12 @@ export class AnythingLLMDocumentService {
   async moveFiles(
     request: MoveFilesRequestSchema,
   ): Promise<RegistryCallResult<MoveFilesResponseSchema>> {
-    throw new Error('Non-admin document endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin document endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   MoveFilesResponseSchema,
     //   MoveFilesRequestSchema
     // >(AnythingLLMAdminEndpointIds.MOVE_FILES, { body: request });
   }
 }
-

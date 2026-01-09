@@ -66,7 +66,7 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
 
     // Create test users with different roles
     console.log('[SETUP] Creating test users...');
-    
+
     adminUser = {
       id: 0,
       email: 'admin@test.com',
@@ -82,7 +82,10 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
       roleId: RoleEnum.manager,
     };
 
-    regularUser = await createTestUser(RoleEnum.user, 's2s-delegation-test-user');
+    regularUser = await createTestUser(
+      RoleEnum.user,
+      's2s-delegation-test-user',
+    );
 
     // Set up services for testing
     if (!SKIP_ANYTHINGLLM_TESTS) {
@@ -91,10 +94,17 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
           imports: [AnythingLLMModule],
         }).compile();
 
-        serviceIdentityService = testModule.get(AnythingLLMServiceIdentityService);
-        authDelegationService = testModule.get(AnythingLLMAuthDelegationService);
+        serviceIdentityService = testModule.get(
+          AnythingLLMServiceIdentityService,
+        );
+        authDelegationService = testModule.get(
+          AnythingLLMAuthDelegationService,
+        );
       } catch (error) {
-        console.warn('Failed to initialize AnythingLLM services, some tests will be skipped:', error);
+        console.warn(
+          'Failed to initialize AnythingLLM services, some tests will be skipped:',
+          error,
+        );
         serviceIdentityService = null;
         authDelegationService = null;
       }
@@ -120,9 +130,7 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
   // Verify Keystone API is reachable
   const verifyKeystoneReachable = async (): Promise<boolean> => {
     try {
-      const response = await request(APP)
-        .get('/api/v1/status')
-        .timeout(5000);
+      const response = await request(APP).get('/api/v1/status').timeout(5000);
       return response.status === 200 || response.status === 404;
     } catch (error) {
       console.warn('[SKIP] Keystone API not reachable:', error);
@@ -144,15 +152,16 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
       }
 
       // Issue delegated token
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: String(adminUser.id || 'admin-123'),
-          roles: ['admin'],
-          sessionId: 'test-session-123',
-        },
-        scope: ['anythingllm:admin:read', 'anythingllm:admin:write'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: String(adminUser.id || 'admin-123'),
+            roles: ['admin'],
+            sessionId: 'test-session-123',
+          },
+          scope: ['anythingllm:admin:read', 'anythingllm:admin:write'],
+        });
 
       expect(delegatedTokenResponse).toHaveProperty('token');
       expect(delegatedTokenResponse).toHaveProperty('expiresIn');
@@ -175,9 +184,16 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
 
       // Verify standard claims
       expect(decoded.payload.aud).toBe('anythingllm');
-      expect(decoded.payload.scope).toEqual(['anythingllm:admin:read', 'anythingllm:admin:write']);
-      expect(decoded.payload.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
-      expect(decoded.payload.iat).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+      expect(decoded.payload.scope).toEqual([
+        'anythingllm:admin:read',
+        'anythingllm:admin:write',
+      ]);
+      expect(decoded.payload.exp).toBeGreaterThan(
+        Math.floor(Date.now() / 1000),
+      );
+      expect(decoded.payload.iat).toBeLessThanOrEqual(
+        Math.floor(Date.now() / 1000),
+      );
     }, 30000);
 
     it('should issue delegated token with manager role', async () => {
@@ -192,15 +208,16 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: String(managerUser.id),
-          roles: ['manager'],
-          sessionId: 'test-session-456',
-        },
-        scope: ['anythingllm:admin:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: String(managerUser.id),
+            roles: ['manager'],
+            sessionId: 'test-session-456',
+          },
+          scope: ['anythingllm:admin:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       expect(decoded.payload.act.roles).toEqual(['manager']);
@@ -219,15 +236,16 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: String(regularUser.id),
-          roles: ['user'],
-          sessionId: 'test-session-789',
-        },
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: String(regularUser.id),
+            roles: ['user'],
+            sessionId: 'test-session-789',
+          },
+          scope: ['anythingllm:system:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       expect(decoded.payload.act.roles).toEqual(['user']);
@@ -623,7 +641,3 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
     }, 60000);
   });
 });
-
-
-
-

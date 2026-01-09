@@ -22,12 +22,12 @@ export class JwtSignerAdapter implements JwtSignerPort {
         typ: 'JWT', // JWT type
       },
     };
-    
+
     // Only set expiresIn if exp is not already in the payload
     if (!('exp' in payload)) {
       options.expiresIn = expiresInSeconds;
     }
-    
+
     // Use jsonwebtoken.sign directly with explicit algorithm
     return new Promise<string>((resolve, reject) => {
       jwt.sign(payload, secret, options, (err, token) => {
@@ -59,7 +59,3 @@ export class JwtSignerAdapter implements JwtSignerPort {
     });
   }
 }
-
-
-
-

@@ -35,7 +35,9 @@ export class AnythingLLMVectorSearchService {
     workspaceSlug: string,
     request: VectorSearchRequestSchema,
   ): Promise<RegistryCallResult<VectorSearchResponseSchema>> {
-    throw new Error('Non-admin vector-search endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin vector-search endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   VectorSearchResponseSchema,
     //   VectorSearchRequestSchema
@@ -52,7 +54,9 @@ export class AnythingLLMVectorSearchService {
   async chatCompletions(
     request: OpenAIChatCompletionsRequestSchema,
   ): Promise<RegistryCallResult<OpenAIChatCompletionsResponseSchema>> {
-    throw new Error('Non-admin vector-search endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin vector-search endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   OpenAIChatCompletionsResponseSchema,
     //   OpenAIChatCompletionsRequestSchema
@@ -66,13 +70,12 @@ export class AnythingLLMVectorSearchService {
   async embeddings(
     request: OpenAIEmbeddingsRequestSchema,
   ): Promise<RegistryCallResult<OpenAIEmbeddingsResponseSchema>> {
-    throw new Error('Non-admin vector-search endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin vector-search endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   OpenAIEmbeddingsResponseSchema,
     //   OpenAIEmbeddingsRequestSchema
     // >(AnythingLLMAdminEndpointIds.OPENAI_EMBEDDINGS, { body: request });
   }
 }
-
-
-

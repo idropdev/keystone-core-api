@@ -7,13 +7,3 @@ export interface PermissionRule {
   scope: string[];
   reason?: string; // Optional reason for denial
 }
-
-
-
-
-
-
-
-
-
-

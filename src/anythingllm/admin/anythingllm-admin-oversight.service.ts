@@ -37,9 +37,7 @@ export interface ExportOptions {
  */
 @Injectable()
 export class AnythingLLMAdminOversightService {
-  private readonly logger = new Logger(
-    AnythingLLMAdminOversightService.name,
-  );
+  private readonly logger = new Logger(AnythingLLMAdminOversightService.name);
 
   constructor(
     private readonly threadService: AnythingLLMThreadService,
@@ -142,9 +140,7 @@ export class AnythingLLMAdminOversightService {
     );
 
     if (result.data.error) {
-      throw new Error(
-        `Failed to inject manager note: ${result.data.error}`,
-      );
+      throw new Error(`Failed to inject manager note: ${result.data.error}`);
     }
 
     this.logger.log(
@@ -152,8 +148,3 @@ export class AnythingLLMAdminOversightService {
     );
   }
 }
-
-
-
-
-

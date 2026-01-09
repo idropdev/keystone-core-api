@@ -216,7 +216,11 @@ describe('AnythingLLMAdapterService', () => {
         status: 200,
       });
 
-      const result = await service.createThread(workspaceSlug, userId, threadName);
+      const result = await service.createThread(
+        workspaceSlug,
+        userId,
+        threadName,
+      );
 
       expect(result.slug).toBe('test-thread-slug');
       expect(mockThreadService.createThread).toHaveBeenCalledWith(
@@ -326,8 +330,3 @@ describe('AnythingLLMAdapterService', () => {
     });
   });
 });
-
-
-
-
-

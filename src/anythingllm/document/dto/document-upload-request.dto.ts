@@ -14,12 +14,10 @@ export class DocumentUploadRequestDto {
   @ApiPropertyOptional({
     type: 'string',
     description: 'JSON array string of OCR fields from Google OCR',
-    example: '[{"fieldKey":"lab_test_value","fieldValue":"6.3 x10^3/uL","fieldType":"lab_test_value","confidence":0.85}]',
+    example:
+      '[{"fieldKey":"lab_test_value","fieldValue":"6.3 x10^3/uL","fieldType":"lab_test_value","confidence":0.85}]',
   })
   @IsOptional()
   @IsString()
   externalOCRFields?: string;
 }
-
-
-

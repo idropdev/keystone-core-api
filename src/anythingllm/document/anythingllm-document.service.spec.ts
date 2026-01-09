@@ -233,11 +233,7 @@ describe('AnythingLLMDocumentService (E2E Workflow)', () => {
     });
 
     it('should upload a document file (Buffer)', async () => {
-      if (
-        SKIP_ANYTHINGLLM_TESTS ||
-        !documentService ||
-        !createdWorkspaceSlug
-      ) {
+      if (SKIP_ANYTHINGLLM_TESTS || !documentService || !createdWorkspaceSlug) {
         console.log('Skipping test - prerequisites not met');
         return;
       }
@@ -485,11 +481,7 @@ This document will be used to test the complete workflow.`;
     });
 
     it('should fail to update non-existent thread', async () => {
-      if (
-        SKIP_ANYTHINGLLM_TESTS ||
-        !threadService ||
-        !createdWorkspaceSlug
-      ) {
+      if (SKIP_ANYTHINGLLM_TESTS || !threadService || !createdWorkspaceSlug) {
         console.log('Skipping test - prerequisites not met');
         return;
       }
@@ -497,9 +489,13 @@ This document will be used to test the complete workflow.`;
       const nonExistentThreadSlug = 'non-existent-thread-slug';
 
       await expect(
-        threadService.updateThread(createdWorkspaceSlug, nonExistentThreadSlug, {
-          name: 'Updated Name',
-        }),
+        threadService.updateThread(
+          createdWorkspaceSlug,
+          nonExistentThreadSlug,
+          {
+            name: 'Updated Name',
+          },
+        ),
       ).rejects.toThrow();
 
       try {
@@ -710,7 +706,11 @@ This document will be used to test the complete workflow.`;
       const fileName = `folder-test-${Date.now()}.txt`;
       const folderName = 'test-folder';
 
-      const result = await documentService.uploadFile(file, fileName, folderName);
+      const result = await documentService.uploadFile(
+        file,
+        fileName,
+        folderName,
+      );
 
       expect(result).toBeDefined();
       expect(result.status).toBeDefined();

@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsArray, IsString, IsNumber } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsArray,
+  IsString,
+  IsNumber,
+} from 'class-validator';
 
 /**
  * Sanitized document object (infrastructure-revealing fields removed)
@@ -39,6 +45,3 @@ export class DocumentUploadResponseDto {
   @IsArray()
   documents?: SanitizedDocumentDto[];
 }
-
-
-

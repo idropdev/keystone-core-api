@@ -7,9 +7,7 @@ import { JwtSignerPort } from './infrastructure/jwt/jwt-signer.port';
 import { KeystorePort } from './infrastructure/keystore/keystore.port';
 
 @Module({
-  imports: [
-    ConfigModule,
-  ],
+  imports: [ConfigModule],
   providers: [
     AnythingLLMAuthDelegationService,
     {
@@ -24,4 +22,3 @@ import { KeystorePort } from './infrastructure/keystore/keystore.port';
   exports: [AnythingLLMAuthDelegationService],
 })
 export class AnythingLLMAuthDelegationModule {}
-

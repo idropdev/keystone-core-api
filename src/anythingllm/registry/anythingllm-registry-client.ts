@@ -73,7 +73,10 @@ export class AnythingLLMRegistryClient {
    * @throws UpstreamError on API failure
    */
   async call<TResponse = unknown, TRequest = unknown>(
-    endpointId: AnythingLLMAdminEndpointId | AnythingLLMSystemEndpointId | string,
+    endpointId:
+      | AnythingLLMAdminEndpointId
+      | AnythingLLMSystemEndpointId
+      | string,
     options: RegistryCallOptions<TRequest> = {},
   ): Promise<RegistryCallResult<TResponse>> {
     const requestId = randomUUID();

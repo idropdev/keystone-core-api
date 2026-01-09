@@ -12,7 +12,10 @@ import {
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { AnythingLLMModule } from '../../src/anythingllm/anythingllm.module';
 import { AnythingLLMAuthDelegationService } from '../../src/anythingllm-auth-delegation/service';
-import { DelegatedTokenClaims, ActorClaim } from '../../src/anythingllm-auth-delegation/domain/delegated-token-claims.entity';
+import {
+  DelegatedTokenClaims,
+  ActorClaim,
+} from '../../src/anythingllm-auth-delegation/domain/delegated-token-claims.entity';
 
 /**
  * Sleep utility to avoid rate limiting
@@ -51,8 +54,14 @@ function mintDelegatedJWT(
   const mergedPayload = { ...defaultPayload, ...payload };
 
   // Validate act claim structure
-  if (!mergedPayload.act || typeof mergedPayload.act.sub !== 'string' || !Array.isArray(mergedPayload.act.roles)) {
-    throw new Error('Invalid act claim: must have sub (string) and roles (array)');
+  if (
+    !mergedPayload.act ||
+    typeof mergedPayload.act.sub !== 'string' ||
+    !Array.isArray(mergedPayload.act.roles)
+  ) {
+    throw new Error(
+      'Invalid act claim: must have sub (string) and roles (array)',
+    );
   }
 
   return jwt.sign(mergedPayload as jwt.JwtPayload, secret, {
@@ -71,10 +80,10 @@ function decodeToken(token: string): any {
  * End-to-End Tests for Keystone API Role Delegation
  *
  * Tests the complete bidirectional role delegation flow:
- * 
+ *
  * Flow 1: User → Keystone → AnythingLLM (with delegated token)
  * Flow 2: AnythingLLM → Keystone (with delegated token containing roles)
- * 
+ *
  * This test simulates AnythingLLM calling Keystone API endpoints
  * using delegated tokens that contain role information in the act claim.
  *
@@ -105,15 +114,17 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
 
   const SKIP_ANYTHINGLLM_TESTS = process.env.SKIP_ANYTHINGLLM_TESTS === 'true';
   const APP = APP_URL;
-  const DELEGATED_TOKEN_SECRET = process.env.ANYTHINGLLM_DELEGATED_TOKEN_SECRET || 'secret';
-  const DELEGATED_TOKEN_AUDIENCE = process.env.ANYTHINGLLM_DELEGATED_TOKEN_AUDIENCE || 'anythingllm';
+  const DELEGATED_TOKEN_SECRET =
+    process.env.ANYTHINGLLM_DELEGATED_TOKEN_SECRET || 'secret';
+  const DELEGATED_TOKEN_AUDIENCE =
+    process.env.ANYTHINGLLM_DELEGATED_TOKEN_AUDIENCE || 'anythingllm';
 
   beforeAll(async () => {
     adminToken = await getAdminToken();
 
     // Create test users with different roles
     console.log('[SETUP] Creating test users...');
-    
+
     adminUser = {
       id: 0,
       email: 'admin@test.com',
@@ -129,7 +140,10 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
       roleId: RoleEnum.manager,
     };
 
-    regularUser = await createTestUser(RoleEnum.user, 'role-delegation-test-user');
+    regularUser = await createTestUser(
+      RoleEnum.user,
+      'role-delegation-test-user',
+    );
 
     // Set up services for testing
     if (!SKIP_ANYTHINGLLM_TESTS) {
@@ -138,9 +152,14 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
           imports: [AnythingLLMModule],
         }).compile();
 
-        authDelegationService = testModule.get(AnythingLLMAuthDelegationService);
+        authDelegationService = testModule.get(
+          AnythingLLMAuthDelegationService,
+        );
       } catch (error) {
-        console.warn('Failed to initialize AnythingLLM services, some tests will be skipped:', error);
+        console.warn(
+          'Failed to initialize AnythingLLM services, some tests will be skipped:',
+          error,
+        );
         authDelegationService = null;
       }
     }
@@ -165,9 +184,7 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
   // Verify Keystone API is reachable
   const verifyKeystoneReachable = async (): Promise<boolean> => {
     try {
-      const response = await request(APP)
-        .get('/api/v1/status')
-        .timeout(5000);
+      const response = await request(APP).get('/api/v1/status').timeout(5000);
       return response.status === 200 || response.status === 404;
     } catch (error) {
       console.warn('[SKIP] Keystone API not reachable:', error);
@@ -189,15 +206,16 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
       }
 
       // Issue delegated token for admin user
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: String(adminUser.id || 'admin-123'),
-          roles: ['admin'],
-          sessionId: 'test-session-admin',
-        },
-        scope: ['anythingllm:admin:read', 'anythingllm:admin:write'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: String(adminUser.id || 'admin-123'),
+            roles: ['admin'],
+            sessionId: 'test-session-admin',
+          },
+          scope: ['anythingllm:admin:read', 'anythingllm:admin:write'],
+        });
 
       expect(delegatedTokenResponse).toHaveProperty('token');
       expect(delegatedTokenResponse).toHaveProperty('expiresIn');
@@ -210,7 +228,10 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
       expect(decoded.payload.act.roles).toEqual(['admin']);
       expect(decoded.payload.act.sessionId).toBe('test-session-admin');
       expect(decoded.payload.aud).toBe(DELEGATED_TOKEN_AUDIENCE);
-      expect(decoded.payload.scope).toEqual(['anythingllm:admin:read', 'anythingllm:admin:write']);
+      expect(decoded.payload.scope).toEqual([
+        'anythingllm:admin:read',
+        'anythingllm:admin:write',
+      ]);
     }, 30000);
 
     it('should issue delegated token with manager role for manager user', async () => {
@@ -225,15 +246,16 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: String(managerUser.id),
-          roles: ['manager'],
-          sessionId: 'test-session-manager',
-        },
-        scope: ['anythingllm:admin:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: String(managerUser.id),
+            roles: ['manager'],
+            sessionId: 'test-session-manager',
+          },
+          scope: ['anythingllm:admin:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       expect(decoded.payload.act.roles).toEqual(['manager']);
@@ -252,15 +274,16 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: String(regularUser.id),
-          roles: ['user'],
-          sessionId: 'test-session-user',
-        },
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: String(regularUser.id),
+            roles: ['user'],
+            sessionId: 'test-session-user',
+          },
+          scope: ['anythingllm:system:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       expect(decoded.payload.act.roles).toEqual(['user']);
@@ -271,11 +294,11 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
   describe('Role Delegation - AnythingLLM → Keystone (Simulated)', () => {
     /**
      * Simulate AnythingLLM calling Keystone with delegated token
-     * 
+     *
      * Note: Currently, Keystone endpoints use OptionalJwtGuard which validates
      * user JWTs, not delegated tokens. This test simulates what would happen
      * if Keystone had endpoints that accept delegated tokens.
-     * 
+     *
      * In a real scenario, AnythingLLM would:
      * 1. Receive delegated token from Keystone
      * 2. Validate token signature
@@ -412,15 +435,16 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
       // This happens in OptionalJwtGuard
 
       // Step 4: Keystone issues delegated token → Embeds user context in act claim
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'SYSTEM_READ',
-        requesterContext: {
-          userId: String(adminUser.id || 'admin-123'),
-          roles: ['admin'],
-          sessionId: 'test-session-complete-flow',
-        },
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'SYSTEM_READ',
+          requesterContext: {
+            userId: String(adminUser.id || 'admin-123'),
+            roles: ['admin'],
+            sessionId: 'test-session-complete-flow',
+          },
+          scope: ['anythingllm:system:read'],
+        });
 
       // Step 5: Verify delegated token structure
       const decoded = decodeToken(delegatedTokenResponse.token);
@@ -463,15 +487,16 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
       }
 
       // Complete flow for manager
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'SYSTEM_READ',
-        requesterContext: {
-          userId: String(managerUser.id),
-          roles: ['manager'],
-          sessionId: 'test-session-manager-flow',
-        },
-        scope: ['anythingllm:admin:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'SYSTEM_READ',
+          requesterContext: {
+            userId: String(managerUser.id),
+            roles: ['manager'],
+            sessionId: 'test-session-manager-flow',
+          },
+          scope: ['anythingllm:admin:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       const anythingllmExtractedRoles = decoded.payload.act.roles;
@@ -494,15 +519,16 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
       }
 
       // Complete flow for regular user
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'SYSTEM_READ',
-        requesterContext: {
-          userId: String(regularUser.id),
-          roles: ['user'],
-          sessionId: 'test-session-user-flow',
-        },
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'SYSTEM_READ',
+          requesterContext: {
+            userId: String(regularUser.id),
+            roles: ['user'],
+            sessionId: 'test-session-user-flow',
+          },
+          scope: ['anythingllm:system:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       const anythingllmExtractedRoles = decoded.payload.act.roles;
@@ -558,18 +584,19 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: 'test-user',
-          roles: ['admin'],
-        },
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: 'test-user',
+            roles: ['admin'],
+          },
+          scope: ['anythingllm:system:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       const now = Math.floor(Date.now() / 1000);
-      
+
       expect(decoded.payload.exp).toBeGreaterThan(now);
       expect(decoded.payload.iat).toBeLessThanOrEqual(now);
       expect(decoded.payload.exp - decoded.payload.iat).toBeGreaterThan(0);
@@ -581,14 +608,15 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'test',
-        requesterContext: {
-          userId: 'test-user',
-          roles: ['admin'],
-        },
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'test',
+          requesterContext: {
+            userId: 'test-user',
+            roles: ['admin'],
+          },
+          scope: ['anythingllm:system:read'],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       expect(decoded.payload.aud).toBe(DELEGATED_TOKEN_AUDIENCE);
@@ -602,14 +630,19 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'SYSTEM_READ',
-        requesterContext: {
-          userId: String(adminUser.id || 'admin-123'),
-          roles: ['admin'],
-        },
-        scope: ['anythingllm:admin:read', 'anythingllm:admin:write', 'anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'SYSTEM_READ',
+          requesterContext: {
+            userId: String(adminUser.id || 'admin-123'),
+            roles: ['admin'],
+          },
+          scope: [
+            'anythingllm:admin:read',
+            'anythingllm:admin:write',
+            'anythingllm:system:read',
+          ],
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       const roles = decoded.payload.act.roles;
@@ -627,14 +660,15 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'SYSTEM_READ',
-        requesterContext: {
-          userId: String(managerUser.id),
-          roles: ['manager'],
-        },
-        scope: ['anythingllm:admin:read'], // Manager can read but not write
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'SYSTEM_READ',
+          requesterContext: {
+            userId: String(managerUser.id),
+            roles: ['manager'],
+          },
+          scope: ['anythingllm:admin:read'], // Manager can read but not write
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       const roles = decoded.payload.act.roles;
@@ -651,14 +685,15 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
         return;
       }
 
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        operation: 'SYSTEM_READ',
-        requesterContext: {
-          userId: String(regularUser.id),
-          roles: ['user'],
-        },
-        scope: ['anythingllm:system:read'], // User can only read system info
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          operation: 'SYSTEM_READ',
+          requesterContext: {
+            userId: String(regularUser.id),
+            roles: ['user'],
+          },
+          scope: ['anythingllm:system:read'], // User can only read system info
+        });
 
       const decoded = decodeToken(delegatedTokenResponse.token);
       const roles = decoded.payload.act.roles;
@@ -671,8 +706,3 @@ describe('Keystone API Role Delegation - AnythingLLM → Keystone (E2E)', () => 
     }, 30000);
   });
 });
-
-
-
-
-

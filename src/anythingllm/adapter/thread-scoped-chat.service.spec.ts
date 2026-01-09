@@ -157,8 +157,3 @@ describe('ThreadScopedChatService', () => {
     });
   });
 });
-
-
-
-
-

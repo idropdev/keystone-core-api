@@ -121,6 +121,3 @@ export class DocumentCountResponseSchema {
   @IsNumber()
   count: number;
 }
-
-
-

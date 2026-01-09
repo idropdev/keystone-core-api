@@ -18,13 +18,3 @@ export interface JwtSignerPort {
     expiresInSeconds: number,
   ): Promise<string>;
 }
-
-
-
-
-
-
-
-
-
-

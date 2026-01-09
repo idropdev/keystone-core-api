@@ -6,7 +6,10 @@ import { createTestUser, getAdminToken, TestUser } from '../utils/test-helpers';
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { AnythingLLMModule } from '../../src/anythingllm/anythingllm.module';
 import { AnythingLLMServiceIdentityService } from '../../src/anythingllm/services/anythingllm-service-identity.service';
-import { DelegatedTokenClaims, ActorClaim } from '../../src/anythingllm-auth-delegation/domain/delegated-token-claims.entity';
+import {
+  DelegatedTokenClaims,
+  ActorClaim,
+} from '../../src/anythingllm-auth-delegation/domain/delegated-token-claims.entity';
 
 /**
  * Sleep utility to avoid rate limiting
@@ -45,15 +48,20 @@ function mintDelegatedJWT(
   const mergedPayload = { ...defaultPayload, ...payload };
 
   // Validate act claim structure
-  if (!mergedPayload.act || typeof mergedPayload.act.sub !== 'string' || !Array.isArray(mergedPayload.act.roles)) {
-    throw new Error('Invalid act claim: must have sub (string) and roles (array)');
+  if (
+    !mergedPayload.act ||
+    typeof mergedPayload.act.sub !== 'string' ||
+    !Array.isArray(mergedPayload.act.roles)
+  ) {
+    throw new Error(
+      'Invalid act claim: must have sub (string) and roles (array)',
+    );
   }
 
   return jwt.sign(mergedPayload as jwt.JwtPayload, secret, {
     algorithm,
   });
 }
-
 
 /**
  * End-to-End Tests for AnythingLLM Delegated JWT Auth
@@ -86,11 +94,17 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
   let testUser: TestUser;
 
   const SKIP_ANYTHINGLLM_TESTS = process.env.SKIP_ANYTHINGLLM_TESTS === 'true';
-  const ANYTHINGLLM_URL = process.env.ANYTHINGLLM_BASE_URL || ANYTHINGLLM_BASE_URL;
-  const DELEGATED_JWT_SECRET = process.env.KEYSTONE_DELEGATED_JWT_SECRET || process.env.ANYTHINGLLM_DELEGATED_TOKEN_SECRET;
-  const DELEGATED_JWT_ISSUER = process.env.KEYSTONE_DELEGATED_JWT_ISSUER || 'svc-keystone';
-  const DELEGATED_JWT_AUDIENCE = process.env.KEYSTONE_DELEGATED_JWT_AUDIENCE || 'anythingllm';
-  const ENABLE_SCOPE_ENFORCEMENT = process.env.ENABLE_DELEGATED_SCOPE_ENFORCEMENT === 'true';
+  const ANYTHINGLLM_URL =
+    process.env.ANYTHINGLLM_BASE_URL || ANYTHINGLLM_BASE_URL;
+  const DELEGATED_JWT_SECRET =
+    process.env.KEYSTONE_DELEGATED_JWT_SECRET ||
+    process.env.ANYTHINGLLM_DELEGATED_TOKEN_SECRET;
+  const DELEGATED_JWT_ISSUER =
+    process.env.KEYSTONE_DELEGATED_JWT_ISSUER || 'svc-keystone';
+  const DELEGATED_JWT_AUDIENCE =
+    process.env.KEYSTONE_DELEGATED_JWT_AUDIENCE || 'anythingllm';
+  const ENABLE_SCOPE_ENFORCEMENT =
+    process.env.ENABLE_DELEGATED_SCOPE_ENFORCEMENT === 'true';
   const AUTH_MODE = process.env.ANYTHINGLLM_SERVICE_AUTH_MODE;
 
   beforeAll(async () => {
@@ -106,9 +120,14 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
           imports: [AnythingLLMModule],
         }).compile();
 
-        serviceIdentityService = testModule.get(AnythingLLMServiceIdentityService);
+        serviceIdentityService = testModule.get(
+          AnythingLLMServiceIdentityService,
+        );
       } catch (error) {
-        console.warn('Failed to initialize AnythingLLM services, some tests will be skipped:', error);
+        console.warn(
+          'Failed to initialize AnythingLLM services, some tests will be skipped:',
+          error,
+        );
         serviceIdentityService = null;
       }
     }
@@ -132,7 +151,9 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
     }
 
     if (AUTH_MODE !== 'keystone_delegated_jwt') {
-      console.log(`[SKIP] ANYTHINGLLM_SERVICE_AUTH_MODE is not 'keystone_delegated_jwt' (current: ${AUTH_MODE})`);
+      console.log(
+        `[SKIP] ANYTHINGLLM_SERVICE_AUTH_MODE is not 'keystone_delegated_jwt' (current: ${AUTH_MODE})`,
+      );
       return true;
     }
 
@@ -303,7 +324,9 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
         exp: now + 300,
       };
 
-      const token = jwt.sign(invalidPayload, DELEGATED_JWT_SECRET!, { algorithm: 'HS256' });
+      const token = jwt.sign(invalidPayload, DELEGATED_JWT_SECRET!, {
+        algorithm: 'HS256',
+      });
 
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
@@ -498,7 +521,11 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
           ...invalidCase,
         };
 
-        const token = jwt.sign(invalidPayload as jwt.JwtPayload, DELEGATED_JWT_SECRET!, { algorithm: 'HS256' });
+        const token = jwt.sign(
+          invalidPayload as jwt.JwtPayload,
+          DELEGATED_JWT_SECRET!,
+          { algorithm: 'HS256' },
+        );
 
         // Call admin endpoint
         const response = await request(ANYTHINGLLM_URL)
@@ -515,7 +542,9 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
   describe('Test Suite 4: Optional Scope Enforcement', () => {
     it('should reject request with insufficient scope when enforcement enabled', async () => {
       if (shouldSkipTests() || !ENABLE_SCOPE_ENFORCEMENT) {
-        console.log('[SKIP] Skipping scope enforcement test (enforcement disabled or tests skipped)');
+        console.log(
+          '[SKIP] Skipping scope enforcement test (enforcement disabled or tests skipped)',
+        );
         return;
       }
 
@@ -598,7 +627,9 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
 
     it('should skip scope enforcement when disabled', async () => {
       if (shouldSkipTests() || ENABLE_SCOPE_ENFORCEMENT) {
-        console.log('[SKIP] Skipping scope enforcement skip test (enforcement enabled or tests skipped)');
+        console.log(
+          '[SKIP] Skipping scope enforcement skip test (enforcement enabled or tests skipped)',
+        );
         return;
       }
 
@@ -637,12 +668,16 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
   describe('Test Suite 5: Backward Compatibility', () => {
     it('should maintain GCP mode compatibility', async () => {
       if (SKIP_ANYTHINGLLM_TESTS || AUTH_MODE === 'keystone_delegated_jwt') {
-        console.log('[SKIP] Skipping GCP mode test (delegated mode active or tests skipped)');
+        console.log(
+          '[SKIP] Skipping GCP mode test (delegated mode active or tests skipped)',
+        );
         return;
       }
 
       if (!serviceIdentityService) {
-        console.log('[SKIP] Service identity service not available, skipping GCP mode test');
+        console.log(
+          '[SKIP] Service identity service not available, skipping GCP mode test',
+        );
         return;
       }
 
@@ -657,7 +692,9 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       try {
         serviceToken = await serviceIdentityService.getIdToken();
       } catch (error) {
-        console.log('[SKIP] GCP service identity not available (expected in test env), skipping GCP mode test');
+        console.log(
+          '[SKIP] GCP service identity not available (expected in test env), skipping GCP mode test',
+        );
         return;
       }
 
@@ -716,4 +753,3 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
     }, 30000);
   });
 });
-

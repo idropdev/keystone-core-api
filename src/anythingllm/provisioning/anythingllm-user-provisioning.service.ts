@@ -16,7 +16,10 @@ import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/s
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import { AnythingLLMWorkspaceService } from '../workspace/anythingllm-workspace.service';
-import { CreateWorkspaceRequestSchema, CreateWorkspaceResponseSchema } from '../registry/schemas/workspace.schema';
+import {
+  CreateWorkspaceRequestSchema,
+  CreateWorkspaceResponseSchema,
+} from '../registry/schemas/workspace.schema';
 import { GetWorkspaceUsersResponseSchema } from '../registry/schemas/admin-workspace.schema';
 
 /**
@@ -60,7 +63,10 @@ export class AnythingLLMUserProvisioningService {
    * @param user - Keystone user to provision
    * @param adminUserId - Optional admin user ID for delegated token context (required for HS256 tokens)
    */
-  async provisionUser(user: User, adminUserId?: string | number): Promise<void> {
+  async provisionUser(
+    user: User,
+    adminUserId?: string | number,
+  ): Promise<void> {
     // Check if repository is available (only works with relational databases)
     if (!this.mappingRepository) {
       this.logger.warn(
@@ -88,7 +94,10 @@ export class AnythingLLMUserProvisioningService {
       const anythingllmRole = this.mapKeystoneRoleToAnythingLLMRole(roleId);
 
       // Step 1: Create user in AnythingLLM (or find existing)
-      const anythingllmUserId = await this.createUserInAnythingLLM(user, adminUserId);
+      const anythingllmUserId = await this.createUserInAnythingLLM(
+        user,
+        adminUserId,
+      );
 
       // Step 2: Generate workspace slug (for mapping purposes)
       const workspaceSlug = this.workspaceMapper.getWorkspaceSlugForUser(user);
@@ -187,13 +196,16 @@ export class AnythingLLMUserProvisioningService {
    * @param roleId - Keystone role ID (RoleEnum value)
    * @returns AnythingLLM role string
    */
-  private mapKeystoneRoleToAnythingLLMRole(roleId: number | string | null | undefined): string {
+  private mapKeystoneRoleToAnythingLLMRole(
+    roleId: number | string | null | undefined,
+  ): string {
     if (roleId === null || roleId === undefined) {
       return 'default';
     }
 
     // Handle both numeric and string role IDs
-    const numericRoleId = typeof roleId === 'string' ? parseInt(roleId, 10) : roleId;
+    const numericRoleId =
+      typeof roleId === 'string' ? parseInt(roleId, 10) : roleId;
 
     if (numericRoleId === RoleEnum.admin) {
       return 'admin';
@@ -206,9 +218,7 @@ export class AnythingLLMUserProvisioningService {
     }
 
     // Fallback to default for unknown roles
-    this.logger.warn(
-      `Unknown role ID ${roleId}, defaulting to 'default' role`,
-    );
+    this.logger.warn(`Unknown role ID ${roleId}, defaulting to 'default' role`);
     return 'default';
   }
 
@@ -221,7 +231,10 @@ export class AnythingLLMUserProvisioningService {
    * @param user - Keystone user
    * @returns AnythingLLM user ID
    */
-  async createUserInAnythingLLM(user: User, adminUserId?: string | number): Promise<number> {
+  async createUserInAnythingLLM(
+    user: User,
+    adminUserId?: string | number,
+  ): Promise<number> {
     const keystoneUserId = String(user.id);
 
     // Check if user already exists (idempotency check)
@@ -242,19 +255,19 @@ export class AnythingLLMUserProvisioningService {
       // Always use delegated tokens (HS256) with admin context
       // If no admin context provided, use system admin ID
       const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
-      
+
       const requesterContext: RequesterContextDto = {
         userId: String(effectiveAdminId),
         roles: ['admin'],
       };
-      
+
       const response = await this.orchestratorService.executeOperation({
         requesterContext,
         operation: AnythingLLMOperation.SYSTEM_READ,
         endpoint: `/v1/admin/users/external/${keystoneUserId}?provider=keystone`,
         method: 'GET',
       });
-      
+
       if (!response.ok) {
         // User doesn't exist (404) - this is expected for new users
         if (response.status === 404) {
@@ -285,10 +298,8 @@ export class AnythingLLMUserProvisioningService {
     } catch (error) {
       // User doesn't exist (404) or other error - proceed with user creation
       // 404 is expected when user doesn't exist, so we continue
-      const isNotFound =
-        error instanceof UpstreamError &&
-        error.status === 404;
-      
+      const isNotFound = error instanceof UpstreamError && error.status === 404;
+
       if (!isNotFound) {
         this.logger.warn(
           `Failed to check for existing user by externalId: ${error instanceof Error ? error.message : 'Unknown error'}. Proceeding with user creation.`,
@@ -324,12 +335,12 @@ export class AnythingLLMUserProvisioningService {
       // If no admin context provided, use system admin ID
       // This matches the pattern used in document upload (orchestrator issues delegated tokens)
       const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
-      
+
       const requesterContext: RequesterContextDto = {
         userId: String(effectiveAdminId),
         roles: ['admin'],
       };
-      
+
       const response = await this.orchestratorService.executeOperation({
         requesterContext,
         operation: AnythingLLMOperation.SYSTEM_READ,
@@ -337,7 +348,7 @@ export class AnythingLLMUserProvisioningService {
         method: 'POST',
         body: createRequest,
       });
-      
+
       if (!response.ok) {
         // Convert HTTP error to UpstreamError for consistent error handling
         const body = await response.text();
@@ -348,7 +359,7 @@ export class AnythingLLMUserProvisioningService {
           createRequest,
         );
       }
-      
+
       const data = await response.json();
       const result = { data };
 
@@ -435,110 +446,164 @@ export class AnythingLLMUserProvisioningService {
       },
     });
 
-    try {
-      // Always use delegated tokens (HS256) with admin context
-      // If no admin context provided, use system admin ID
-      // This matches the pattern used in document upload (orchestrator issues delegated tokens)
-      const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
+    // Retry configuration for workspace creation
+    // Retry on transient errors (5xx) up to 3 times with exponential backoff
+    const maxRetries = 3;
+    const retryDelayMs = 1000; // Initial delay: 1 second
+    const retryableStatusCodes = [500, 502, 503, 504]; // Transient server errors
 
-      const requesterContext: RequesterContextDto = {
-        userId: String(effectiveAdminId),
-        roles: ['admin'],
-      };
+    let lastError: Error | null = null;
 
-      // Default workspace configuration matching user's example payload
-      const workspaceRequest: CreateWorkspaceRequestSchema = {
-        name: `Workspace for user ${keystoneUserId}`,
-        slug: workspaceSlug,
-        chatMode: 'chat',
-        topN: 8,
-        similarityThreshold: 0.68,
-        openAiTemp: 0.2,
-        openAiHistory: 12,
-        openAiPrompt:
-          '## ROLE\nYou are a precise, citation-first assistant.\n\n## GOAL\nAnswer clearly and thoroughly using ONLY the retrieved context when it\'s relevant. If key context is missing or insufficient, say so explicitly before you infer anything.\n\n## OUTPUT RULES\n- Start with a 1–2 sentence direct answer.\n- Then give a short, structured explanation.\n- Cite each non-trivial claim with the specific source IDs.\n- If context is weak: say "Insufficient context" and ask for one targeted follow-up question.\n- Never fabricate citations or data.\n',
-        queryRefusalResponse:
-          "I don't have enough grounded context to answer confidently. Please add more detail or documents I can search",
-      };
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Always use delegated tokens (HS256) with admin context
+        // If no admin context provided, use system admin ID
+        // This matches the pattern used in document upload (orchestrator issues delegated tokens)
+        const effectiveAdminId = adminUserId || this.SYSTEM_ADMIN_ID;
 
-      // Pass requesterContext - this will use orchestrator which issues delegated tokens (HS256)
-      const response = await this.workspaceService.createWorkspace(
-        workspaceRequest,
-        requesterContext,
-      );
+        const requesterContext: RequesterContextDto = {
+          userId: String(effectiveAdminId),
+          roles: ['admin'],
+        };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Failed to create workspace: ${response.status} - ${errorText}`,
+        // Default workspace configuration matching user's example payload
+        const workspaceRequest: CreateWorkspaceRequestSchema = {
+          name: `Workspace for user ${keystoneUserId}`,
+          slug: workspaceSlug,
+          chatMode: 'chat',
+          topN: 8,
+          similarityThreshold: 0.68,
+          openAiTemp: 0.2,
+          openAiHistory: 12,
+          openAiPrompt:
+            '## ROLE\nYou are a precise, citation-first assistant.\n\n## GOAL\nAnswer clearly and thoroughly using ONLY the retrieved context when it\'s relevant. If key context is missing or insufficient, say so explicitly before you infer anything.\n\n## OUTPUT RULES\n- Start with a 1–2 sentence direct answer.\n- Then give a short, structured explanation.\n- Cite each non-trivial claim with the specific source IDs.\n- If context is weak: say "Insufficient context" and ask for one targeted follow-up question.\n- Never fabricate citations or data.\n',
+          queryRefusalResponse:
+            "I don't have enough grounded context to answer confidently. Please add more detail or documents I can search",
+        };
+
+        // Pass requesterContext - this will use orchestrator which issues delegated tokens (HS256)
+        const response = await this.workspaceService.createWorkspace(
+          workspaceRequest,
+          requesterContext,
         );
-      }
 
-      const result = (await response.json()) as CreateWorkspaceResponseSchema;
+        if (!response.ok) {
+          const errorText = await response.text();
+          const error = new Error(
+            `Failed to create workspace: ${response.status} - ${errorText}`,
+          ) as Error & { statusCode?: number };
+          error.statusCode = response.status;
 
-      if (!result.workspace) {
-        throw new Error(
-          `Failed to create workspace: ${result.message || 'Unknown error'}`,
+          // Check if error is retryable (transient server error)
+          const isRetryable = retryableStatusCodes.includes(response.status) && attempt < maxRetries;
+
+          if (isRetryable) {
+            // Calculate exponential backoff delay: 1s, 2s, 4s
+            const delay = retryDelayMs * Math.pow(2, attempt - 1);
+            this.logger.warn(
+              `Workspace creation failed with ${response.status} (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            lastError = error;
+            continue; // Retry
+          }
+
+          // Non-retryable error or max retries reached
+          throw error;
+        }
+
+        const result = (await response.json()) as CreateWorkspaceResponseSchema;
+
+        if (!result.workspace) {
+          const error = new Error(
+            `Failed to create workspace: ${result.message || 'Unknown error'}`,
+          );
+          // Treat missing workspace as non-retryable (likely validation error)
+          throw error;
+        }
+
+        const workspaceId = result.workspace.id;
+        // CRITICAL: Use the slug from the response, not the one we passed in
+        // AnythingLLM might sanitize, truncate, or auto-generate the slug
+        const actualWorkspaceSlug = result.workspace.slug || workspaceSlug;
+
+        // Small delay to ensure workspace is indexed/available in AnythingLLM
+        // This handles potential race conditions where workspace creation completes
+        // but the workspace isn't immediately available for user assignment
+        await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
+
+        // Log workspace creation succeeded
+        this.auditService.logAuthEvent({
+          userId: keystoneUserId,
+          provider: 'anythingllm',
+          event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_SUCCEEDED,
+          success: true,
+          metadata: {
+            workspaceId,
+            workspaceSlug: actualWorkspaceSlug,
+            requestedSlug: workspaceSlug, // Log what we requested vs what we got
+            attempts: attempt, // Log number of attempts if retried
+          },
+        });
+
+        if (attempt > 1) {
+          this.logger.log(
+            `Created workspace ${actualWorkspaceSlug} (ID: ${workspaceId}) for user ${keystoneUserId} after ${attempt} attempts (requested: ${workspaceSlug})`,
+          );
+        } else {
+          this.logger.log(
+            `Created workspace ${actualWorkspaceSlug} (ID: ${workspaceId}) for user ${keystoneUserId} (requested: ${workspaceSlug})`,
+          );
+        }
+
+        // Return both ID and actual slug (from response, not request)
+        return { workspaceId, workspaceSlug: actualWorkspaceSlug };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if this is a retryable error
+        const statusCode = (error as any).statusCode;
+        const isRetryable =
+          statusCode &&
+          retryableStatusCodes.includes(statusCode) &&
+          attempt < maxRetries;
+
+        if (isRetryable) {
+          // Calculate exponential backoff delay: 1s, 2s, 4s
+          const delay = retryDelayMs * Math.pow(2, attempt - 1);
+          this.logger.warn(
+            `Workspace creation failed (attempt ${attempt}/${maxRetries}): ${errorMessage}. Retrying in ${delay}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue; // Retry
+        }
+
+        // Non-retryable error or max retries reached - log and throw
+        this.auditService.logAuthEvent({
+          userId: keystoneUserId,
+          provider: 'anythingllm',
+          event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_FAILED,
+          success: false,
+          errorMessage,
+          metadata: {
+            workspaceSlug,
+            attempts: attempt,
+            finalAttempt: attempt === maxRetries,
+          },
+        });
+
+        this.logger.error(
+          `Failed to create workspace ${workspaceSlug} for user ${keystoneUserId} after ${attempt} attempt(s): ${errorMessage}`,
         );
+
+        throw lastError;
       }
-
-      const workspaceId = result.workspace.id;
-      // CRITICAL: Use the slug from the response, not the one we passed in
-      // AnythingLLM might sanitize, truncate, or auto-generate the slug
-      const actualWorkspaceSlug = result.workspace.slug || workspaceSlug;
-
-      // Small delay to ensure workspace is indexed/available in AnythingLLM
-      // This handles potential race conditions where workspace creation completes
-      // but the workspace isn't immediately available for user assignment
-      await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
-
-      // Log workspace creation succeeded
-      this.auditService.logAuthEvent({
-        userId: keystoneUserId,
-        provider: 'anythingllm',
-        event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_SUCCEEDED,
-        success: true,
-        metadata: {
-          workspaceId,
-          workspaceSlug: actualWorkspaceSlug,
-          requestedSlug: workspaceSlug, // Log what we requested vs what we got
-        },
-      });
-
-      this.logger.log(
-        `Created workspace ${actualWorkspaceSlug} (ID: ${workspaceId}) for user ${keystoneUserId} (requested: ${workspaceSlug})`,
-      );
-
-      // Return both ID and slug so caller can use the actual slug
-      // We'll store this in a way that allows us to return both
-      // For now, we'll modify the return to include slug
-      // But since the method signature returns Promise<number>, we'll need to update the caller
-      // Actually, let's check what the caller expects first
-      
-      // Return both ID and actual slug (from response, not request)
-      return { workspaceId, workspaceSlug: actualWorkspaceSlug };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-
-      // Log workspace creation failed
-      this.auditService.logAuthEvent({
-        userId: keystoneUserId,
-        provider: 'anythingllm',
-        event: AuthEventType.ANYTHINGLLM_WORKSPACE_CREATION_FAILED,
-        success: false,
-        errorMessage,
-        metadata: {
-          workspaceSlug,
-        },
-      });
-
-      this.logger.error(
-        `Failed to create workspace ${workspaceSlug} for user ${keystoneUserId}: ${errorMessage}`,
-      );
-
-      throw error;
     }
+
+    // This should never be reached, but TypeScript requires it
+    throw lastError || new Error('Failed to create workspace: unknown error');
   }
 
   /**

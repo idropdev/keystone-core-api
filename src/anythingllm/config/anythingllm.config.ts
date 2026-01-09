@@ -1,5 +1,12 @@
 import { registerAs } from '@nestjs/config';
-import { IsEnum, IsOptional, IsString, IsUrl, IsBoolean, IsNumber } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUrl,
+  IsBoolean,
+  IsNumber,
+} from 'class-validator';
 import { AnythingLLMConfig } from './anythingllm-config.type';
 import validateConfig from '../../utils/validate-config';
 

@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { AllConfigType } from '../config/config.type';
 import { JwtSignerPort } from './infrastructure/jwt/jwt-signer.port';
 import { KeystorePort } from './infrastructure/keystore/keystore.port';
-import { DelegatedTokenClaims, ActorClaim } from './domain/delegated-token-claims.entity';
+import {
+  DelegatedTokenClaims,
+  ActorClaim,
+} from './domain/delegated-token-claims.entity';
 import {
   IssueDelegatedTokenDto,
   RequesterContextDto,
@@ -35,10 +38,10 @@ export class AnythingLLMAuthDelegationService {
   async issueDelegatedToken(
     dto: IssueDelegatedTokenDto,
   ): Promise<DelegatedTokenResponseDto> {
-    const enabled = this.configService.get<boolean>(
-      'anythingllm.enableDelegatedTokens',
-      { infer: true },
-    ) ?? false;
+    const enabled =
+      this.configService.get<boolean>('anythingllm.enableDelegatedTokens', {
+        infer: true,
+      }) ?? false;
 
     if (!enabled) {
       const errorMessage =
@@ -59,10 +62,10 @@ export class AnythingLLMAuthDelegationService {
       };
     }
 
-    const expiresIn = this.configService.get<number>(
-      'anythingllm.delegatedTokenExpiresIn',
-      { infer: true },
-    ) ?? 300; // Default: 5 minutes
+    const expiresIn =
+      this.configService.get<number>('anythingllm.delegatedTokenExpiresIn', {
+        infer: true,
+      }) ?? 300; // Default: 5 minutes
 
     const audience =
       this.configService.get<string>('anythingllm.delegatedTokenAudience', {
@@ -88,6 +91,11 @@ export class AnythingLLMAuthDelegationService {
     };
 
     // Build token payload
+    // CRITICAL: Issuer is required for AnythingLLM validation
+    // AnythingLLM expects one of: anythingllm-internal, http://localhost:3000/api, http://localhost:3000
+    // If issuer is not set, use default that matches AnythingLLM expectations
+    const finalIssuer = issuer || 'http://localhost:3000/api';
+
     const tokenPayload: DelegatedTokenClaims = {
       sub: 'svc-keystone', // Service identity
       act: actorClaim, // Actor claim (RFC 8693)
@@ -95,10 +103,9 @@ export class AnythingLLMAuthDelegationService {
       aud: audience,
       iat: now,
       exp: expiresAt,
-      ...(issuer && { iss: issuer }),
+      iss: finalIssuer, // Always include issuer (required by AnythingLLM)
       nbf: now - 60, // Not before (60s clock skew allowance)
     };
-
 
     // Sign token - MUST use HS256 (not RS256)
     const token = await this.jwtSigner.sign(
@@ -111,7 +118,7 @@ export class AnythingLLMAuthDelegationService {
     try {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.decode(token, { complete: true }) as any;
-      
+
       if (decoded?.header?.alg !== 'HS256') {
         const errorMessage = `CRITICAL: Delegated token was signed with algorithm ${decoded?.header?.alg} but MUST be HS256. Check JwtSignerAdapter configuration.`;
         this.logger.error(errorMessage);
@@ -137,4 +144,3 @@ export class AnythingLLMAuthDelegationService {
     };
   }
 }
-

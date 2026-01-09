@@ -1,10 +1,6 @@
 import request from 'supertest';
 import { APP_URL, ANYTHINGLLM_BASE_URL } from '../utils/constants';
-import {
-  createTestUser,
-  getAdminToken,
-  TestUser,
-} from '../utils/test-helpers';
+import { createTestUser, getAdminToken, TestUser } from '../utils/test-helpers';
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { AnythingLLMServiceIdentityService } from '../../src/anythingllm/services/anythingllm-service-identity.service';
 import { Test } from '@nestjs/testing';
@@ -42,11 +38,12 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
 
   const SKIP_ANYTHINGLLM_TESTS = process.env.SKIP_ANYTHINGLLM_TESTS === 'true';
   const APP = APP_URL;
-  const ANYTHINGLLM_URL = process.env.ANYTHINGLLM_BASE_URL || ANYTHINGLLM_BASE_URL;
+  const ANYTHINGLLM_URL =
+    process.env.ANYTHINGLLM_BASE_URL || ANYTHINGLLM_BASE_URL;
 
   let createdWorkspaceSlug: string | null = null;
-  let createdThreadSlug: string | null = null;
-  let uploadedDocumentLocation: string | null = null;
+  const createdThreadSlug: string | null = null;
+  const uploadedDocumentLocation: string | null = null;
 
   beforeAll(async () => {
     // Get admin token
@@ -65,7 +62,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
           imports: [AnythingLLMModule],
         }).compile();
 
-        serviceIdentityService = testModule.get(AnythingLLMServiceIdentityService);
+        serviceIdentityService = testModule.get(
+          AnythingLLMServiceIdentityService,
+        );
       } catch (error) {
         console.warn(
           'Failed to initialize service identity service, cleanup may be skipped:',
@@ -85,12 +84,15 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
       try {
         if (createdWorkspaceSlug) {
           const token = await serviceIdentityService.getIdToken();
-          await fetch(`${ANYTHINGLLM_URL}/v1/admin/workspace/${createdWorkspaceSlug}`, {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${token}`,
+          await fetch(
+            `${ANYTHINGLLM_URL}/v1/admin/workspace/${createdWorkspaceSlug}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             },
-          });
+          );
         }
       } catch (error) {
         console.warn('Cleanup failed:', error);
@@ -123,7 +125,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
   };
 
   // Helper to create a test file buffer
-  const createTestFileBuffer = (content: string = 'Test document content'): Buffer => {
+  const createTestFileBuffer = (
+    content: string = 'Test document content',
+  ): Buffer => {
     return Buffer.from(content);
   };
 
@@ -143,7 +147,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
       // Auth endpoint may not exist or may return different status codes
       // Accept 200 (success) or 404 (endpoint not found) as valid
       if (response.status === 404) {
-        console.log('[SKIP] Auth endpoint /v1/auth not found - this is acceptable');
+        console.log(
+          '[SKIP] Auth endpoint /v1/auth not found - this is acceptable',
+        );
         return;
       }
 
@@ -212,17 +218,15 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
 
   describe('Workspace Embeddings', () => {
     it('should update workspace embeddings via Keystone API', async () => {
-      if (
-        SKIP_ANYTHINGLLM_TESTS ||
-        !createdWorkspaceSlug ||
-        !adminUser
-      ) {
+      if (SKIP_ANYTHINGLLM_TESTS || !createdWorkspaceSlug || !adminUser) {
         return;
       }
 
       // Note: Workspace embeddings endpoint may not be available via Keystone API
       // This would need to be implemented in the controller
-      console.log('[SKIP] Workspace embeddings endpoint not yet available via Keystone API');
+      console.log(
+        '[SKIP] Workspace embeddings endpoint not yet available via Keystone API',
+      );
     });
   });
 
@@ -234,7 +238,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
 
       // Note: Thread creation endpoint may not be available via Keystone API
       // This would need to be implemented in the controller
-      console.log('[SKIP] Thread creation endpoint not yet available via Keystone API');
+      console.log(
+        '[SKIP] Thread creation endpoint not yet available via Keystone API',
+      );
     });
 
     // Note: Other thread endpoints (get history, send message) may not be
@@ -249,7 +255,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
 
       // Note: Vector search endpoint may not be available via Keystone API
       // This would need to be implemented in the controller
-      console.log('[SKIP] Vector search endpoint not yet available via Keystone API');
+      console.log(
+        '[SKIP] Vector search endpoint not yet available via Keystone API',
+      );
     });
   });
 
@@ -261,7 +269,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
 
       // Note: OpenAI-compatible endpoints may not be available via Keystone API
       // This would need to be implemented in the controller
-      console.log('[SKIP] OpenAI-compatible endpoints not yet available via Keystone API');
+      console.log(
+        '[SKIP] OpenAI-compatible endpoints not yet available via Keystone API',
+      );
     });
 
     it('should get embeddings via Keystone API', async () => {
@@ -271,7 +281,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
 
       // Note: Embeddings endpoint may not be available via Keystone API
       // This would need to be implemented in the controller
-      console.log('[SKIP] Embeddings endpoint not yet available via Keystone API');
+      console.log(
+        '[SKIP] Embeddings endpoint not yet available via Keystone API',
+      );
     });
   });
 });

@@ -167,7 +167,9 @@ describe('AnythingLLM Document Upload (E2E)', () => {
   };
 
   // Helper to create a test file buffer
-  const createTestFileBuffer = (content: string = 'Test document content'): Buffer => {
+  const createTestFileBuffer = (
+    content: string = 'Test document content',
+  ): Buffer => {
     return Buffer.from(content);
   };
 
@@ -296,9 +298,10 @@ describe('AnythingLLM Document Upload (E2E)', () => {
           break;
         } catch (error: any) {
           // Check if error is from supertest expecting a status code
-          const status = error.status || 
-                       error.response?.status || 
-                       (error.message?.includes('429') ? 429 : null);
+          const status =
+            error.status ||
+            error.response?.status ||
+            (error.message?.includes('429') ? 429 : null);
 
           if (status === 429 && attempt < maxRetries - 1) {
             console.log(
@@ -383,9 +386,10 @@ describe('AnythingLLM Document Upload (E2E)', () => {
           break;
         } catch (error: any) {
           // Check if error is from supertest expecting a status code
-          const status = error.status || 
-                       error.response?.status || 
-                       (error.message?.includes('429') ? 429 : null);
+          const status =
+            error.status ||
+            error.response?.status ||
+            (error.message?.includes('429') ? 429 : null);
 
           if (status === 429 && attempt < maxRetries - 1) {
             console.log(
@@ -483,7 +487,6 @@ describe('AnythingLLM Document Upload (E2E)', () => {
       expect(response.body).toHaveProperty('message');
       expect(response.body.message).toContain('Users cannot upload documents');
     }, 60000);
-
   });
 
   describe('Document Upload - Workspace Requirements', () => {
@@ -706,11 +709,12 @@ describe('AnythingLLM Document Upload (E2E)', () => {
           break;
         } catch (error: any) {
           lastError = error;
-          
+
           // Check if error is from supertest expecting a status code
-          const status = error.status || 
-                       error.response?.status || 
-                       (error.message?.includes('429') ? 429 : null);
+          const status =
+            error.status ||
+            error.response?.status ||
+            (error.message?.includes('429') ? 429 : null);
 
           if (status === 429 && attempt < maxRetries - 1) {
             console.log(
@@ -749,4 +753,3 @@ describe('AnythingLLM Document Upload (E2E)', () => {
     }, 180000); // 3 minutes timeout to allow for 429 retry (65s wait + request time)
   });
 });
-

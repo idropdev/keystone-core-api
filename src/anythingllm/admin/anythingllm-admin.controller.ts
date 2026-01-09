@@ -106,12 +106,23 @@ export class AnythingLLMAdminController {
   }
 
   @Get('users/external/:externalId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get user by external ID',
-    description: 'Look up a user by their external identity (externalId + externalProvider). Uses delegated tokens (HS256) for AnythingLLM authentication.',
+    description:
+      'Look up a user by their external identity (externalId + externalProvider). Uses delegated tokens (HS256) for AnythingLLM authentication.',
   })
-  @ApiParam({ name: 'externalId', type: String, description: 'External user ID (e.g., Keystone UUID)' })
-  @ApiQuery({ name: 'provider', required: false, type: String, description: 'External provider (default: keystone)', example: 'keystone' })
+  @ApiParam({
+    name: 'externalId',
+    type: String,
+    description: 'External user ID (e.g., Keystone UUID)',
+  })
+  @ApiQuery({
+    name: 'provider',
+    required: false,
+    type: String,
+    description: 'External provider (default: keystone)',
+    example: 'keystone',
+  })
   @ApiResponse({
     status: 200,
     description: 'User found',

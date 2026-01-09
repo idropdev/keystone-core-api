@@ -247,8 +247,3 @@ export class ThreadStreamChatChunkSchema {
   @IsOptional()
   error?: string | null;
 }
-
-
-
-
-
