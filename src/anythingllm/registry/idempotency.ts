@@ -46,13 +46,7 @@ export function generateThreadIdempotencyKey(
  * Generate file hash for idempotency
  */
 export function generateFileHash(fileContent: Buffer | string): string {
-  const content = typeof fileContent === 'string' 
-    ? Buffer.from(fileContent) 
-    : fileContent;
+  const content =
+    typeof fileContent === 'string' ? Buffer.from(fileContent) : fileContent;
   return createHash('sha256').update(content).digest('hex');
 }
-
-
-
-
-

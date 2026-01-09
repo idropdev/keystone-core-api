@@ -9,13 +9,3 @@ export interface ResourceContext {
   targetUserId?: string; // For manager oversight operations
   [key: string]: unknown; // Allow additional context fields
 }
-
-
-
-
-
-
-
-
-
-

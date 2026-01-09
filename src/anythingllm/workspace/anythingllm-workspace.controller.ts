@@ -62,9 +62,7 @@ export class AnythingLLMWorkspaceController {
   /**
    * Map JWT payload to RequesterContextDto
    */
-  private mapUserToRequesterContext(
-    user: JwtPayloadType,
-  ): RequesterContextDto {
+  private mapUserToRequesterContext(user: JwtPayloadType): RequesterContextDto {
     const roleId = user.role?.id;
     const roleName = user.role?.name;
 
@@ -190,7 +188,10 @@ export class AnythingLLMWorkspaceController {
   @ApiResponse({ status: 400, description: 'Invalid request parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 502, description: 'Bad Gateway - upstream processing failed' })
+  @ApiResponse({
+    status: 502,
+    description: 'Bad Gateway - upstream processing failed',
+  })
   @ApiResponse({ status: 503, description: 'Service Unavailable' })
   async createWorkspace(
     @Request() request: ExpressRequestWithUser,
@@ -258,8 +259,9 @@ export class AnythingLLMWorkspaceController {
       }
 
       // Parse successful response
-      upstreamData = (await upstreamResponse.json()) as CreateWorkspaceResponseSchema;
-      
+      upstreamData =
+        (await upstreamResponse.json()) as CreateWorkspaceResponseSchema;
+
       // Ensure message is set if it's missing or null
       if (!upstreamData.message) {
         upstreamData.message = 'Workspace created';
@@ -294,4 +296,3 @@ export class AnythingLLMWorkspaceController {
     }
   }
 }
-

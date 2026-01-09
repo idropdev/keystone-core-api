@@ -110,7 +110,9 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
       // Verify this is an admin token
       if (decoded.role !== RoleEnum.admin) {
-        console.warn('Token is not from admin user - admin token required for user lookup');
+        console.warn(
+          'Token is not from admin user - admin token required for user lookup',
+        );
         return null;
       }
 
@@ -119,16 +121,17 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
       // Issue delegated token with admin context
       // Use SYSTEM_READ operation - admins are always authorized for system read operations
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        requesterContext: {
-          userId: String(decoded.id),
-          roles,
-          sessionId: decoded.sessionId,
-          provider: decoded.provider,
-        },
-        operation: AnythingLLMOperation.SYSTEM_READ,
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          requesterContext: {
+            userId: String(decoded.id),
+            roles,
+            sessionId: decoded.sessionId,
+            provider: decoded.provider,
+          },
+          operation: AnythingLLMOperation.SYSTEM_READ,
+          scope: ['anythingllm:system:read'],
+        });
 
       // Call AnythingLLM endpoint directly with delegated token
       const response = await fetch(
@@ -147,7 +150,9 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
           return null;
         }
         const errorText = await response.text();
-        throw new Error(`AnythingLLM API error: ${response.status} - ${errorText}`);
+        throw new Error(
+          `AnythingLLM API error: ${response.status} - ${errorText}`,
+        );
       }
 
       const result = await response.json();
@@ -199,7 +204,10 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
     while (attempts < maxAttempts) {
       attempts++;
-      const user = await findUserInAnythingLLMByExternalId(keystoneUserId, adminToken);
+      const user = await findUserInAnythingLLMByExternalId(
+        keystoneUserId,
+        adminToken,
+      );
 
       if (user && user.role === expectedRole) {
         return { user, found: true };
@@ -241,7 +249,9 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
       // Verify this is an admin token
       if (decoded.role !== RoleEnum.admin) {
-        console.warn('Token is not from admin user - admin token required for user deletion');
+        console.warn(
+          'Token is not from admin user - admin token required for user deletion',
+        );
         return;
       }
 
@@ -251,16 +261,17 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
       // Issue delegated token with admin context
       // Use SYSTEM_READ operation - admins are always authorized for system read operations
       // (Admin operations like user deletion are authorized for admins via SYSTEM_READ)
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        requesterContext: {
-          userId: String(decoded.id),
-          roles,
-          sessionId: decoded.sessionId,
-          provider: decoded.provider,
-        },
-        operation: AnythingLLMOperation.SYSTEM_READ,
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          requesterContext: {
+            userId: String(decoded.id),
+            roles,
+            sessionId: decoded.sessionId,
+            provider: decoded.provider,
+          },
+          operation: AnythingLLMOperation.SYSTEM_READ,
+          scope: ['anythingllm:system:read'],
+        });
 
       // Call AnythingLLM endpoint directly with delegated token
       const response = await fetch(
@@ -275,11 +286,16 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
       if (!response.ok && response.status !== 404) {
         const errorText = await response.text();
-        throw new Error(`AnythingLLM API error: ${response.status} - ${errorText}`);
+        throw new Error(
+          `AnythingLLM API error: ${response.status} - ${errorText}`,
+        );
       }
     } catch (error) {
       // Ignore cleanup errors
-      console.warn(`Failed to cleanup AnythingLLM user ${anythingllmUserId}:`, error);
+      console.warn(
+        `Failed to cleanup AnythingLLM user ${anythingllmUserId}:`,
+        error,
+      );
     }
   }
 
@@ -591,7 +607,7 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
       // Role may be undefined when not provided (this is expected behavior)
       // The mapping function will handle undefined and default to 'default' in AnythingLLM
-      
+
       // Get user token for delegation
       const loginResponse = await request(APP_URL)
         .post('/api/v1/auth/email/login')
@@ -889,16 +905,17 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
       // Issue delegated token with admin context (HS256 algorithm)
       // This is the same token type used by provisioning when admin creates users
-      const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-        requesterContext: {
-          userId: String(decoded.id),
-          roles: ['admin'],
-          sessionId: decoded.sessionId,
-          provider: decoded.provider,
-        },
-        operation: AnythingLLMOperation.SYSTEM_READ,
-        scope: ['anythingllm:system:read'],
-      });
+      const delegatedTokenResponse =
+        await authDelegationService.issueDelegatedToken({
+          requesterContext: {
+            userId: String(decoded.id),
+            roles: ['admin'],
+            sessionId: decoded.sessionId,
+            provider: decoded.provider,
+          },
+          operation: AnythingLLMOperation.SYSTEM_READ,
+          scope: ['anythingllm:system:read'],
+        });
 
       // Verify delegated token was issued successfully
       expect(delegatedTokenResponse).toHaveProperty('token');
@@ -916,7 +933,9 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
         console.log('[SUCCESS] Delegated token uses HS256 algorithm');
       }
 
-      console.log('[SUCCESS] Admin can issue delegated token for user operations');
+      console.log(
+        '[SUCCESS] Admin can issue delegated token for user operations',
+      );
     }, 30000);
 
     it('should deny manager from creating users in AnythingLLM via token delegation', async () => {
@@ -937,16 +956,17 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
       // This should work (managers can use SYSTEM_READ), but the actual user creation
       // endpoint should reject non-admin tokens
       try {
-        const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-          requesterContext: {
-            userId: String(decoded.id),
-            roles: ['manager'],
-            sessionId: decoded.sessionId,
-            provider: decoded.provider,
-          },
-          operation: AnythingLLMOperation.SYSTEM_READ,
-          scope: ['anythingllm:system:read'],
-        });
+        const delegatedTokenResponse =
+          await authDelegationService.issueDelegatedToken({
+            requesterContext: {
+              userId: String(decoded.id),
+              roles: ['manager'],
+              sessionId: decoded.sessionId,
+              provider: decoded.provider,
+            },
+            operation: AnythingLLMOperation.SYSTEM_READ,
+            scope: ['anythingllm:system:read'],
+          });
 
         // Token issuance might succeed, but the endpoint should reject it
         // Try to create a user with manager's delegated token
@@ -974,7 +994,9 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
         );
       } catch (error) {
         // If token issuance fails, that's also acceptable (policy might deny it)
-        console.log('[SUCCESS] Manager correctly denied delegated token issuance');
+        console.log(
+          '[SUCCESS] Manager correctly denied delegated token issuance',
+        );
       }
     }, 30000);
 
@@ -1006,16 +1028,17 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
       // Try to lookup user with manager token (should fail or return null)
       try {
         const managerDecoded = jwtService.decode(managerToken) as any;
-        const managerDelegatedToken = await authDelegationService.issueDelegatedToken({
-          requesterContext: {
-            userId: String(managerDecoded.id),
-            roles: ['manager'],
-            sessionId: managerDecoded.sessionId,
-            provider: managerDecoded.provider,
-          },
-          operation: AnythingLLMOperation.SYSTEM_READ,
-          scope: ['anythingllm:system:read'],
-        });
+        const managerDelegatedToken =
+          await authDelegationService.issueDelegatedToken({
+            requesterContext: {
+              userId: String(managerDecoded.id),
+              roles: ['manager'],
+              sessionId: managerDecoded.sessionId,
+              provider: managerDecoded.provider,
+            },
+            operation: AnythingLLMOperation.SYSTEM_READ,
+            scope: ['anythingllm:system:read'],
+          });
 
         const lookupResponse = await fetch(
           `${ANYTHINGLLM_BASE_URL}/v1/admin/users/external/${encodeURIComponent(keystoneUserId)}?provider=keystone`,

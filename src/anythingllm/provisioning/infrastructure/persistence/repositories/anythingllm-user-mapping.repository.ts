@@ -23,6 +23,14 @@ export abstract class AnythingLLMUserMappingRepository {
   abstract findByWorkspaceSlug(
     workspaceSlug: string,
   ): Promise<AnythingLLMUserMappingEntity[]>;
+
+  abstract findAll(): Promise<AnythingLLMUserMappingEntity[]>;
+
+  abstract findByAnythingLLMUserId(
+    anythingllmUserId: number,
+  ): Promise<NullableType<AnythingLLMUserMappingEntity>>;
+
+  abstract delete(id: number): Promise<void>;
 }
 
 /**
@@ -60,5 +68,21 @@ export class AnythingLLMUserMappingRelationalRepository
     return await this.mappingRepository.find({
       where: { workspaceSlug },
     });
+  }
+
+  async findAll(): Promise<AnythingLLMUserMappingEntity[]> {
+    return await this.mappingRepository.find();
+  }
+
+  async findByAnythingLLMUserId(
+    anythingllmUserId: number,
+  ): Promise<NullableType<AnythingLLMUserMappingEntity>> {
+    return await this.mappingRepository.findOne({
+      where: { anythingllmUserId },
+    });
+  }
+
+  async delete(id: number): Promise<void> {
+    await this.mappingRepository.delete(id);
   }
 }

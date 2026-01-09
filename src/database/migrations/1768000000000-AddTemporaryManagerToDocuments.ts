@@ -15,7 +15,7 @@ export class AddTemporaryManagerToDocuments1768000000000
     // Check if column exists and is nullable
     const table = await queryRunner.getTable('documents');
     const originManagerColumn = table?.findColumnByName('origin_manager_id');
-    
+
     if (originManagerColumn && !originManagerColumn.isNullable) {
       await queryRunner.query(
         `ALTER TABLE documents ALTER COLUMN origin_manager_id DROP NOT NULL`,
@@ -76,7 +76,10 @@ export class AddTemporaryManagerToDocuments1768000000000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop index
-    await queryRunner.dropIndex('documents', 'IDX_documents_temporary_manager_id');
+    await queryRunner.dropIndex(
+      'documents',
+      'IDX_documents_temporary_manager_id',
+    );
 
     // Drop check constraint
     await queryRunner.query(
@@ -101,4 +104,3 @@ export class AddTemporaryManagerToDocuments1768000000000
     // The application logic should ensure origin_manager_id is set for existing documents
   }
 }
-

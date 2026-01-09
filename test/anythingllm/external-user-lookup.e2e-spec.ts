@@ -265,7 +265,7 @@ describe('External User Lookup (E2E)', () => {
   });
 
   describe('Integration with User Provisioning', () => {
-    let testUsers: TestUser[] = [];
+    const testUsers: TestUser[] = [];
 
     afterAll(async () => {
       // Cleanup is handled by test cleanup

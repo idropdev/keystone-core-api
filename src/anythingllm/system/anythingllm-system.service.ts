@@ -14,16 +14,14 @@ import {
   WorkspaceCountResponseSchema,
   DocumentCountResponseSchema,
 } from '../registry/schemas';
-import {
-  RequesterContextDto,
-} from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
+import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import { randomUUID } from 'crypto';
 
 /**
  * AnythingLLM System Service
  *
  * Provides typed methods for all AnythingLLM system operations.
- * 
+ *
  * Authentication Strategy:
  * - ALWAYS uses service-to-service authentication (Keystone → AnythingLLM)
  * - When user context is available (user/manager/admin JWT present):
@@ -45,7 +43,7 @@ export class AnythingLLMSystemService {
 
   /**
    * Check authentication
-   * 
+   *
    * Always uses service-to-service authentication:
    * - With user context: Delegated token (sub: 'svc-keystone', act: {userId, roles})
    * - Without user context: Service identity (GCP OIDC token)
@@ -66,7 +64,7 @@ export class AnythingLLMSystemService {
       });
 
       const data = (await response.json()) as AuthCheckResponseSchema;
-      
+
       // Normalize response - only return { authenticated: true/false }
       const normalizedData: AuthCheckResponseSchema = {
         authenticated: data.authenticated === true,
@@ -97,7 +95,7 @@ export class AnythingLLMSystemService {
 
   /**
    * Check token validity
-   * 
+   *
    * Always uses service-to-service authentication:
    * - With user context: Delegated token (sub: 'svc-keystone', act: {userId, roles})
    * - Without user context: Service identity (GCP OIDC token)
@@ -116,7 +114,7 @@ export class AnythingLLMSystemService {
       });
 
       const data = (await response.json()) as any;
-      
+
       // Normalize response - only return { authenticated: true/false }
       const normalizedData: CheckTokenResponseSchema = {
         authenticated: data.valid === true || data.authenticated === true,
@@ -135,7 +133,9 @@ export class AnythingLLMSystemService {
 
       // Normalize response
       const normalizedData: CheckTokenResponseSchema = {
-        authenticated: result.data.authenticated === true || (result.data as any).valid === true,
+        authenticated:
+          result.data.authenticated === true ||
+          (result.data as any).valid === true,
       };
 
       return {
@@ -147,7 +147,7 @@ export class AnythingLLMSystemService {
 
   /**
    * Get system information
-   * 
+   *
    * Always uses service-to-service authentication:
    * - With user context: Delegated token (sub: 'svc-keystone', act: {userId, roles})
    * - Without user context: Service identity (GCP OIDC token)
@@ -182,7 +182,7 @@ export class AnythingLLMSystemService {
 
   /**
    * Get vector count
-   * 
+   *
    * Always uses service-to-service authentication:
    * - With user context: Delegated token (sub: 'svc-keystone', act: {userId, roles})
    * - Without user context: Service identity (GCP OIDC token)
@@ -217,7 +217,7 @@ export class AnythingLLMSystemService {
 
   /**
    * Get workspace count
-   * 
+   *
    * Always uses service-to-service authentication:
    * - With user context: Delegated token (sub: 'svc-keystone', act: {userId, roles})
    * - Without user context: Service identity (GCP OIDC token)
@@ -252,7 +252,7 @@ export class AnythingLLMSystemService {
 
   /**
    * Get document count
-   * 
+   *
    * Always uses service-to-service authentication:
    * - With user context: Delegated token (sub: 'svc-keystone', act: {userId, roles})
    * - Without user context: Service identity (GCP OIDC token)
@@ -285,4 +285,3 @@ export class AnythingLLMSystemService {
     }
   }
 }
-

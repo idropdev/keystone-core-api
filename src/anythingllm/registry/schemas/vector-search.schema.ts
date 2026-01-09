@@ -69,8 +69,3 @@ export class VectorSearchResponseSchema {
   @IsArray()
   results: VectorSearchChunkSchema[];
 }
-
-
-
-
-

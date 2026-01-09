@@ -705,7 +705,7 @@ export class GcpStorageAdapter implements StorageServicePort {
       const bucketName = this.bucket.name;
       // Try to check if bucket exists and is accessible
       const [exists] = await this.bucket.exists();
-      
+
       if (exists) {
         return {
           status: 'healthy',

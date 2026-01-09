@@ -50,7 +50,10 @@ export class ThreadScopedChatService {
       docPaths, // This restricts search to only the specified documents
     };
 
-    const result = await this.vectorSearchService.search(workspaceSlug, request);
+    const result = await this.vectorSearchService.search(
+      workspaceSlug,
+      request,
+    );
     return result.data.results;
   }
 
@@ -97,10 +100,7 @@ ${contextChunks}`;
     // Step 4: Call OpenAI-compatible chat completions with system prompt
     const request: OpenAIChatCompletionsRequestSchema = {
       model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-      ],
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
       temperature,
       max_tokens: 1000,
       stream: false,
@@ -132,8 +132,3 @@ Context from documents:
 ${contextChunks}`;
   }
 }
-
-
-
-
-

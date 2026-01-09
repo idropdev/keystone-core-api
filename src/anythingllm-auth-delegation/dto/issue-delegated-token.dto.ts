@@ -42,13 +42,3 @@ export class IssueDelegatedTokenDto {
   @IsString({ each: true })
   scope: string[];
 }
-
-
-
-
-
-
-
-
-
-

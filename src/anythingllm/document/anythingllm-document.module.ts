@@ -19,11 +19,7 @@ import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-clie
     AuthModule, // For JWT strategy
   ],
   controllers: [AnythingLLMDocumentController],
-  providers: [
-    AnythingLLMDocumentService,
-    AnythingLLMRegistryClient,
-  ],
+  providers: [AnythingLLMDocumentService, AnythingLLMRegistryClient],
   exports: [AnythingLLMDocumentService],
 })
 export class AnythingLLMDocumentModule {}
-

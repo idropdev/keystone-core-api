@@ -82,7 +82,9 @@ export class AnythingLLMWorkspaceService {
   async listWorkspaces(): Promise<
     RegistryCallResult<ListWorkspacesResponseSchema>
   > {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin workspace endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<ListWorkspacesResponseSchema>(
     //   AnythingLLMAdminEndpointIds.LIST_WORKSPACES,
     // );
@@ -95,7 +97,9 @@ export class AnythingLLMWorkspaceService {
   async getWorkspace(
     slug: string,
   ): Promise<RegistryCallResult<WorkspaceResponseSchema>> {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin workspace endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<WorkspaceResponseSchema>(
     //   AnythingLLMAdminEndpointIds.GET_WORKSPACE,
     //   { params: { slug } },
@@ -110,7 +114,9 @@ export class AnythingLLMWorkspaceService {
     slug: string,
     request: UpdateWorkspaceRequestSchema,
   ): Promise<RegistryCallResult<UpdateWorkspaceResponseSchema>> {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin workspace endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   UpdateWorkspaceResponseSchema,
     //   UpdateWorkspaceRequestSchema
@@ -127,7 +133,9 @@ export class AnythingLLMWorkspaceService {
   async deleteWorkspace(
     slug: string,
   ): Promise<RegistryCallResult<DeleteWorkspaceResponseSchema>> {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin workspace endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<DeleteWorkspaceResponseSchema>(
     //   AnythingLLMAdminEndpointIds.DELETE_WORKSPACE,
     //   { params: { slug } },
@@ -142,7 +150,9 @@ export class AnythingLLMWorkspaceService {
     slug: string,
     request: UpdateWorkspaceEmbeddingsRequestSchema,
   ): Promise<RegistryCallResult<UpdateWorkspaceEmbeddingsResponseSchema>> {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin workspace endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   UpdateWorkspaceEmbeddingsResponseSchema,
     //   UpdateWorkspaceEmbeddingsRequestSchema
@@ -160,7 +170,9 @@ export class AnythingLLMWorkspaceService {
     slug: string,
     request: UpdateWorkspacePinRequestSchema,
   ): Promise<RegistryCallResult<UpdateWorkspacePinResponseSchema>> {
-    throw new Error('Non-admin workspace endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin workspace endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   UpdateWorkspacePinResponseSchema,
     //   UpdateWorkspacePinRequestSchema
@@ -170,6 +182,3 @@ export class AnythingLLMWorkspaceService {
     // });
   }
 }
-
-
-

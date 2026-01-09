@@ -68,9 +68,7 @@ export class AnythingLLMDocumentController {
   /**
    * Map JWT payload to RequesterContextDto
    */
-  private mapUserToRequesterContext(
-    user: JwtPayloadType,
-  ): RequesterContextDto {
+  private mapUserToRequesterContext(user: JwtPayloadType): RequesterContextDto {
     const roleId = user.role?.id;
     const roleName = user.role?.name;
 
@@ -226,7 +224,8 @@ export class AnythingLLMDocumentController {
         externalOCRFields: {
           type: 'string',
           description: 'JSON array string of OCR fields from Google OCR',
-          example: '[{"fieldKey":"lab_test_value","fieldValue":"6.3 x10^3/uL","fieldType":"lab_test_value","confidence":0.85}]',
+          example:
+            '[{"fieldKey":"lab_test_value","fieldValue":"6.3 x10^3/uL","fieldType":"lab_test_value","confidence":0.85}]',
         },
       },
       required: ['file'],
@@ -240,7 +239,10 @@ export class AnythingLLMDocumentController {
   @ApiResponse({ status: 400, description: 'Invalid file or parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 502, description: 'Bad Gateway - upstream processing failed' })
+  @ApiResponse({
+    status: 502,
+    description: 'Bad Gateway - upstream processing failed',
+  })
   @ApiResponse({ status: 503, description: 'Service Unavailable' })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -269,7 +271,10 @@ export class AnythingLLMDocumentController {
       // Extract form fields from request.body (multipart form data)
       // NestJS FileInterceptor with multer should populate request.body with form fields
       // But @Body() may not work for multipart, so check request.body first
-      const formData = (request.body && Object.keys(request.body).length > 0) ? request.body : body;
+      const formData =
+        request.body && Object.keys(request.body).length > 0
+          ? request.body
+          : body;
       const addToWorkspaces = formData?.addToWorkspaces;
       const externalOCRFields = formData?.externalOCRFields;
 
@@ -304,7 +309,7 @@ export class AnythingLLMDocumentController {
       if (!upstreamResponse.ok) {
         // Handle error responses
         const errorText = await upstreamResponse.text();
-        
+
         try {
           upstreamData = JSON.parse(errorText) as DocumentUploadResponseSchema;
         } catch {
@@ -347,7 +352,8 @@ export class AnythingLLMDocumentController {
       }
 
       // Parse successful response
-      upstreamData = (await upstreamResponse.json()) as DocumentUploadResponseSchema;
+      upstreamData =
+        (await upstreamResponse.json()) as DocumentUploadResponseSchema;
 
       // Sanitize response (remove infrastructure-revealing fields)
       const sanitized = this.sanitizeDocumentUploadResponse(upstreamData);
@@ -382,4 +388,3 @@ export class AnythingLLMDocumentController {
     }
   }
 }
-

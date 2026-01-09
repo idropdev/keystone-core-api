@@ -37,10 +37,10 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * Authentication policy for endpoints
  */
 export type AuthPolicy =
-  | 'serviceIdentity'        // ONLY service identity
-  | 'delegatedOnly'          // ONLY delegated JWT
-  | 'delegatedPreferred'     // delegated preferred, service identity fallback
-  | 'hybrid'                 // either, no preference
+  | 'serviceIdentity' // ONLY service identity
+  | 'delegatedOnly' // ONLY delegated JWT
+  | 'delegatedPreferred' // delegated preferred, service identity fallback
+  | 'hybrid' // either, no preference
   | 'none';
 
 /**

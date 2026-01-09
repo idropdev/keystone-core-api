@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { AnythingLLMOperation } from '../domain/anythingllm-operation.enum';
 import { ResourceContext } from '../domain/resource-context.entity';
@@ -59,13 +64,3 @@ export class AuthorizeOperationResponseDto {
   @ApiPropertyOptional({ description: 'Reason for denial (if not allowed)' })
   reason?: string;
 }
-
-
-
-
-
-
-
-
-
-

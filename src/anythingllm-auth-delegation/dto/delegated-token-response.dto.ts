@@ -25,13 +25,3 @@ export class DelegatedTokenResponseDto {
   })
   audience: string;
 }
-
-
-
-
-
-
-
-
-
-

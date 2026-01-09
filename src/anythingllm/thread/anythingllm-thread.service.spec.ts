@@ -137,7 +137,9 @@ describe('AnythingLLMThreadService', () => {
       const mockStream = new ReadableStream({
         start(controller) {
           controller.enqueue(
-            new TextEncoder().encode('data: {"id":"1","type":"textResponseChunk","textResponse":"chunk"}\n\n'),
+            new TextEncoder().encode(
+              'data: {"id":"1","type":"textResponseChunk","textResponse":"chunk"}\n\n',
+            ),
           );
           controller.close();
         },
@@ -157,7 +159,9 @@ describe('AnythingLLMThreadService', () => {
       );
 
       expect(mockClientService.callAnythingLLM).toHaveBeenCalledWith(
-        expect.stringContaining(`/v1/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`),
+        expect.stringContaining(
+          `/v1/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`,
+        ),
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -192,8 +196,3 @@ describe('AnythingLLMThreadService', () => {
     });
   });
 });
-
-
-
-
-

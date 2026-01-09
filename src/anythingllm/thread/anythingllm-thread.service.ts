@@ -43,7 +43,9 @@ export class AnythingLLMThreadService {
     workspaceSlug: string,
     request: CreateThreadRequestSchema,
   ): Promise<RegistryCallResult<CreateThreadResponseSchema>> {
-    throw new Error('Non-admin thread endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin thread endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   CreateThreadResponseSchema,
     //   CreateThreadRequestSchema
@@ -62,7 +64,9 @@ export class AnythingLLMThreadService {
     threadSlug: string,
     request: UpdateThreadRequestSchema,
   ): Promise<RegistryCallResult<UpdateThreadResponseSchema>> {
-    throw new Error('Non-admin thread endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin thread endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   UpdateThreadResponseSchema,
     //   UpdateThreadRequestSchema
@@ -80,7 +84,9 @@ export class AnythingLLMThreadService {
     workspaceSlug: string,
     threadSlug: string,
   ): Promise<RegistryCallResult<DeleteThreadResponseSchema>> {
-    throw new Error('Non-admin thread endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin thread endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<DeleteThreadResponseSchema>(
     //   AnythingLLMAdminEndpointIds.DELETE_THREAD,
     //   { params: { slug: workspaceSlug, threadSlug } },
@@ -95,7 +101,9 @@ export class AnythingLLMThreadService {
     workspaceSlug: string,
     threadSlug: string,
   ): Promise<RegistryCallResult<ThreadChatsResponseSchema>> {
-    throw new Error('Non-admin thread endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin thread endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<ThreadChatsResponseSchema>(
     //   AnythingLLMAdminEndpointIds.GET_THREAD_CHATS,
     //   { params: { slug: workspaceSlug, threadSlug } },
@@ -111,7 +119,9 @@ export class AnythingLLMThreadService {
     threadSlug: string,
     request: ThreadChatRequestSchema,
   ): Promise<RegistryCallResult<ThreadChatResponseSchema>> {
-    throw new Error('Non-admin thread endpoints have been temporarily disabled');
+    throw new Error(
+      'Non-admin thread endpoints have been temporarily disabled',
+    );
     // return this.registryClient.call<
     //   ThreadChatResponseSchema,
     //   ThreadChatRequestSchema
@@ -168,7 +178,9 @@ export class AnythingLLMThreadService {
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
-                const data = JSON.parse(line.slice(6)) as ThreadStreamChatChunkSchema;
+                const data = JSON.parse(
+                  line.slice(6),
+                ) as ThreadStreamChatChunkSchema;
                 controller.enqueue(data);
               } catch (error) {
                 this.logger.warn(
@@ -182,7 +194,9 @@ export class AnythingLLMThreadService {
           if (buffer.trim()) {
             if (buffer.startsWith('data: ')) {
               try {
-                const data = JSON.parse(buffer.slice(6)) as ThreadStreamChatChunkSchema;
+                const data = JSON.parse(
+                  buffer.slice(6),
+                ) as ThreadStreamChatChunkSchema;
                 controller.enqueue(data);
               } catch (error) {
                 this.logger.warn(
@@ -210,6 +224,3 @@ export class AnythingLLMThreadService {
     }
   }
 }
-
-
-

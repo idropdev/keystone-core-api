@@ -59,7 +59,6 @@ async function retryOnRateLimit<T>(
     try {
       const result = await fn();
       if (i > 0) {
-        console.log(`[RETRY] ${operation} succeeded on attempt ${i + 1}`);
       }
       return result;
     } catch (error: any) {
@@ -72,9 +71,6 @@ async function retryOnRateLimit<T>(
         // This ensures the rate limit bucket has fully reset before retrying
         const waitTime = RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS; // Full window + buffer
         const waitSeconds = Math.round(waitTime / 1000);
-        console.log(
-          `[RETRY] ${operation} rate limited (429), waiting ${waitSeconds}s (full TTL window) before retry ${i + 2}/${maxRetries}`,
-        );
         await sleep(waitTime);
         continue;
       }
@@ -95,7 +91,7 @@ async function retryOnRateLimit<T>(
 
 /**
  * Execute a supertest request with automatic retry on rate limit (429)
- * 
+ *
  * @param requestFn - Function that returns a supertest Test (chainable request)
  * @param operation - Description of the operation for logging
  * @param maxRetries - Maximum number of retries (default: 5)
@@ -134,11 +130,6 @@ export async function createTestUser(
 ): Promise<TestUser> {
   const email = `${emailPrefix}.${Date.now()}.${Math.random().toString(36).substring(7)}@example.com`;
   const password = 'secret';
-
-  console.log(
-    `[CREATE_USER] Starting user creation: ${emailPrefix} (${email})`,
-  );
-
   // Register user with retry on rate limit
   // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
   const registerResponse = await retryOnRateLimit(
@@ -162,9 +153,6 @@ export async function createTestUser(
           `Registration failed: ${response.status} - ${JSON.stringify(response.body)}`,
         );
       }
-      console.log(
-        `[CREATE_USER] Registration successful for ${emailPrefix}: ${response.status}`,
-      );
       return response;
     },
     5, // max retries
@@ -174,7 +162,6 @@ export async function createTestUser(
   );
 
   // Wait a bit before login to avoid rate limiting
-  console.log(`[CREATE_USER] Waiting 2s before login for ${emailPrefix}`);
   await sleep(2000);
 
   // Login to get token with retry on rate limit
@@ -194,7 +181,6 @@ export async function createTestUser(
           `Login failed: ${response.status} - ${JSON.stringify(response.body)}`,
         );
       }
-      console.log(`[CREATE_USER] Login successful for ${emailPrefix}`);
       return response;
     },
     5, // max retries
@@ -226,7 +212,6 @@ export async function createTestUser(
             `User update failed: ${response.status} - ${JSON.stringify(response.body)}`,
           );
         }
-        console.log(`[CREATE_USER] Role update successful for ${emailPrefix}`);
         return response;
       },
       5, // max retries
@@ -254,7 +239,6 @@ export async function createTestUser(
             `Re-login failed: ${response.status} - ${JSON.stringify(response.body)}`,
           );
         }
-        console.log(`[CREATE_USER] Re-login successful for ${emailPrefix}`);
         return response;
       },
       5, // max retries
@@ -277,10 +261,6 @@ export async function createTestUser(
     token: loginResponse.body.token,
     roleId,
   };
-
-  console.log(
-    `[CREATE_USER] User creation completed for ${emailPrefix}: userId=${result.id}`,
-  );
   return result;
 }
 
@@ -638,16 +618,8 @@ export async function createAccessGrant(
   subjectId: number,
   grantType: 'delegated' | 'derived' = 'delegated',
 ): Promise<{ grantId: number }> {
-  console.log(
-    `[CREATE_ACCESS_GRANT] Creating grant: documentId=${documentId}, subjectType=${subjectType}, subjectId=${subjectId}, grantType=${grantType}`,
-  );
-
   // Get actor info from token to populate grantedByType and grantedById
   const userInfo = await getUserInfoFromToken(token);
-  console.log(
-    `[CREATE_ACCESS_GRANT] User info: id=${userInfo.id}, roleId=${userInfo.roleId}`,
-  );
-
   // Determine grantedByType from role
   let grantedByType: 'user' | 'manager';
   if (userInfo.roleId === RoleEnum.manager) {
@@ -670,17 +642,11 @@ export async function createAccessGrant(
       grantedByType,
       grantedById: userInfo.id,
     });
-
-  console.log(
-    `[CREATE_ACCESS_GRANT] Response: status=${response.status}, body=${JSON.stringify(response.body)}`,
-  );
-
   if (
     response.status === 400 &&
     response.body?.message?.includes('already exists')
   ) {
     // Grant already exists - this is OK, try to find the existing grant
-    console.log(`[CREATE_ACCESS_GRANT] Grant already exists, this is OK`);
     // Return a mock grantId - the grant exists so access should work
     return { grantId: -1 }; // Special value indicating grant exists
   }
@@ -690,11 +656,6 @@ export async function createAccessGrant(
       `Failed to create access grant: ${response.status} - ${JSON.stringify(response.body)}`,
     );
   }
-
-  console.log(
-    `[CREATE_ACCESS_GRANT] Grant created successfully: grantId=${response.body.id}`,
-  );
-
   // Small delay to ensure grant is committed to database
   await sleep(500);
 

@@ -223,7 +223,7 @@ export class AccessGrantDomainService {
     // NOTE: revoker.id is the User ID, but originManagerId is the Manager ID
     let isOriginManager = false;
     let isTemporaryManager = false;
-    
+
     if (revoker.type === 'manager') {
       const manager = await this.managerRepository.findByUserId(revoker.id);
       if (manager && document.originManagerId === manager.id) {

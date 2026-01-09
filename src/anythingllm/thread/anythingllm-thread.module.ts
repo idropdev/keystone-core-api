@@ -13,4 +13,3 @@ import { AnythingLLMModule } from '../anythingllm.module';
   exports: [AnythingLLMThreadService],
 })
 export class AnythingLLMThreadModule {}
-

@@ -285,6 +285,3 @@ export class UpdateWorkspacePinResponseSchema {
   @IsOptional()
   error?: string | null;
 }
-
-
-

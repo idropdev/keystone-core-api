@@ -201,9 +201,7 @@ export class AnythingLLMAdapterService {
   /**
    * Get workspace for user
    */
-  async getWorkspaceForUser(
-    userId: string,
-  ): Promise<WorkspaceInfo | null> {
+  async getWorkspaceForUser(userId: string): Promise<WorkspaceInfo | null> {
     if (!this.mappingRepository) {
       return null;
     }
@@ -252,7 +250,11 @@ export class AnythingLLMAdapterService {
       folderName,
     );
 
-    if (!result.data.success || !result.data.documents || result.data.documents.length === 0) {
+    if (
+      !result.data.success ||
+      !result.data.documents ||
+      result.data.documents.length === 0
+    ) {
       throw new Error(
         `Failed to upload document: ${result.data.error || 'Unknown error'}`,
       );
@@ -295,9 +297,16 @@ export class AnythingLLMAdapterService {
         : undefined,
     };
 
-    const result = await this.documentService.uploadRawText(request, folderName);
+    const result = await this.documentService.uploadRawText(
+      request,
+      folderName,
+    );
 
-    if (!result.data.success || !result.data.documents || result.data.documents.length === 0) {
+    if (
+      !result.data.success ||
+      !result.data.documents ||
+      result.data.documents.length === 0
+    ) {
       throw new Error(
         `Failed to upload raw text: ${result.data.error || 'Unknown error'}`,
       );
@@ -373,7 +382,10 @@ export class AnythingLLMAdapterService {
       userId,
     };
 
-    const result = await this.threadService.createThread(workspaceSlug, request);
+    const result = await this.threadService.createThread(
+      workspaceSlug,
+      request,
+    );
 
     if (!result.data.success || !result.data.threadSlug) {
       throw new Error(
@@ -421,7 +433,8 @@ export class AnythingLLMAdapterService {
       // Note: OpenAI-compatible responses don't include sources in the message
       // Sources are only available in thread chat responses, not in OpenAI completions
       // If sources are needed, they should be retrieved from the vector search results
-      const sources: Array<{ title: string; chunk: string }> | undefined = undefined;
+      const sources: Array<{ title: string; chunk: string }> | undefined =
+        undefined;
 
       return {
         id: completion.id,
@@ -572,4 +585,3 @@ export class AnythingLLMAdapterService {
     );
   }
 }
-

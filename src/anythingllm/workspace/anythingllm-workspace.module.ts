@@ -19,11 +19,7 @@ import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-clie
     forwardRef(() => AuthModule), // For JWT strategy - use forwardRef to avoid circular dependency
   ],
   controllers: [AnythingLLMWorkspaceController],
-  providers: [
-    AnythingLLMWorkspaceService,
-    AnythingLLMRegistryClient,
-  ],
+  providers: [AnythingLLMWorkspaceService, AnythingLLMRegistryClient],
   exports: [AnythingLLMWorkspaceService],
 })
 export class AnythingLLMWorkspaceModule {}
-

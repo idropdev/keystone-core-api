@@ -31,6 +31,7 @@ import { AnythingLLMAdminModule } from './anythingllm/admin/anythingllm-admin.mo
 import { AnythingLLMWorkspaceModule } from './anythingllm/workspace/anythingllm-workspace.module';
 import { AnythingLLMDocumentModule } from './anythingllm/document/anythingllm-document.module';
 import { AnythingLLMSystemModule } from './anythingllm/system/anythingllm-system.module';
+import { AnythingLLMReconciliationModule } from './anythingllm/provisioning/reconciliation/anythingllm-reconciliation.module';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { AllConfigType } from './config/config.type';
 import { SessionModule } from './session/session.module';
@@ -133,6 +134,7 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     AnythingLLMWorkspaceModule,
     AnythingLLMDocumentModule,
     AnythingLLMSystemModule,
+    AnythingLLMReconciliationModule,
     // Import provisioning module via AnythingLLMAdminModule or directly
     // Note: AnythingLLMProvisioningModule is imported by UsersModule
   ],

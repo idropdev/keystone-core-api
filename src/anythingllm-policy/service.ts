@@ -1,4 +1,9 @@
-import { Injectable, Logger, ForbiddenException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnythingLLMOperation } from './domain/anythingllm-operation.enum';
 import { ResourceContext } from './domain/resource-context.entity';
@@ -459,7 +464,8 @@ export class AnythingLLMPolicyService {
       return {
         allowed: false,
         scope: [],
-        reason: 'Only managers and admins can view thread history for oversight',
+        reason:
+          'Only managers and admins can view thread history for oversight',
       };
     }
 
@@ -483,10 +489,11 @@ export class AnythingLLMPolicyService {
     }
 
     // Check if user is assigned to manager
-    const isAssigned = await this.userManagerAssignmentService.isManagerAssignedToUser(
-      requesterUserId,
-      targetUserId,
-    );
+    const isAssigned =
+      await this.userManagerAssignmentService.isManagerAssignedToUser(
+        requesterUserId,
+        targetUserId,
+      );
 
     if (!isAssigned) {
       return {
@@ -657,9 +664,8 @@ export class AnythingLLMPolicyService {
     }
 
     // Get workspace owner
-    const workspaceMappings = await this.mappingRepository.findByWorkspaceSlug(
-      workspaceSlug,
-    );
+    const workspaceMappings =
+      await this.mappingRepository.findByWorkspaceSlug(workspaceSlug);
 
     if (workspaceMappings.length === 0) {
       return false;
@@ -675,21 +681,22 @@ export class AnythingLLMPolicyService {
       return true;
     }
 
-      // If manager, check if any workspace owner is assigned to this manager
-      if (isManager && this.userManagerAssignmentService) {
-        for (const mapping of workspaceMappings) {
-          const workspaceOwnerId = parseInt(mapping.keystoneUserId, 10);
-          if (!isNaN(workspaceOwnerId)) {
-            const isAssigned = await this.userManagerAssignmentService.isManagerAssignedToUser(
+    // If manager, check if any workspace owner is assigned to this manager
+    if (isManager && this.userManagerAssignmentService) {
+      for (const mapping of workspaceMappings) {
+        const workspaceOwnerId = parseInt(mapping.keystoneUserId, 10);
+        if (!isNaN(workspaceOwnerId)) {
+          const isAssigned =
+            await this.userManagerAssignmentService.isManagerAssignedToUser(
               requesterUserId,
               workspaceOwnerId,
             );
-            if (isAssigned) {
-              return true;
-            }
+          if (isAssigned) {
+            return true;
           }
         }
       }
+    }
 
     return false;
   }
@@ -746,10 +753,11 @@ export class AnythingLLMPolicyService {
 
     // User: check SYSTEM_VISIBILITY_ALLOW_USERS config flag
     if (isUser) {
-      const systemVisibilityAllowUsers = this.configService.get<boolean>(
-        'anythingllm.systemVisibilityAllowUsers',
-        { infer: true },
-      ) ?? false;
+      const systemVisibilityAllowUsers =
+        this.configService.get<boolean>(
+          'anythingllm.systemVisibilityAllowUsers',
+          { infer: true },
+        ) ?? false;
 
       if (systemVisibilityAllowUsers) {
         return {
@@ -812,4 +820,3 @@ export class AnythingLLMPolicyService {
       .filter((id): id is number => id !== null);
   }
 }
-

@@ -87,7 +87,7 @@ export class AnythingLLMOrchestratorService {
       try {
         const jwt = require('jsonwebtoken');
         const decoded = jwt.decode(delegatedToken, { complete: true }) as any;
-        
+
         if (decoded?.header?.alg !== 'HS256') {
           const errorMessage = `CRITICAL: Orchestrator received token with algorithm ${decoded?.header?.alg} but MUST be HS256. Delegated tokens must use HS256, not RS256. Check delegation service configuration.`;
           this.logger.error(errorMessage);
@@ -148,14 +148,11 @@ export class AnythingLLMOrchestratorService {
         }
       }
 
-      const response = await this.clientService.callAnythingLLM(
-        dto.endpoint,
-        {
-          method: dto.method,
-          body: requestBody,
-          headers,
-        },
-      );
+      const response = await this.clientService.callAnythingLLM(dto.endpoint, {
+        method: dto.method,
+        body: requestBody,
+        headers,
+      });
 
       // HIPAA-compliant logging (no PHI, no tokens)
       this.logger.debug(
@@ -187,7 +184,3 @@ export class AnythingLLMOrchestratorService {
     };
   }
 }
-
-
-
-

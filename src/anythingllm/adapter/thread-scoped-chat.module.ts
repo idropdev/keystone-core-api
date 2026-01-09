@@ -13,8 +13,3 @@ import { AnythingLLMVectorSearchModule } from '../vector-search/anythingllm-vect
   exports: [ThreadScopedChatService],
 })
 export class ThreadScopedChatModule {}
-
-
-
-
-

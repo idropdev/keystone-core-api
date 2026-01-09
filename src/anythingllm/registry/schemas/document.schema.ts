@@ -250,8 +250,3 @@ export class MoveFilesResponseSchema {
   @IsOptional()
   error?: string | null;
 }
-
-
-
-
-

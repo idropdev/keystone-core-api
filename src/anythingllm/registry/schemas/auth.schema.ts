@@ -16,8 +16,3 @@ export class AuthVerificationResponseSchema {
   @IsBoolean()
   authenticated: boolean;
 }
-
-
-
-
-

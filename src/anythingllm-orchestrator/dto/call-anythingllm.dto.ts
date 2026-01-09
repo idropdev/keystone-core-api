@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsObject, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { ResourceContext } from '../../anythingllm-policy/domain/resource-context.entity';
@@ -46,7 +52,10 @@ export class CallAnythingLLMDto {
   @IsObject()
   resourceContext?: ResourceContext;
 
-  @ApiProperty({ description: 'HTTP endpoint', example: '/v1/workspace/{slug}/thread/{slug}/chat' })
+  @ApiProperty({
+    description: 'HTTP endpoint',
+    example: '/v1/workspace/{slug}/thread/{slug}/chat',
+  })
   @IsString()
   @IsNotEmpty()
   endpoint: string;
@@ -65,13 +74,3 @@ export class CallAnythingLLMDto {
   @IsObject()
   headers?: Record<string, string>;
 }
-
-
-
-
-
-
-
-
-
-

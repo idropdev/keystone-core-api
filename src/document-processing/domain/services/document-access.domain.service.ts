@@ -238,7 +238,7 @@ export class DocumentAccessDomainService {
     // We need to resolve the Manager ID from the User ID
     let isOriginManager = false;
     let isTemporaryManager = false;
-    
+
     if (actor.type === 'manager') {
       const manager = await this.managerRepository.findByUserId(actor.id);
       if (manager && document.originManagerId === manager.id) {

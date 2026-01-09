@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ExecutionContext,
-  CanActivate,
-} from '@nestjs/common';
+import { Injectable, ExecutionContext, CanActivate } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -50,7 +46,7 @@ export class OptionalJwtGuard extends AuthGuard('jwt') implements CanActivate {
 
     // Try to activate JWT guard, but don't throw if it fails
     const result = super.canActivate(context);
-    
+
     if (result instanceof Promise) {
       return result.catch(() => {
         // JWT validation failed, but we allow the request to proceed
@@ -72,4 +68,3 @@ export class OptionalJwtGuard extends AuthGuard('jwt') implements CanActivate {
     return result;
   }
 }
-

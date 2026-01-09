@@ -482,7 +482,8 @@ export class DocumentProcessingController {
     description: 'Invalid or expired access token',
   })
   @ApiForbiddenResponse({
-    description: 'Only origin manager or temporary manager can trigger OCR processing',
+    description:
+      'Only origin manager or temporary manager can trigger OCR processing',
   })
   @ApiNotFoundResponse({
     description: 'Document not found',

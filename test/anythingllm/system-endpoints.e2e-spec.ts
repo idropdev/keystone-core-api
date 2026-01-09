@@ -53,7 +53,7 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
 
     // Create test users with different roles
     console.log('[SETUP] Creating test users...');
-    
+
     // Admin user (get admin token and create user if needed)
     // For admin, we'll use the admin token directly
     adminUser = {
@@ -82,9 +82,14 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
           imports: [AnythingLLMModule],
         }).compile();
 
-        serviceIdentityService = testModule.get(AnythingLLMServiceIdentityService);
+        serviceIdentityService = testModule.get(
+          AnythingLLMServiceIdentityService,
+        );
       } catch (error) {
-        console.warn('Failed to initialize AnythingLLM services, some tests will be skipped:', error);
+        console.warn(
+          'Failed to initialize AnythingLLM services, some tests will be skipped:',
+          error,
+        );
         serviceIdentityService = null;
       }
     }
@@ -110,9 +115,7 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
   // Verify Keystone API is reachable
   const verifyKeystoneReachable = async (): Promise<boolean> => {
     try {
-      const response = await request(APP)
-        .get('/api/v1/status')
-        .timeout(5000);
+      const response = await request(APP).get('/api/v1/status').timeout(5000);
       return response.status === 200 || response.status === 404; // 404 means API is up but endpoint doesn't exist
     } catch (error) {
       console.warn('[SKIP] Keystone API not reachable:', error);
@@ -283,7 +286,7 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
 
       // Accept either 200 (allowed) or 403 (denied based on config)
       expect([200, 403]).toContain(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).toHaveProperty('version');
       } else {

@@ -37,7 +37,7 @@ import { randomUUID } from 'crypto';
  * AnythingLLM System Controller
  *
  * User-facing controller for system endpoints with optional JWT authentication.
- * 
+ *
  * Authentication Strategy:
  * - ALWAYS uses service-to-service authentication (Keystone → AnythingLLM)
  * - When user JWT is present (user/manager/admin):
@@ -65,9 +65,7 @@ export class AnythingLLMSystemController {
   /**
    * Map JWT payload to RequesterContextDto
    */
-  private mapUserToRequesterContext(
-    user: JwtPayloadType,
-  ): RequesterContextDto {
+  private mapUserToRequesterContext(user: JwtPayloadType): RequesterContextDto {
     const roleId = user.role?.id;
     const roleName = user.role?.name;
 
@@ -105,7 +103,7 @@ export class AnythingLLMSystemController {
     const userId = request.user?.id || null;
     const sessionId = request.user?.sessionId || null;
     const actorType = request.user ? 'user' : 'service';
-    
+
     // Extract roles only if delegated token (from JWT payload)
     const roles = request.user?.role
       ? [request.user.role.name || String(request.user.role.id)]
@@ -171,7 +169,8 @@ export class AnythingLLMSystemController {
       return result.data;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorStatus = error instanceof HttpException ? error.getStatus() : 500;
+      const errorStatus =
+        error instanceof HttpException ? error.getStatus() : 500;
       this.logEndpointCall(
         '/v1/auth',
         AnythingLLMOperation.SYSTEM_AUTH_CHECK,
@@ -353,9 +352,8 @@ export class AnythingLLMSystemController {
         ? this.mapUserToRequesterContext(request.user)
         : undefined;
 
-      const result = await this.systemService.getWorkspaceCount(
-        requesterContext,
-      );
+      const result =
+        await this.systemService.getWorkspaceCount(requesterContext);
 
       const durationMs = Date.now() - startTime;
       this.logEndpointCall(
@@ -403,9 +401,8 @@ export class AnythingLLMSystemController {
         ? this.mapUserToRequesterContext(request.user)
         : undefined;
 
-      const result = await this.systemService.getDocumentCount(
-        requesterContext,
-      );
+      const result =
+        await this.systemService.getDocumentCount(requesterContext);
 
       const durationMs = Date.now() - startTime;
       this.logEndpointCall(
@@ -461,4 +458,3 @@ export class AnythingLLMSystemController {
     );
   }
 }
-

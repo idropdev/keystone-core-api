@@ -1,24 +1,32 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { AllConfigType } from '../../config/config.type';
 import { AnythingLLMServiceIdentityService } from './anythingllm-service-identity.service';
+import { AnythingLLMAuthDelegationService } from '../../anythingllm-auth-delegation/service';
+import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 
 /**
  * HTTP client service for making authenticated requests to AnythingLLM APIs
  *
- * Automatically adds service identity authentication headers to all requests.
- * Uses Bearer token authentication with OIDC ID tokens minted via GCP service account.
+ * CRITICAL: ALL requests MUST use delegated tokens (HS256) with user context.
+ * When no Authorization header is provided, issues delegated token with admin context (system admin ID: 1).
+ * NEVER uses service identity tokens (RS256) - they are not accepted by AnythingLLM.
  *
  * HIPAA Compliance: Never logs tokens or sensitive authentication data.
  */
 @Injectable()
 export class AnythingLLMClientService {
   private readonly logger = new Logger(AnythingLLMClientService.name);
+  // System admin ID for requests without user context
+  private readonly SYSTEM_ADMIN_ID = 1;
 
   constructor(
     private readonly serviceIdentityService: AnythingLLMServiceIdentityService,
     private readonly configService: ConfigService<AllConfigType>,
+    @Optional()
+    @Inject(AnythingLLMAuthDelegationService)
+    private readonly delegationService?: AnythingLLMAuthDelegationService,
   ) {}
 
   /**
@@ -38,25 +46,66 @@ export class AnythingLLMClientService {
 
     // Check if Authorization header is already provided (delegated token from orchestrator)
     const incomingHeaders = (options.headers as Record<string, string>) || {};
-    const hasIncomingAuth = !!incomingHeaders.Authorization || !!incomingHeaders.authorization;
+    const hasIncomingAuth =
+      !!incomingHeaders.Authorization || !!incomingHeaders.authorization;
 
-    // Get service identity token only if not already provided
+    // CRITICAL: ALL requests MUST use delegated tokens (HS256), never service identity (RS256)
+    // If no Authorization header is provided, issue delegated token with admin context
     let token: string = '';
     if (!hasIncomingAuth) {
-      try {
-        // Token minting logging moved to DEBUG level for HIPAA compliance
-        this.logger.debug(
-          `Minting service identity token for AnythingLLM request to ${endpoint}`,
+      if (this.delegationService) {
+        try {
+          // Issue delegated token with admin context (system admin ID: 1)
+          // This ensures ALL requests use HS256 delegated tokens, never RS256 service identity
+          this.logger.debug(
+            `Issuing delegated token (HS256) with admin context for AnythingLLM request to ${endpoint}`,
+          );
+          const tokenResult = await this.delegationService.issueDelegatedToken({
+            requesterContext: {
+              userId: String(this.SYSTEM_ADMIN_ID),
+              roles: ['admin'],
+            },
+            operation: AnythingLLMOperation.SYSTEM_READ, // Default operation for direct client calls
+            scope: ['anythingllm:system:read'], // Default scope
+          });
+          token = tokenResult.token;
+
+          // Verify token is HS256 (defensive check)
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.decode(token, { complete: true }) as any;
+          if (decoded?.header?.alg !== 'HS256') {
+            throw new Error(
+              `CRITICAL: Delegated token was signed with ${decoded?.header?.alg} but MUST be HS256`,
+            );
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Failed to issue delegated token (HS256) for AnythingLLM request: ${errorMessage}. CRITICAL: Delegated tokens are required. Ensure ENABLE_DELEGATED_TOKENS=true and ANYTHINGLLM_DELEGATED_TOKEN_SECRET is configured.`,
+          );
+          throw new Error(
+            `Failed to issue delegated token: ${errorMessage}. Delegated tokens (HS256) are required for AnythingLLM authentication.`,
+          );
+        }
+      } else {
+        // Fallback: if delegation service is not available, log warning and try service identity
+        // This should not happen in production - delegation service should always be available
+        this.logger.warn(
+          'Delegation service not available, falling back to service identity token (RS256). This is not recommended - delegated tokens (HS256) are required.',
         );
-        token = await this.serviceIdentityService.getIdToken();
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unknown error';
-        // Error logging: HIPAA-compliant, no endpoint details that might contain PHI
-        this.logger.error(
-          `Failed to mint service identity token for AnythingLLM request: ${errorMessage}`,
-        );
-        throw new Error(`Failed to mint service identity token: ${errorMessage}`);
+        try {
+          token = await this.serviceIdentityService.getIdToken();
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Failed to mint service identity token for AnythingLLM request: ${errorMessage}`,
+          );
+          throw new Error(
+            `Failed to mint service identity token: ${errorMessage}`,
+          );
+        }
       }
     }
 
@@ -116,7 +165,6 @@ export class AnythingLLMClientService {
       // REMOVED: Header logging for HIPAA compliance
       // Headers should not be logged in production
 
-      
       // Make request with headers
       const response = await fetch(url, {
         ...options,

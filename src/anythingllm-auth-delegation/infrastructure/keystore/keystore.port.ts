@@ -20,13 +20,3 @@ export interface KeystorePort {
    */
   getIssuer(): Promise<string | undefined>;
 }
-
-
-
-
-
-
-
-
-
-

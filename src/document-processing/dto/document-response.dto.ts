@@ -66,7 +66,8 @@ export class DocumentResponseDto {
   updatedAt: Date;
 
   @ApiProperty({
-    description: 'Origin manager ID (Manager ID, not User ID). Null if temporary manager is set.',
+    description:
+      'Origin manager ID (Manager ID, not User ID). Null if temporary manager is set.',
     required: false,
     nullable: true,
   })
@@ -74,7 +75,8 @@ export class DocumentResponseDto {
   originManagerId?: number | null;
 
   @ApiProperty({
-    description: 'Temporary manager ID (User ID). Set when user uploads without assigned manager. Null if origin manager is set.',
+    description:
+      'Temporary manager ID (User ID). Set when user uploads without assigned manager. Null if origin manager is set.',
     required: false,
     nullable: true,
   })
