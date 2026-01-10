@@ -104,6 +104,11 @@ export class AnythingLLMDocumentController {
       error: upstreamResponse.error ?? undefined,
       documents: upstreamResponse.documents?.map((doc) => ({
         title: doc.title,
+        docAuthor: doc.docAuthor,
+        description: doc.description,
+        docSource: doc.docSource,
+        chunkSource: doc.chunkSource,
+        published: doc.published,
         wordCount: doc.wordCount,
         token_count_estimate: doc.token_count_estimate,
       })),
@@ -202,9 +207,9 @@ export class AnythingLLMDocumentController {
   @Post('upload')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Upload document to AnythingLLM',
+    summary: 'Upload a new file to AnythingLLM',
     description:
-      'Upload a document file to AnythingLLM for processing and embedding. Supports multipart/form-data with file, optional workspace targets, and optional OCR fields.',
+      'Upload a new file to AnythingLLM to be parsed and prepared for embedding. Supports OCR data from Google Document AI, Google Vision API, and user corrections. Authorization uses HS256 delegated tokens.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -214,18 +219,34 @@ export class AnythingLLMDocumentController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'File to upload for processing',
+          description: 'The file to upload (PDF, DOC, TXT, etc.)',
         },
         addToWorkspaces: {
           type: 'string',
-          description: 'Comma-separated workspace slugs to embed document into',
+          description:
+            'Comma-separated workspace slugs to embed document into post-upload',
           example: 'workspace1,workspace2',
         },
-        externalOCRFields: {
+        documentFields: {
           type: 'string',
-          description: 'JSON array string of OCR fields from Google OCR',
+          description:
+            'Optional. JSON string of Google Document AI OCR output. Entities include type, mentionText, confidence (0-1), startOffset, and endOffset. The fullResponse contains the complete Document AI response.',
           example:
-            '[{"fieldKey":"lab_test_value","fieldValue":"6.3 x10^3/uL","fieldType":"lab_test_value","confidence":0.85}]',
+            '{"entities":[{"type":"PERSON","mentionText":"John Doe","confidence":0.95,"startOffset":10,"endOffset":18}],"fullResponse":{}}',
+        },
+        visionFields: {
+          type: 'string',
+          description:
+            'Optional. JSON string of Google Vision API OCR output. Same entity structure as documentFields. The fullResponse contains the complete Vision API response with fullTextAnnotation.',
+          example:
+            '{"entities":[{"type":"TEXT","mentionText":"Sample text","confidence":0.92,"startOffset":0,"endOffset":11}],"fullResponse":{"fullTextAnnotation":{}}}',
+        },
+        userEditField: {
+          type: 'string',
+          description:
+            'Optional. JSON string of user-edited OCR data. HIGHEST PRIORITY - overrides documentFields and visionFields. Same structure. User-edited entities take priority over AI-generated ones during merging.',
+          example:
+            '{"entities":[{"type":"PERSON","mentionText":"Jane Doe","confidence":1.0,"startOffset":10,"endOffset":18}],"fullResponse":{}}',
         },
       },
       required: ['file'],
@@ -233,12 +254,46 @@ export class AnythingLLMDocumentController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Document uploaded successfully',
+    description: 'OK',
     type: DocumentUploadResponseDto,
+    content: {
+      'application/json': {
+        example: {
+          success: true,
+          error: null,
+          documents: [
+            {
+              title: 'anythingllm.txt',
+              docAuthor: 'Unknown',
+              description: 'Unknown',
+              docSource: 'a text file uploaded by the user.',
+              chunkSource: 'anythingllm.txt',
+              published: '1/16/2024, 3:07:00 PM',
+              wordCount: 93,
+              token_count_estimate: 115,
+            },
+          ],
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Invalid file or parameters' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Invalid API Key',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal Server Error',
+  })
   @ApiResponse({
     status: 502,
     description: 'Bad Gateway - upstream processing failed',
@@ -276,7 +331,9 @@ export class AnythingLLMDocumentController {
           ? request.body
           : body;
       const addToWorkspaces = formData?.addToWorkspaces;
-      const externalOCRFields = formData?.externalOCRFields;
+      const documentFields = formData?.documentFields;
+      const visionFields = formData?.visionFields;
+      const userEditField = formData?.userEditField;
 
       // Validate workspace is required
       if (!addToWorkspaces) {
@@ -300,7 +357,9 @@ export class AnythingLLMDocumentController {
         file.buffer,
         file.originalname,
         addToWorkspaces,
-        externalOCRFields,
+        documentFields,
+        visionFields,
+        userEditField,
         requesterContext,
       );
 

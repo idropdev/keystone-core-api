@@ -48,7 +48,9 @@ export class AnythingLLMDocumentService {
    * @param file - File buffer
    * @param fileName - Original filename
    * @param addToWorkspaces - Comma-separated workspace slugs (optional)
-   * @param externalOCRFields - JSON string of OCR fields (optional, validated but not parsed)
+   * @param documentFields - JSON string of Google Document AI OCR output (optional)
+   * @param visionFields - JSON string of Google Vision API OCR output (optional)
+   * @param userEditField - JSON string of user-edited OCR data (optional, highest priority)
    * @param requesterContext - User context if JWT present (optional)
    * @returns Upstream response from AnythingLLM
    */
@@ -56,30 +58,74 @@ export class AnythingLLMDocumentService {
     file: Buffer,
     fileName: string,
     addToWorkspaces?: string,
-    externalOCRFields?: string,
+    documentFields?: string,
+    visionFields?: string,
+    userEditField?: string,
     requesterContext?: RequesterContextDto,
   ): Promise<Response> {
-    // Validate externalOCRFields if provided
-    if (externalOCRFields !== undefined && externalOCRFields !== null) {
-      if (typeof externalOCRFields !== 'string') {
-        throw new BadRequestException(
-          'externalOCRFields must be a JSON string',
-        );
+    // Validate documentFields if provided
+    if (documentFields !== undefined && documentFields !== null) {
+      if (typeof documentFields !== 'string') {
+        throw new BadRequestException('documentFields must be a JSON string');
       }
 
       try {
-        const parsed = JSON.parse(externalOCRFields);
-        // Validate it's an array (structure only, don't inspect contents)
-        if (!Array.isArray(parsed)) {
+        const parsed = JSON.parse(documentFields);
+        // Validate it's an object with entities array
+        if (typeof parsed !== 'object' || !Array.isArray(parsed.entities)) {
           throw new BadRequestException(
-            'externalOCRFields must be a JSON array',
+            'documentFields must be a JSON object with an entities array',
           );
         }
       } catch (error) {
         if (error instanceof BadRequestException) {
           throw error;
         }
-        throw new BadRequestException('externalOCRFields must be valid JSON');
+        throw new BadRequestException('documentFields must be valid JSON');
+      }
+    }
+
+    // Validate visionFields if provided
+    if (visionFields !== undefined && visionFields !== null) {
+      if (typeof visionFields !== 'string') {
+        throw new BadRequestException('visionFields must be a JSON string');
+      }
+
+      try {
+        const parsed = JSON.parse(visionFields);
+        // Validate it's an object with entities array
+        if (typeof parsed !== 'object' || !Array.isArray(parsed.entities)) {
+          throw new BadRequestException(
+            'visionFields must be a JSON object with an entities array',
+          );
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException('visionFields must be valid JSON');
+      }
+    }
+
+    // Validate userEditField if provided
+    if (userEditField !== undefined && userEditField !== null) {
+      if (typeof userEditField !== 'string') {
+        throw new BadRequestException('userEditField must be a JSON string');
+      }
+
+      try {
+        const parsed = JSON.parse(userEditField);
+        // Validate it's an object with entities array
+        if (typeof parsed !== 'object' || !Array.isArray(parsed.entities)) {
+          throw new BadRequestException(
+            'userEditField must be a JSON object with an entities array',
+          );
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException('userEditField must be valid JSON');
       }
     }
 
@@ -105,8 +151,14 @@ export class AnythingLLMDocumentService {
     if (addToWorkspaces) {
       formData.append('addToWorkspaces', addToWorkspaces);
     }
-    if (externalOCRFields) {
-      formData.append('externalOCRFields', externalOCRFields);
+    if (documentFields) {
+      formData.append('documentFields', documentFields);
+    }
+    if (visionFields) {
+      formData.append('visionFields', visionFields);
+    }
+    if (userEditField) {
+      formData.append('userEditField', userEditField);
     }
 
     const path = '/v1/document/upload';
