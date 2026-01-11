@@ -467,7 +467,9 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
 
       // Build the request with new schema
       const formData = new FormData();
-      const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+      // Convert Buffer to Uint8Array for Blob compatibility
+      const uint8Array = new Uint8Array(pdfBuffer);
+      const blob = new Blob([uint8Array], { type: 'application/pdf' });
       formData.append('file', blob, fileName);
       formData.append('addToWorkspaces', workspaceSlug!);
 
