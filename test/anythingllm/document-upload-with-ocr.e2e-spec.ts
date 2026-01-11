@@ -447,11 +447,14 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         console.log('[INFO] Added mock documentFields (document_output) for testing');
       }
 
-      // Upload to AnythingLLM via Keystone endpoint using native fetch
+      // Upload to AnythingLLM via Keystone endpoint using admin token
+      // Admin token will use delegated token authentication (HS256) internally
+      console.log('[INFO] Uploading to AnythingLLM using admin context with delegated token authentication');
+      
       const response = await fetch(`${APP_URL}/api/anythingllm/v1/document/upload`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${testUser!.token}`,
+          Authorization: `Bearer ${adminToken}`,
         },
         body: formData,
       });
@@ -492,9 +495,12 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
 
       const threadName = `Test Thread ${Date.now()}`;
 
+      // Use admin token for thread creation (with delegated token authentication)
+      console.log('[INFO] Creating thread using admin context with delegated token authentication');
+      
       const threadResponse = await request(APP_URL)
         .post(`/api/anythingllm/v1/workspace/${workspaceSlug}/thread/new`)
-        .auth(testUser.token, { type: 'bearer' })
+        .auth(adminToken, { type: 'bearer' })
         .send({
           name: threadName,
           userId: testUser.id,
@@ -506,6 +512,8 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
       expect(threadResponse.body.thread).toHaveProperty('name', threadName);
 
       threadSlug = threadResponse.body.thread.slug;
+      
+      console.log(`[INFO] Thread created: ${threadSlug}`);
     }, 30000);
 
     it('should stream chat messages with document context', async () => {
@@ -515,6 +523,9 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
 
       const chatMessage = 'What information is in the uploaded document?';
 
+      // Use admin token for streaming chat (with delegated token authentication)
+      console.log('[INFO] Streaming chat using admin context with delegated token authentication');
+      
       // Use native fetch for streaming
       const response = await fetch(
         `${APP_URL}/api/anythingllm/v1/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`,
@@ -522,7 +533,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${testUser.token}`,
+            Authorization: `Bearer ${adminToken}`,
           },
           body: JSON.stringify({
             message: chatMessage,
