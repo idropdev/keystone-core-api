@@ -85,11 +85,16 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
   beforeAll(async () => {
     adminToken = await getAdminToken();
 
-    // Set up auth delegation service for delegated tokens (HS256)
+    // Set up auth delegation service and mapping repository for delegated tokens (HS256)
     if (!SKIP_ANYTHINGLLM_TESTS) {
       try {
         testModule = await Test.createTestingModule({
-          imports: [AnythingLLMModule, AnythingLLMAuthDelegationModule],
+          imports: [
+            AnythingLLMModule,
+            AnythingLLMAuthDelegationModule,
+            // Import provisioning module to access mapping repository
+            (await import('../../src/anythingllm/provisioning/anythingllm-provisioning.module')).AnythingLLMProvisioningModule,
+          ],
         }).compile();
 
         authDelegationService = testModule.get(
@@ -181,16 +186,55 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         return;
       }
 
-      // Generate expected workspace slug
-      const hash = crypto
-        .createHash('sha256')
-        .update(String(testUser.id))
-        .digest('hex');
-      workspaceSlug = `patient-${hash}`;
+      // Instead of generating the workspace slug, retrieve it from the mapping repository
+      // The provisioning service already created the workspace and stored the mapping
+      console.log('[INFO] Retrieving workspace slug from mapping repository...');
 
-      // Poll for workspace to exist (provisioning is async)
+      const { AnythingLLMUserMappingRepository } = await import(
+        '../../src/anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository'
+      );
+      const mappingRepository = testModule?.get(AnythingLLMUserMappingRepository);
+
+      if (!mappingRepository) {
+        console.warn('[WARN] Mapping repository not available, falling back to hash generation');
+        // Fallback: Generate workspace slug using hash (same as provisioning service)
+        const hash = crypto
+          .createHash('sha256')
+          .update(String(testUser.id))
+          .digest('hex');
+        workspaceSlug = `patient-${hash}`;
+      } else {
+        // Poll for mapping to be created (provisioning is async)
+        let mapping: Awaited<ReturnType<typeof mappingRepository.findByKeystoneUserId>> = null;
+        const maxAttempts = 20;
+        const pollInterval = 2000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          mapping = await mappingRepository.findByKeystoneUserId(
+            String(testUser.id),
+          );
+          if (mapping && mapping.workspaceSlug) {
+            workspaceSlug = mapping.workspaceSlug;
+            console.log(`[INFO] Found workspace slug from mapping: ${workspaceSlug}`);
+            break;
+          }
+
+          if (attempt < maxAttempts - 1) {
+            await sleep(pollInterval);
+          }
+        }
+
+        if (!workspaceSlug && mapping) {
+          throw new Error('Mapping found but no workspace slug');
+        }
+        if (!workspaceSlug) {
+          throw new Error('No mapping found after polling - provisioning may have failed');
+        }
+      }
+
+      // Verify workspace exists in AnythingLLM
       let workspaceFound = false;
-      const maxAttempts = 20;
+      const maxAttempts = 10; // Reduce attempts since we already polled for mapping
       const pollInterval = 2000;
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -209,6 +253,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
 
           if (workspaceResponse.ok) {
             workspaceFound = true;
+            console.log(`[INFO] Workspace verified in AnythingLLM: ${workspaceSlug}`);
             break;
           }
 
