@@ -287,49 +287,15 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         return;
       }
 
-      // First, assign user to a manager (required for document upload)
-      // Create a temporary manager for this test
-      const managerEmail = `test-manager-${Date.now()}@example.com`;
-      const managerPassword = 'SecurePassword123!';
+      // Regular users can upload documents directly
+      // No need to create a manager or assign user to manager
 
-      const managerResponse = await request(APP_URL)
-        .post('/api/v1/users')
-        .auth(adminToken, { type: 'bearer' })
-        .send({
-          email: managerEmail,
-          password: managerPassword,
-          firstName: 'Test',
-          lastName: 'Manager',
-          role: { id: RoleEnum.manager },
-        })
-        .expect(201);
-
-      const managerId = managerResponse.body.id;
-
-      // Assign user to manager
-      await request(APP_URL)
-        .post(`/api/v1/users/${testUser.id}/manager-assignments`)
-        .auth(adminToken, { type: 'bearer' })
-        .send({ managerId })
-        .expect(201);
-
-      // Login as manager to get token
-      const managerLoginResponse = await request(APP_URL)
-        .post('/api/v1/auth/email/login')
-        .send({ email: managerEmail, password: managerPassword })
-        .expect(200);
-
-      const managerToken = managerLoginResponse.body.token;
-
-      // Wait for assignment to propagate
-      await sleep(1000);
-
-      // Upload document
+      // Upload document using the test user token
       const pdfBuffer = readPdfFile(getTestPdfPath());
 
       const uploadResponse = await request(APP_URL)
         .post('/api/v1/documents/upload')
-        .auth(managerToken, { type: 'bearer' })
+        .auth(testUser.token, { type: 'bearer' })
         .field('documentType', 'LAB_RESULT')
         .attach('file', pdfBuffer, 'lab-result-test.pdf')
         .expect(201);
@@ -338,6 +304,8 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
       expect(uploadResponse.body).toHaveProperty('status');
 
       documentId = uploadResponse.body.id;
+      
+      console.log(`[INFO] Document uploaded by user (ID: ${testUser.id}), Document ID: ${documentId}`);
     }, 30000);
 
     it('should trigger OCR processing for the uploaded document', async () => {
@@ -346,34 +314,12 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         return;
       }
 
-      // Get manager token (re-login)
-      const managerEmail = `test-manager-${Date.now()}@example.com`;
-      const managerPassword = 'SecurePassword123!';
-
-      // Create new manager for OCR trigger
-      const managerResponse = await request(APP_URL)
-        .post('/api/v1/users')
-        .auth(adminToken, { type: 'bearer' })
-        .send({
-          email: managerEmail,
-          password: managerPassword,
-          firstName: 'OCR',
-          lastName: 'Manager',
-          role: { id: RoleEnum.manager },
-        })
-        .expect(201);
-
-      const managerLoginResponse = await request(APP_URL)
-        .post('/api/v1/auth/email/login')
-        .send({ email: managerEmail, password: managerPassword })
-        .expect(200);
-
-      const managerToken = managerLoginResponse.body.token;
+      // Regular users can trigger OCR on their own documents
 
       // Trigger OCR processing
       const ocrResponse = await request(APP_URL)
         .post(`/api/v1/documents/${documentId}/ocr/trigger`)
-        .auth(managerToken, { type: 'bearer' })
+        .auth(testUser.token, { type: 'bearer' })
         .expect(202);
 
       expect(ocrResponse.body).toHaveProperty('message');
@@ -393,38 +339,16 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
     let visionAiFields: string | null = null;
 
     it('should retrieve OCR fields from GET /v1/documents/:id/fields', async () => {
-      if (SKIP_OCR_TESTS || !documentId) {
-        console.log('[SKIP] OCR tests disabled or no document');
+      if (SKIP_OCR_TESTS || !documentId || !testUser) {
+        console.log('[SKIP] OCR tests disabled, no document, or no user token');
         return;
       }
 
-      // Get manager token
-      const managerEmail = `test-manager-${Date.now()}@example.com`;
-      const managerPassword = 'SecurePassword123!';
-
-      const managerResponse = await request(APP_URL)
-        .post('/api/v1/users')
-        .auth(adminToken, { type: 'bearer' })
-        .send({
-          email: managerEmail,
-          password: managerPassword,
-          firstName: 'OCR',
-          lastName: 'Manager',
-          role: { id: RoleEnum.manager },
-        })
-        .expect(201);
-
-      const managerLoginResponse = await request(APP_URL)
-        .post('/api/v1/auth/email/login')
-        .send({ email: managerEmail, password: managerPassword })
-        .expect(200);
-
-      const managerToken = managerLoginResponse.body.token;
-
+      // Regular users can retrieve OCR fields for their own documents
       // Get OCR fields (both Document AI and Vision AI in one call)
       const fieldsResponse = await request(APP_URL)
         .get(`/api/v1/documents/${documentId}/fields`)
-        .auth(managerToken, { type: 'bearer' });
+        .auth(testUser.token, { type: 'bearer' });
 
       if (fieldsResponse.status === 200 && fieldsResponse.body) {
         // Extract document_output field (Document AI)
