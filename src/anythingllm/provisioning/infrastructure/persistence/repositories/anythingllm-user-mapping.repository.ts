@@ -14,6 +14,7 @@ export abstract class AnythingLLMUserMappingRepository {
     keystoneUserId: string;
     anythingllmUserId: number;
     workspaceSlug: string;
+    workspaceId?: number; // Optional workspace ID
   }): Promise<AnythingLLMUserMappingEntity>;
 
   abstract findByKeystoneUserId(
@@ -49,6 +50,7 @@ export class AnythingLLMUserMappingRelationalRepository
     keystoneUserId: string;
     anythingllmUserId: number;
     workspaceSlug: string;
+    workspaceId?: number; // Optional workspace ID
   }): Promise<AnythingLLMUserMappingEntity> {
     const entity = this.mappingRepository.create(data);
     return await this.mappingRepository.save(entity);

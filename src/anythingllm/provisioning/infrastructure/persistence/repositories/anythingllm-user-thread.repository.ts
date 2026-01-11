@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AnythingLLMUserThreadEntity } from '../entities/anythingllm-user-thread.entity';
+import { Repository, IsNull } from 'typeorm';
+import { AnythingLLMUserThreadEntity } from '../relational/entities/anythingllm-user-thread.entity';
 
 export abstract class AnythingLLMUserThreadRepository {
   abstract create(data: {
@@ -70,7 +70,7 @@ export class AnythingLLMUserThreadRelationalRepository
     threadSlug: string,
   ): Promise<AnythingLLMUserThreadEntity | null> {
     return await this.repository.findOne({
-      where: { threadSlug, deletedAt: null },
+      where: { threadSlug, deletedAt: IsNull() },
     });
   }
 
@@ -78,7 +78,7 @@ export class AnythingLLMUserThreadRelationalRepository
     keystoneUserId: string,
   ): Promise<AnythingLLMUserThreadEntity[]> {
     return await this.repository.find({
-      where: { keystoneUserId, deletedAt: null },
+      where: { keystoneUserId, deletedAt: IsNull() },
       order: { lastMessageAt: 'DESC', createdAt: 'DESC' },
     });
   }
@@ -87,7 +87,7 @@ export class AnythingLLMUserThreadRelationalRepository
     workspaceSlug: string,
   ): Promise<AnythingLLMUserThreadEntity[]> {
     return await this.repository.find({
-      where: { workspaceSlug, deletedAt: null },
+      where: { workspaceSlug, deletedAt: IsNull() },
       order: { lastMessageAt: 'DESC', createdAt: 'DESC' },
     });
   }
