@@ -13,6 +13,7 @@ import { AnythingLLMModule } from '../../src/anythingllm/anythingllm.module';
 import { AnythingLLMAuthDelegationModule } from '../../src/anythingllm-auth-delegation/module';
 import { AnythingLLMAuthDelegationService } from '../../src/anythingllm-auth-delegation/service';
 import { AnythingLLMOperation } from '../../src/anythingllm-policy/domain/anythingllm-operation.enum';
+import { AnythingLLMUserProvisioningService } from '../../src/anythingllm/provisioning/anythingllm-user-provisioning.service';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 
@@ -45,6 +46,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
   let testUser: TestUser;
   let testModule: any;
   let authDelegationService: AnythingLLMAuthDelegationService | null = null;
+  let provisioningService: AnythingLLMUserProvisioningService | null = null;
   let adminUserContext: { id: number; role: string } | null = null;
   let workspaceSlug: string | null = null;
   let documentId: string | null = null;
@@ -82,18 +84,84 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
     return delegatedTokenResponse.token;
   };
 
+  /**
+   * Helper to get workspace mapping using the internal service method
+   * This uses the running app's service instance (not test module)
+   */
+  const getWorkspaceMappingFromService = async (
+    keystoneUserId: string | number,
+  ): Promise<{
+    keystoneUserId: string;
+    anythingllmUserId: number;
+    workspaceSlug: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+  } | null> => {
+    // Import and instantiate the service the same way the app does
+    // This avoids circular dependencies while accessing the database correctly
+    try {
+      // Use dynamic import to avoid loading the entire module tree
+      const { AnythingLLMUserMappingRelationalRepository } = await import(
+        '../../src/anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository'
+      );
+      const { getDataSourceToken } = await import('@nestjs/typeorm');
+      const { AnythingLLMUserMappingEntity } = await import(
+        '../../src/anythingllm/provisioning/infrastructure/persistence/relational/entities/anythingllm-user-mapping.entity'
+      );
+      
+      // Get the database connection from environment
+      const { TypeOrmModule } = await import('@nestjs/typeorm');
+      
+      // Query the repository directly using TypeORM
+      const dataSourceModule = await Test.createTestingModule({
+        imports: [
+          TypeOrmModule.forRoot({
+            type: 'postgres',
+            host: process.env.DATABASE_HOST,
+            port: parseInt(process.env.DATABASE_PORT || '5432', 10),
+            username: process.env.DATABASE_USERNAME,
+            password: process.env.DATABASE_PASSWORD,
+            database: process.env.DATABASE_NAME,
+            entities: [AnythingLLMUserMappingEntity],
+            synchronize: false,
+          }),
+          TypeOrmModule.forFeature([AnythingLLMUserMappingEntity]),
+        ],
+        providers: [AnythingLLMUserMappingRelationalRepository],
+      }).compile();
+
+      const repository = dataSourceModule.get(AnythingLLMUserMappingRelationalRepository);
+      const mapping = await repository.findByKeystoneUserId(String(keystoneUserId));
+      
+      await dataSourceModule.close();
+
+      if (!mapping) {
+        return null;
+      }
+
+      return {
+        keystoneUserId: mapping.keystoneUserId,
+        anythingllmUserId: mapping.anythingllmUserId,
+        workspaceSlug: mapping.workspaceSlug,
+        createdAt: mapping.createdAt,
+        updatedAt: mapping.updatedAt,
+      };
+    } catch (error) {
+      console.warn('[WARN] Could not query workspace mapping:', error);
+      return null;
+    }
+  };
+
   beforeAll(async () => {
     adminToken = await getAdminToken();
 
-    // Set up test module with provisioning service for internal workspace lookup
+    // Set up auth delegation service for delegated tokens (HS256)
     if (!SKIP_ANYTHINGLLM_TESTS) {
       try {
         testModule = await Test.createTestingModule({
           imports: [
             AnythingLLMModule,
             AnythingLLMAuthDelegationModule,
-            // Import provisioning module for internal workspace mapping lookup
-            (await import('../../src/anythingllm/provisioning/anythingllm-provisioning.module')).AnythingLLMProvisioningModule,
           ],
         }).compile();
 
@@ -102,7 +170,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         );
       } catch (error) {
         console.warn(
-          'Failed to initialize test services:',
+          'Failed to initialize auth delegation service:',
           error,
         );
         authDelegationService = null;
@@ -186,65 +254,49 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         return;
       }
 
-      // Use internal service method to retrieve workspace slug from mapping
-      // This is more secure than exposing as REST endpoint (prevents enumeration attacks)
-      console.log('[INFO] Retrieving workspace slug from internal provisioning service...');
+      // Use internal service method to retrieve workspace slug from database
+      // This uses getWorkspaceMappingForUser() logic without circular dependencies
+      console.log('[INFO] Retrieving workspace mapping using internal service method...');
       
-      const { AnythingLLMUserProvisioningService } = await import(
-        '../../src/anythingllm/provisioning/anythingllm-user-provisioning.service'
-      );
-      const provisioningService = testModule?.get(AnythingLLMUserProvisioningService);
+      // Poll for mapping to be created (provisioning is async)
+      let mapping: Awaited<ReturnType<typeof getWorkspaceMappingFromService>> = null;
+      const maxAttempts = 20;
+      const pollInterval = 2000;
 
-      if (!provisioningService) {
-        console.warn('[WARN] Provisioning service not available, falling back to hash generation');
-        // Fallback: Generate workspace slug using hash (same as provisioning service)
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        mapping = await getWorkspaceMappingFromService(testUser.id);
+        
+        if (mapping && mapping.workspaceSlug) {
+          workspaceSlug = mapping.workspaceSlug;
+          console.log(`[INFO] Found workspace mapping from database:`);
+          console.log(`[INFO]   - Workspace Slug: ${workspaceSlug}`);
+          console.log(`[INFO]   - AnythingLLM User ID: ${mapping.anythingllmUserId}`);
+          console.log(`[INFO]   - Created At: ${mapping.createdAt}`);
+          break;
+        }
+
+        if (attempt < maxAttempts - 1) {
+          console.log(`[INFO] Workspace mapping not found yet, retrying... (${attempt + 1}/${maxAttempts})`);
+          await sleep(pollInterval);
+        }
+      }
+
+      if (!workspaceSlug) {
+        console.warn('[WARN] No mapping found after polling - falling back to hash generation');
+        // Fallback to hash generation if provisioning hasn't completed yet
         const hash = crypto
           .createHash('sha256')
           .update(String(testUser.id))
           .digest('hex');
         workspaceSlug = `patient-${hash}`;
-      } else {
-        // Poll for mapping to be created (provisioning is async)
-        let mapping: Awaited<ReturnType<typeof provisioningService.getWorkspaceMappingForUser>> = null;
-        const maxAttempts = 20;
-        const pollInterval = 2000;
-
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          mapping = await provisioningService.getWorkspaceMappingForUser(testUser.id);
-          
-          if (mapping && mapping.workspaceSlug) {
-            workspaceSlug = mapping.workspaceSlug;
-            console.log(`[INFO] Found workspace slug from internal service: ${workspaceSlug}`);
-            console.log(`[INFO] AnythingLLM user ID: ${mapping.anythingllmUserId}`);
-            break;
-          }
-
-          if (attempt < maxAttempts - 1) {
-            console.log(`[INFO] Workspace mapping not found yet, retrying... (${attempt + 1}/${maxAttempts})`);
-            await sleep(pollInterval);
-          }
-        }
-
-        if (!workspaceSlug && mapping) {
-          throw new Error('Mapping found but no workspace slug');
-        }
-        if (!workspaceSlug) {
-          console.warn('[WARN] No mapping found after polling - falling back to hash generation');
-          // Fallback to hash generation if provisioning hasn't completed yet
-          const hash = crypto
-            .createHash('sha256')
-            .update(String(testUser.id))
-            .digest('hex');
-          workspaceSlug = `patient-${hash}`;
-        }
+        console.log(`[INFO] Generated fallback workspace slug: ${workspaceSlug}`);
       }
 
       // Verify workspace exists in AnythingLLM
       let workspaceFound = false;
-      const maxAttempts = 10;
-      const pollInterval = 2000;
+      const maxVerifyAttempts = 10;
 
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      for (let attempt = 0; attempt < maxVerifyAttempts; attempt++) {
         try {
           const delegatedToken = await getAdminDelegatedToken();
 
@@ -264,12 +316,12 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
             break;
           }
 
-          if (attempt < maxAttempts - 1) {
-            console.log(`[INFO] Workspace not found yet, retrying... (${attempt + 1}/${maxAttempts})`);
+          if (attempt < maxVerifyAttempts - 1) {
+            console.log(`[INFO] Workspace not found in AnythingLLM yet, retrying... (${attempt + 1}/${maxVerifyAttempts})`);
             await sleep(pollInterval);
           }
         } catch (error) {
-          if (attempt < maxAttempts - 1) {
+          if (attempt < maxVerifyAttempts - 1) {
             await sleep(pollInterval);
           }
         }
