@@ -30,7 +30,7 @@ function sleep(ms: number): Promise<void> {
  * 1. Create a user who should automatically get a workspace
  * 2. Verify the user belongs to the created workspace
  * 3. Upload a document to Keystone and trigger OCR processing
- * 4. Extract OCR fields (documentFields and visionFields)
+ * 4. Extract OCR fields (document_output and vision_output) from GET /v1/documents/:id/fields
  * 5. Send the document with OCR fields to AnythingLLM using the new schema
  * 6. Create a thread and verify streaming chat works with the document
  *
@@ -392,7 +392,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
     let documentAiFields: string | null = null;
     let visionAiFields: string | null = null;
 
-    it('should retrieve Document AI OCR fields', async () => {
+    it('should retrieve OCR fields from GET /v1/documents/:id/fields', async () => {
       if (SKIP_OCR_TESTS || !documentId) {
         console.log('[SKIP] OCR tests disabled or no document');
         return;
@@ -408,7 +408,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         .send({
           email: managerEmail,
           password: managerPassword,
-          firstName: 'DocAI',
+          firstName: 'OCR',
           lastName: 'Manager',
           role: { id: RoleEnum.manager },
         })
@@ -421,82 +421,34 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
 
       const managerToken = managerLoginResponse.body.token;
 
-      // Get Document AI OCR output
-      const docAiResponse = await request(APP_URL)
-        .get(`/api/v1/documents/${documentId}/document-ai`)
+      // Get OCR fields (both Document AI and Vision AI in one call)
+      const fieldsResponse = await request(APP_URL)
+        .get(`/api/v1/documents/${documentId}/fields`)
         .auth(managerToken, { type: 'bearer' });
 
-      if (docAiResponse.status === 200 && docAiResponse.body) {
-        // Transform to the expected format for AnythingLLM
-        const entities = docAiResponse.body.entities || [];
-        documentAiFields = JSON.stringify({
-          entities: entities.map((entity: any) => ({
-            type: entity.type,
-            mentionText: entity.mentionText,
-            confidence: entity.confidence,
-            startOffset: entity.startOffset || 0,
-            endOffset: entity.endOffset || 0,
-          })),
-          fullResponse: docAiResponse.body,
-        });
+      if (fieldsResponse.status === 200 && fieldsResponse.body) {
+        // Extract document_output field (Document AI)
+        if (fieldsResponse.body.document_output) {
+          // Send the entire document_output object as-is
+          documentAiFields = JSON.stringify(fieldsResponse.body.document_output);
+          console.log('[INFO] Document AI fields extracted from document_output');
+        } else {
+          console.log('[WARN] document_output not available in response');
+        }
 
-        console.log('[INFO] Document AI fields extracted');
+        // Extract vision_output field (Vision AI)
+        if (fieldsResponse.body.vision_output) {
+          // Send the entire vision_output object as-is
+          visionAiFields = JSON.stringify(fieldsResponse.body.vision_output);
+          console.log('[INFO] Vision AI fields extracted from vision_output');
+        } else {
+          console.log('[WARN] vision_output not available in response');
+        }
+
+        // Log what we got
+        console.log(`[INFO] OCR fields status - Document AI: ${documentAiFields ? 'available' : 'missing'}, Vision AI: ${visionAiFields ? 'available' : 'missing'}`);
       } else {
-        console.log('[WARN] Document AI OCR not available yet');
-      }
-    }, 30000);
-
-    it('should retrieve Vision AI OCR fields', async () => {
-      if (SKIP_OCR_TESTS || !documentId) {
-        console.log('[SKIP] OCR tests disabled or no document');
-        return;
-      }
-
-      // Get manager token
-      const managerEmail = `test-manager-${Date.now()}@example.com`;
-      const managerPassword = 'SecurePassword123!';
-
-      const managerResponse = await request(APP_URL)
-        .post('/api/v1/users')
-        .auth(adminToken, { type: 'bearer' })
-        .send({
-          email: managerEmail,
-          password: managerPassword,
-          firstName: 'Vision',
-          lastName: 'Manager',
-          role: { id: RoleEnum.manager },
-        })
-        .expect(201);
-
-      const managerLoginResponse = await request(APP_URL)
-        .post('/api/v1/auth/email/login')
-        .send({ email: managerEmail, password: managerPassword })
-        .expect(200);
-
-      const managerToken = managerLoginResponse.body.token;
-
-      // Get Vision AI OCR output
-      const visionResponse = await request(APP_URL)
-        .get(`/api/v1/documents/${documentId}/vision-ai`)
-        .auth(managerToken, { type: 'bearer' });
-
-      if (visionResponse.status === 200 && visionResponse.body) {
-        // Transform to the expected format for AnythingLLM
-        const entities = visionResponse.body.entities || [];
-        visionAiFields = JSON.stringify({
-          entities: entities.map((entity: any) => ({
-            type: entity.type || 'TEXT',
-            mentionText: entity.mentionText,
-            confidence: entity.confidence,
-            startOffset: entity.startOffset || 0,
-            endOffset: entity.endOffset || 0,
-          })),
-          fullResponse: visionResponse.body,
-        });
-
-        console.log('[INFO] Vision AI fields extracted');
-      } else {
-        console.log('[WARN] Vision AI OCR not available yet');
+        console.log('[WARN] OCR fields not available yet (status: ' + fieldsResponse.status + ')');
       }
     }, 30000);
 
@@ -519,18 +471,26 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
       formData.append('file', blob, fileName);
       formData.append('addToWorkspaces', workspaceSlug!);
 
-      // Add OCR fields if available (from previous steps)
+      // Add OCR fields if available (full document_output and vision_output objects)
       if (documentAiFields) {
+        // documentAiFields already contains the full document_output object as JSON string
         formData.append('documentFields', documentAiFields);
+        console.log('[INFO] Added documentFields (document_output) to FormData');
       }
+      
       if (visionAiFields) {
+        // visionAiFields already contains the full vision_output object as JSON string
         formData.append('visionFields', visionAiFields);
+        console.log('[INFO] Added visionFields (vision_output) to FormData');
       }
 
       // If no OCR fields, create mock data for testing
       if (!documentAiFields && !visionAiFields) {
         console.log('[INFO] No OCR fields available, using mock data for test');
-        const mockDocumentFields = JSON.stringify({
+        
+        // Mock document_output structure (matches the format from GET /v1/documents/:id/fields)
+        const mockDocumentOutput = {
+          text: 'Sample lab result text',
           entities: [
             {
               type: 'DATE',
@@ -539,19 +499,29 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
               startOffset: 0,
               endOffset: 10,
             },
+            {
+              type: 'LAB_VALUE',
+              mentionText: '6.3 x10^3/uL',
+              confidence: 0.92,
+              startOffset: 50,
+              endOffset: 62,
+            },
           ],
-          fullResponse: { mockData: true },
-        });
-        formData.append('documentFields', mockDocumentFields);
+          outputRef: 'mock-document-ai-ref',
+          pageCount: 1,
+          confidence: 0.93,
+          fullResponse: {
+            uri: 'gs://mock-bucket/mock-document.pdf',
+            text: 'Sample lab result text',
+            pages: [],
+          },
+        };
+        
+        formData.append('documentFields', JSON.stringify(mockDocumentOutput));
+        console.log('[INFO] Added mock documentFields (document_output) for testing');
       }
 
-      // Upload to AnythingLLM via Keystone endpoint
-      const uploadResponse = await request(APP_URL)
-        .post('/api/anythingllm/v1/document/upload')
-        .auth(testUser!.token, { type: 'bearer' })
-        .send(formData);
-
-      // Note: supertest may not handle FormData correctly, use native fetch instead
+      // Upload to AnythingLLM via Keystone endpoint using native fetch
       const response = await fetch(`${APP_URL}/api/anythingllm/v1/document/upload`, {
         method: 'POST',
         headers: {
@@ -568,7 +538,17 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
       expect(Array.isArray(responseData.documents)).toBe(true);
 
       console.log('[SUCCESS] Document uploaded to AnythingLLM with OCR fields');
-      console.log(`[INFO] Documents: ${responseData.documents.length}`);
+      console.log(`[INFO] Documents uploaded: ${responseData.documents.length}`);
+      
+      if (documentAiFields) {
+        console.log('[INFO] ✓ Document AI OCR fields (document_output) were included in upload');
+      }
+      if (visionAiFields) {
+        console.log('[INFO] ✓ Vision AI OCR fields (vision_output) were included in upload');
+      }
+      if (!documentAiFields && !visionAiFields) {
+        console.log('[INFO] ℹ Mock OCR data was used for testing');
+      }
 
       // Wait for document embedding
       await sleep(10000);
