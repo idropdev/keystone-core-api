@@ -85,15 +85,15 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
   beforeAll(async () => {
     adminToken = await getAdminToken();
 
-    // Set up auth delegation service and mapping repository for delegated tokens (HS256)
+    // Set up auth delegation service for delegated tokens (HS256)
+    // Note: We don't import AnythingLLMProvisioningModule here as it causes
+    // circular dependency issues in the test environment
     if (!SKIP_ANYTHINGLLM_TESTS) {
       try {
         testModule = await Test.createTestingModule({
           imports: [
             AnythingLLMModule,
             AnythingLLMAuthDelegationModule,
-            // Import provisioning module to access mapping repository
-            (await import('../../src/anythingllm/provisioning/anythingllm-provisioning.module')).AnythingLLMProvisioningModule,
           ],
         }).compile();
 
@@ -186,55 +186,23 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         return;
       }
 
-      // Instead of generating the workspace slug, retrieve it from the mapping repository
-      // The provisioning service already created the workspace and stored the mapping
-      console.log('[INFO] Retrieving workspace slug from mapping repository...');
+      // Generate workspace slug using the same algorithm as the provisioning service
+      // The provisioning service uses: patient-{sha256(keystoneUserId)}
+      // This is deterministic, so the computed slug will always match the actual workspace
+      console.log('[INFO] Generating workspace slug using provisioning algorithm...');
+      
+      const hash = crypto
+        .createHash('sha256')
+        .update(String(testUser.id))
+        .digest('hex');
+      workspaceSlug = `patient-${hash}`;
+      
+      console.log(`[INFO] Expected workspace slug: ${workspaceSlug}`);
 
-      const { AnythingLLMUserMappingRepository } = await import(
-        '../../src/anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository'
-      );
-      const mappingRepository = testModule?.get(AnythingLLMUserMappingRepository);
-
-      if (!mappingRepository) {
-        console.warn('[WARN] Mapping repository not available, falling back to hash generation');
-        // Fallback: Generate workspace slug using hash (same as provisioning service)
-        const hash = crypto
-          .createHash('sha256')
-          .update(String(testUser.id))
-          .digest('hex');
-        workspaceSlug = `patient-${hash}`;
-      } else {
-        // Poll for mapping to be created (provisioning is async)
-        let mapping: Awaited<ReturnType<typeof mappingRepository.findByKeystoneUserId>> = null;
-        const maxAttempts = 20;
-        const pollInterval = 2000;
-
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          mapping = await mappingRepository.findByKeystoneUserId(
-            String(testUser.id),
-          );
-          if (mapping && mapping.workspaceSlug) {
-            workspaceSlug = mapping.workspaceSlug;
-            console.log(`[INFO] Found workspace slug from mapping: ${workspaceSlug}`);
-            break;
-          }
-
-          if (attempt < maxAttempts - 1) {
-            await sleep(pollInterval);
-          }
-        }
-
-        if (!workspaceSlug && mapping) {
-          throw new Error('Mapping found but no workspace slug');
-        }
-        if (!workspaceSlug) {
-          throw new Error('No mapping found after polling - provisioning may have failed');
-        }
-      }
-
-      // Verify workspace exists in AnythingLLM
+      // Poll for workspace to exist in AnythingLLM (provisioning is async)
+      // This confirms that provisioning completed successfully
       let workspaceFound = false;
-      const maxAttempts = 10; // Reduce attempts since we already polled for mapping
+      const maxAttempts = 20;
       const pollInterval = 2000;
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -258,6 +226,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
           }
 
           if (attempt < maxAttempts - 1) {
+            console.log(`[INFO] Workspace not found yet, retrying... (${attempt + 1}/${maxAttempts})`);
             await sleep(pollInterval);
           }
         } catch (error) {
