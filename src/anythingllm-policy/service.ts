@@ -701,22 +701,20 @@ export class AnythingLLMPolicyService {
         }
       }
     }
-    
+
     // If no mappings found or user doesn't own workspace, check membership via API
     // This handles workspaces created separately (not through provisioning)
 
     // Check if user is assigned to workspace (not just owner)
     // Users can be assigned to workspaces they don't own
-    
+
     if (this.orchestratorService && this.mappingRepository) {
       try {
         // Get requester's AnythingLLM user ID
         const requesterUserIdStr = String(requesterUserId);
-        
+
         const requesterMapping =
-          await this.mappingRepository.findByKeystoneUserId(
-            requesterUserIdStr,
-          );
+          await this.mappingRepository.findByKeystoneUserId(requesterUserIdStr);
 
         if (requesterMapping) {
           // Get workspace users from AnythingLLM
@@ -744,7 +742,7 @@ export class AnythingLLMPolicyService {
             }
 
             const workspaceInfoData = await workspaceInfoResponse.json();
-            
+
             // Response format: { workspace: [{ id, name, slug, ... }] }
             const workspaceArray = workspaceInfoData.workspace || [];
             const workspace = Array.isArray(workspaceArray)
@@ -792,7 +790,7 @@ export class AnythingLLMPolicyService {
         );
       }
     }
-    
+
     return false;
   }
 

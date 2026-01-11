@@ -10,10 +10,7 @@ import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-clie
  * Provides thread management and chat functionality for AnythingLLM integration.
  */
 @Module({
-  imports: [
-    forwardRef(() => AnythingLLMModule),
-    AnythingLLMOrchestratorModule,
-  ],
+  imports: [forwardRef(() => AnythingLLMModule), AnythingLLMOrchestratorModule],
   providers: [AnythingLLMThreadService, AnythingLLMRegistryClient],
   exports: [AnythingLLMThreadService],
 })

@@ -10,6 +10,7 @@ import {
   HttpException,
   Logger,
   Res,
+  Optional,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,6 +22,7 @@ import { Response, Request as ExpressRequest } from 'express';
 import { OptionalJwtGuard } from '../guards/optional-jwt.guard';
 import { AnythingLLMWorkspaceService } from './anythingllm-workspace.service';
 import { AnythingLLMThreadService } from '../thread/anythingllm-thread.service';
+import { AnythingLLMUserProvisioningService } from '../provisioning/anythingllm-user-provisioning.service';
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import { RoleEnum } from '../../roles/roles.enum';
@@ -66,6 +68,7 @@ export class AnythingLLMWorkspaceController {
   constructor(
     private readonly workspaceService: AnythingLLMWorkspaceService,
     private readonly threadService: AnythingLLMThreadService,
+    @Optional() private readonly provisioningService?: AnythingLLMUserProvisioningService,
   ) {}
 
   /**
@@ -396,6 +399,25 @@ export class AnythingLLMWorkspaceController {
       upstreamData =
         (await upstreamResponse.json()) as CreateThreadResponseSchema;
 
+      // Record thread creation in the database (for audit and tracking)
+      // This is done asynchronously and doesn't block the response
+      if (this.provisioningService && request.user && upstreamData.thread?.slug) {
+        // Fire and forget - don't await to avoid blocking the response
+        this.provisioningService
+          .recordUserThread({
+            keystoneUserId: request.user.id,
+            workspaceSlug,
+            threadSlug: upstreamData.thread.slug,
+            threadName: body.name,
+          })
+          .catch((error) => {
+            // Log error but don't fail the request
+            this.logger.warn(
+              `Failed to record thread ${upstreamData.thread.slug} for user ${request.user?.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            );
+          });
+      }
+
       // Ensure message is set if it's missing (it's optional in the schema)
       // The schema defines message as optional, so we don't need to set it if undefined
 
@@ -515,7 +537,7 @@ export class AnythingLLMWorkspaceController {
       try {
         while (true) {
           const { done, value } = await reader.read();
-          
+
           if (done) {
             break;
           }

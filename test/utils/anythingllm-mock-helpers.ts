@@ -16,7 +16,11 @@ import {
 
 // CRITICAL: For Node.js 18+ with native fetch, nock doesn't intercept by default
 // We need to enable undici mocking for nock to work with native fetch
-if (typeof process !== 'undefined' && process.versions && parseInt(process.versions.node.split('.')[0]) >= 18) {
+if (
+  typeof process !== 'undefined' &&
+  process.versions &&
+  parseInt(process.versions.node.split('.')[0]) >= 18
+) {
   // Enable nock for undici (which native fetch uses in Node 18+)
   // This is done automatically by nock if undici is available
   // But we need to ensure nock is active
@@ -104,7 +108,9 @@ export function verifyAuthorizationHeader(
 function getMockAgent(): MockAgent {
   const mockAgent = (globalThis as any).__undiciMockAgent;
   if (!mockAgent) {
-    throw new Error('undici MockAgent not found. Make sure setup-e2e.ts is loaded.');
+    throw new Error(
+      'undici MockAgent not found. Make sure setup-e2e.ts is loaded.',
+    );
   }
   return mockAgent;
 }
@@ -117,26 +123,35 @@ export function setupAnythingLLMMock(
   validateToken: boolean = true,
 ): { isDone: () => boolean; pendingMocks: () => string[] } {
   const baseUrl = ANYTHINGLLM_BASE_URL;
-  
+
   // CRITICAL: For E2E tests, we use a mock HTTP server instead of nock or undici MockAgent
   // Nock cannot intercept native fetch() in Node.js 18+ (uses undici)
   // Undici MockAgent in test setup can't intercept requests from the running NestJS app
   // (they're in separate processes)
   // Solution: Use a real HTTP mock server on localhost:3002 that native fetch can connect to
-  
+
   // Ensure mock server is running
   // Use port 3002 for mock server to avoid collision with real AnythingLLM on 3001
   const mockServerPort = 3002; // Always use 3002 for mock server
-  
+
   // Start mock server if not already running
   startMockServer(mockServerPort).catch(() => {
     // Ignore errors
   });
-  
+
   // Set mock response in the server
   // endpoint is like "/v1/workspace/new", we need to use it as-is
-  setMockResponse(method, endpoint, statusCode, responseBody, validateToken, undefined, undefined, undefined);
-  
+  setMockResponse(
+    method,
+    endpoint,
+    statusCode,
+    responseBody,
+    validateToken,
+    undefined,
+    undefined,
+    undefined,
+  );
+
   // Return a mock object that matches nock's interface for compatibility
   const mockKey = `${method.toUpperCase()} ${baseUrl}${endpoint}`;
   return {
@@ -300,7 +315,7 @@ export function setupMalformedResponseMock(
 /**
  * Clean up all interceptors and re-enable network connections
  * Call this in afterEach hooks
- * 
+ *
  * CRITICAL: Do NOT close the MockAgent here - it's set as the global dispatcher
  * and closing it causes ClientDestroyedError when subsequent tests try to use fetch.
  * The MockAgent should remain active for the entire test suite.
@@ -308,7 +323,7 @@ export function setupMalformedResponseMock(
 export function cleanupNock(): void {
   // Clean up mock HTTP server
   clearMocks();
-  
+
   // CRITICAL: Do NOT close the MockAgent - it's the global dispatcher and must remain active
   // Closing it causes ClientDestroyedError when fetch tries to use the destroyed client
   // Instead, just clear any interceptors (if we were using them)
@@ -340,14 +355,14 @@ export function setupNock(): void {
   // This works with native fetch() because it's a real HTTP server
   // Use port 3002 for mock server to avoid collision with real AnythingLLM on 3001
   const mockServerPort = 3002; // Always use 3002 for mock server
-  
+
   startMockServer(mockServerPort).catch(() => {
     // Ignore errors
   });
-  
+
   // Clear any existing mocks
   clearMocks();
-  
+
   // Ensure nock is active (for other tests that might use it)
   if (!nock.isActive()) {
     nock.activate();
@@ -358,11 +373,14 @@ export function setupNock(): void {
   // Allow connections to localhost:3000 (Keystone API) and localhost:3002 (Mock AnythingLLM server)
   nock.enableNetConnect((host) => {
     // Allow localhost:3000 (Keystone API) and localhost:3002 (Mock AnythingLLM server)
-    const allowed = host === 'localhost:3000' || host === '127.0.0.1:3000' || 
-                    host === 'localhost:3002' || host === '127.0.0.1:3002';
+    const allowed =
+      host === 'localhost:3000' ||
+      host === '127.0.0.1:3000' ||
+      host === 'localhost:3002' ||
+      host === '127.0.0.1:3002';
     return allowed;
   });
-  
+
   // Reset undici MockAgent interceptors (for other tests that might use it)
   const mockAgent = (globalThis as any).__undiciMockAgent;
   if (mockAgent) {

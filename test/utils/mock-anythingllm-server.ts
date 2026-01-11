@@ -1,10 +1,10 @@
 /**
  * Mock AnythingLLM HTTP Server
- * 
+ *
  * This server runs on localhost:3001 and intercepts requests from the NestJS app
  * to return mocked responses. This works with native fetch() because it's a real
  * HTTP server, not an interceptor.
- * 
+ *
  * CRITICAL: This is a simple mock server. For production-like E2E tests, use a
  * real AnythingLLM instance. This is only for testing failure scenarios.
  */
@@ -28,7 +28,10 @@ interface MockResponse {
 const mockResponses = new Map<string, MockResponse>();
 
 // Get or create a mock response entry
-export function getMockResponse(method: string, path: string): MockResponse | undefined {
+export function getMockResponse(
+  method: string,
+  path: string,
+): MockResponse | undefined {
   // Normalize path to ensure it starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const key = `${method.toUpperCase()} ${normalizedPath}`;
@@ -80,7 +83,7 @@ function verifyHS256Token(token: string): void {
   if (parts.length !== 3) {
     throw new Error('Invalid token format');
   }
-  
+
   // Decode payload to verify it's a delegated token
   try {
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
@@ -91,7 +94,9 @@ function verifyHS256Token(token: string): void {
       throw new Error('Token audience is not anythingllm');
     }
   } catch (e) {
-    throw new Error(`Invalid token payload: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    throw new Error(
+      `Invalid token payload: ${e instanceof Error ? e.message : 'Unknown error'}`,
+    );
   }
 }
 
@@ -114,10 +119,14 @@ export function startMockServer(port: number = 3002): Promise<void> {
 
       // Remove /api prefix if present (baseUrl includes /api, e.g., http://localhost:3001/api)
       // Request path will be /api/v1/workspace/new, we need to extract /v1/workspace/new
-      const pathWithoutApi = pathname.startsWith('/api') ? pathname.substring(4) : pathname;
+      const pathWithoutApi = pathname.startsWith('/api')
+        ? pathname.substring(4)
+        : pathname;
       // Ensure path starts with / for matching
-      const normalizedPath = pathWithoutApi.startsWith('/') ? pathWithoutApi : `/${pathWithoutApi}`;
-      
+      const normalizedPath = pathWithoutApi.startsWith('/')
+        ? pathWithoutApi
+        : `/${pathWithoutApi}`;
+
       const mock = getMockResponse(method, normalizedPath);
 
       if (mock) {
@@ -143,8 +152,11 @@ export function startMockServer(port: number = 3002): Promise<void> {
         // Validate token if required
         if (mock.validateToken) {
           try {
-            const authHeader = req.headers.authorization || req.headers.Authorization;
-            const authValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+            const authHeader =
+              req.headers.authorization || req.headers.Authorization;
+            const authValue = Array.isArray(authHeader)
+              ? authHeader[0]
+              : authHeader;
             if (!authValue || !authValue.startsWith('Bearer ')) {
               res.writeHead(401, { 'Content-Type': 'application/json' });
               res.end(
@@ -163,7 +175,10 @@ export function startMockServer(port: number = 3002): Promise<void> {
             res.end(
               JSON.stringify({
                 error: 'Unauthorized',
-                message: error instanceof Error ? error.message : 'Token validation failed',
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : 'Token validation failed',
               }),
             );
             return;
@@ -171,7 +186,9 @@ export function startMockServer(port: number = 3002): Promise<void> {
         }
 
         // Return mocked response (using retry logic if applicable)
-        res.writeHead(responseStatusCode, { 'Content-Type': 'application/json' });
+        res.writeHead(responseStatusCode, {
+          'Content-Type': 'application/json',
+        });
         res.end(JSON.stringify(responseBody));
       } else {
         // No mock found - return 404
@@ -207,7 +224,7 @@ export function stopMockServer(): Promise<void> {
     if (typeof (server as any).closeAllConnections === 'function') {
       (server as any).closeAllConnections();
     }
-    
+
     server.close((err) => {
       if (err) {
         reject(err);

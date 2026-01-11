@@ -12,7 +12,7 @@ import { EntityRelationalHelper } from '../../../../../../utils/relational-entit
  * AnythingLLM User Mapping Entity
  *
  * Maps Keystone users to AnythingLLM users and workspaces.
- * Stores the relationship between Keystone user IDs, AnythingLLM user IDs, and workspace slugs.
+ * Stores the relationship between Keystone user IDs, AnythingLLM user IDs, workspace IDs, and workspace slugs.
  */
 @Entity({
   name: 'anythingllm_user_mappings',
@@ -33,6 +33,14 @@ export class AnythingLLMUserMappingEntity extends EntityRelationalHelper {
 
   @Column({ name: 'anythingllm_user_id', type: 'integer', nullable: false })
   anythingllmUserId: number;
+
+  @Column({
+    name: 'workspace_id',
+    type: 'integer',
+    nullable: true, // Nullable for backward compatibility with existing data
+  })
+  @Index('IDX_anythingllm_user_mappings_workspace_id')
+  workspaceId: number | null;
 
   @Column({
     name: 'workspace_slug',

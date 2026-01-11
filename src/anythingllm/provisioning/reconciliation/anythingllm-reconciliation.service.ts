@@ -204,8 +204,9 @@ export class AnythingLLMReconciliationService {
           user.externalId
         ) {
           // Check if mapping exists
-          const mapping =
-            await this.mappingRepository.findByAnythingLLMUserId(user.id);
+          const mapping = await this.mappingRepository.findByAnythingLLMUserId(
+            user.id,
+          );
 
           if (!mapping) {
             // User exists in AnythingLLM but no mapping - orphaned
@@ -412,7 +413,9 @@ export class AnythingLLMReconciliationService {
         );
       }
 
-      this.logger.log(`Suspended orphaned AnythingLLM user ${anythingllmUserId}`);
+      this.logger.log(
+        `Suspended orphaned AnythingLLM user ${anythingllmUserId}`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to suspend orphaned user ${anythingllmUserId}: ${error instanceof Error ? error.message : 'Unknown error'}`,

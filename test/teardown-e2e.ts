@@ -1,8 +1,8 @@
 /**
  * E2E Test Teardown
- * 
+ *
  * This file is run after all E2E tests to clean up the test environment.
- * 
+ *
  * CRITICAL: Close the MockAgent only after all tests are complete.
  * Do NOT close it in cleanupNock() or afterEach hooks - that causes ClientDestroyedError.
  */

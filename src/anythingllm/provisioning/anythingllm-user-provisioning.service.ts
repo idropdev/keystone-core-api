@@ -10,6 +10,7 @@ import { UpstreamError } from '../registry/upstream-error';
 import { AuditService, AuthEventType } from '../../audit/audit.service';
 import { WorkspaceMapperService } from './domain/workspace-mapper.service';
 import { AnythingLLMUserMappingRepository } from './infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
+import { AnythingLLMUserThreadRepository } from './infrastructure/persistence/repositories/anythingllm-user-thread.repository';
 import { AllConfigType } from '../../config/config.type';
 import { RoleEnum } from '../../roles/roles.enum';
 import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
@@ -52,6 +53,9 @@ export class AnythingLLMUserProvisioningService {
     @Optional()
     @Inject(AnythingLLMUserMappingRepository)
     private readonly mappingRepository?: AnythingLLMUserMappingRepository,
+    @Optional()
+    @Inject(AnythingLLMUserThreadRepository)
+    private readonly threadRepository?: AnythingLLMUserThreadRepository,
   ) {}
 
   /**
@@ -138,10 +142,11 @@ export class AnythingLLMUserProvisioningService {
         );
       }
 
-      // Step 6: Store mapping (use actual slug from response)
+      // Step 6: Store mapping (use actual slug and ID from response)
       await this.mappingRepository.create({
         keystoneUserId,
         anythingllmUserId,
+        workspaceId, // Store workspace ID for future reference
         workspaceSlug: effectiveWorkspaceSlug, // Use actual slug from response
       });
 
@@ -495,7 +500,9 @@ export class AnythingLLMUserProvisioningService {
           error.statusCode = response.status;
 
           // Check if error is retryable (transient server error)
-          const isRetryable = retryableStatusCodes.includes(response.status) && attempt < maxRetries;
+          const isRetryable =
+            retryableStatusCodes.includes(response.status) &&
+            attempt < maxRetries;
 
           if (isRetryable) {
             // Calculate exponential backoff delay: 1s, 2s, 4s
@@ -998,11 +1005,10 @@ export class AnythingLLMUserProvisioningService {
    * @returns Workspace mapping or null if not found
    * @internal
    */
-  async getWorkspaceMappingForUser(
-    keystoneUserId: string | number,
-  ): Promise<{
+  async getWorkspaceMappingForUser(keystoneUserId: string | number): Promise<{
     keystoneUserId: string;
     anythingllmUserId: number;
+    workspaceId: number | null;
     workspaceSlug: string;
     createdAt?: Date;
     updatedAt?: Date;
@@ -1025,9 +1031,111 @@ export class AnythingLLMUserProvisioningService {
     return {
       keystoneUserId: mapping.keystoneUserId,
       anythingllmUserId: mapping.anythingllmUserId,
+      workspaceId: mapping.workspaceId,
       workspaceSlug: mapping.workspaceSlug,
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt,
     };
+  }
+
+  /**
+   * Record a thread created by a user (internal use only)
+   *
+   * Stores thread information in the database for tracking and audit purposes.
+   * This method should be called whenever a new thread is created in AnythingLLM.
+   *
+   * @param data - Thread creation data
+   * @internal
+   */
+  async recordUserThread(data: {
+    keystoneUserId: string | number;
+    workspaceSlug: string;
+    threadSlug: string;
+    threadName?: string;
+  }): Promise<void> {
+    if (!this.threadRepository || !this.mappingRepository) {
+      this.logger.warn(
+        'Thread repository not available - thread cannot be recorded',
+      );
+      return;
+    }
+
+    try {
+      // Get the user mapping to get anythingllmUserId and workspaceId
+      const mapping = await this.mappingRepository.findByKeystoneUserId(
+        String(data.keystoneUserId),
+      );
+
+      if (!mapping) {
+        this.logger.warn(
+          `Cannot record thread - no mapping found for user ${data.keystoneUserId}`,
+        );
+        return;
+      }
+
+      // Record the thread
+      await this.threadRepository.create({
+        keystoneUserId: String(data.keystoneUserId),
+        anythingllmUserId: mapping.anythingllmUserId,
+        workspaceSlug: data.workspaceSlug,
+        threadSlug: data.threadSlug,
+        threadName: data.threadName,
+        workspaceId: mapping.workspaceId || undefined,
+      });
+
+      this.logger.log(
+        `Recorded thread ${data.threadSlug} for user ${data.keystoneUserId} in workspace ${data.workspaceSlug}`,
+      );
+    } catch (error) {
+      // Don't fail the thread creation if recording fails
+      this.logger.error(
+        `Failed to record thread ${data.threadSlug} for user ${data.keystoneUserId}:`,
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+    }
+  }
+
+  /**
+   * Get all threads for a user (internal use only)
+   *
+   * Returns all threads created by a Keystone user across all workspaces.
+   *
+   * @param keystoneUserId - Keystone user ID (string or number)
+   * @returns Array of thread records
+   * @internal
+   */
+  async getUserThreads(
+    keystoneUserId: string | number,
+  ): Promise<
+    Array<{
+      threadSlug: string;
+      threadName: string | null;
+      workspaceSlug: string;
+      workspaceId: number | null;
+      messageCount: number;
+      lastMessageAt: Date | null;
+      createdAt: Date;
+    }>
+  > {
+    if (!this.threadRepository) {
+      this.logger.warn(
+        'Thread repository not available - cannot retrieve threads',
+      );
+      return [];
+    }
+
+    const threads = await this.threadRepository.findByKeystoneUserId(
+      String(keystoneUserId),
+    );
+
+    return threads.map((thread) => ({
+      threadSlug: thread.threadSlug,
+      threadName: thread.threadName,
+      workspaceSlug: thread.workspaceSlug,
+      workspaceId: thread.workspaceId,
+      messageCount: thread.messageCount,
+      lastMessageAt: thread.lastMessageAt,
+      createdAt: thread.createdAt,
+    }));
   }
 }

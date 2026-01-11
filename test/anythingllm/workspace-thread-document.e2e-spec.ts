@@ -300,7 +300,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
       // Create thread in workspace
       const threadName = `Test Thread ${timestamp}`;
       const threadResponse = await request(APP)
-        .post(`/api/anythingllm/v1/workspace/${workspaceSlugCreated}/thread/new`)
+        .post(
+          `/api/anythingllm/v1/workspace/${workspaceSlugCreated}/thread/new`,
+        )
         .auth(adminToken, { type: 'bearer' })
         .send({
           name: threadName,
@@ -346,7 +348,10 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
         .expect(200);
 
       expect(workspaceResponse.body).toHaveProperty('workspace');
-      expect(workspaceResponse.body.workspace).toHaveProperty('slug', workspaceSlug);
+      expect(workspaceResponse.body.workspace).toHaveProperty(
+        'slug',
+        workspaceSlug,
+      );
       expect(workspaceResponse.body.workspace).toHaveProperty('id');
       createdWorkspaceSlug = workspaceResponse.body.workspace.slug;
 
@@ -354,7 +359,7 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
       // Note: Admin endpoint requires service identity token, not user JWT
       // Users are automatically assigned to their workspace during provisioning,
       // but since we created the workspace separately, we need to manually assign.
-      
+
       if (!authDelegationService) {
         console.log(
           '[SKIP] Auth delegation service not available - skipping manual user assignment. User may be auto-assigned during provisioning.',
@@ -368,10 +373,10 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
         // Uses GET /v1/admin/users/external/:externalId?provider=keystone
         // CRITICAL: Use delegated token (HS256) with admin context, NOT service identity (RS256)
         let anythingllmUserId: number | null = null;
-        
+
         try {
           const delegatedToken = await getAdminDelegatedToken();
-          
+
           // Look up user by externalId using dedicated endpoint
           const userResponse = await fetch(
             `${ANYTHINGLLM_URL}/v1/admin/users/external/${regularUser.id}?provider=keystone`,
@@ -381,7 +386,7 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
               },
             },
           );
-          
+
           if (userResponse.ok) {
             const userData = await userResponse.json();
             if (userData.user && userData.user.id) {
@@ -419,15 +424,17 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
               }),
             },
           );
-          
-          const assignResponseBody = assignResponse.ok ? await assignResponse.json() : await assignResponse.text();
-          
+
+          const assignResponseBody = assignResponse.ok
+            ? await assignResponse.json()
+            : await assignResponse.text();
+
           if (!assignResponse.ok) {
             throw new Error(
               `Failed to assign user to workspace: ${assignResponse.status} - ${JSON.stringify(assignResponseBody)}`,
             );
           }
-          
+
           expect(assignResponseBody).toHaveProperty('success', true);
         } else {
           console.log(
@@ -442,7 +449,9 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
       // Step 4: Create thread in workspace (as regular user)
       const threadName = `Test Thread ${timestamp}`;
       const threadResponse = await request(APP)
-        .post(`/api/anythingllm/v1/workspace/${createdWorkspaceSlug}/thread/new`)
+        .post(
+          `/api/anythingllm/v1/workspace/${createdWorkspaceSlug}/thread/new`,
+        )
         .auth(regularUserToken, { type: 'bearer' })
         .send({
           name: threadName,
@@ -497,7 +506,12 @@ Created at: ${new Date().toISOString()}`;
       const chatMessage = 'What information is in the uploaded document?';
 
       // Ensure we have required data
-      if (!regularUserToken || !regularUser || !createdWorkspaceSlug || !createdThreadSlug) {
+      if (
+        !regularUserToken ||
+        !regularUser ||
+        !createdWorkspaceSlug ||
+        !createdThreadSlug
+      ) {
         throw new Error('Missing required data for stream chat test');
       }
 
@@ -532,7 +546,9 @@ Created at: ${new Date().toISOString()}`;
             );
 
             expect(response.status).toBe(200);
-            expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+            expect(response.headers.get('content-type')).toMatch(
+              /text\/event-stream/,
+            );
 
             if (!response.body) {
               throw new Error('Response body is null');
@@ -577,11 +593,11 @@ Created at: ${new Date().toISOString()}`;
 
                     try {
                       const data = JSON.parse(text);
-                      
+
                       if (data.textResponse) {
                         fullResponse += data.textResponse;
                       }
-                      
+
                       if (data.close) {
                         clearTimeout(timeoutId);
                         expect(fullResponse.length).toBeGreaterThan(0);

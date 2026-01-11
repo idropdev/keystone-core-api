@@ -1,11 +1,11 @@
 /**
  * E2E Test Setup
- * 
+ *
  * This file is run before E2E tests to configure the test environment.
- * 
+ *
  * CRITICAL: For Node.js 18+, native fetch() uses undici which nock cannot intercept.
  * We use undici's MockAgent to intercept native fetch requests.
- * 
+ *
  * IMPORTANT: Jest overrides global variables, including fetch, which can prevent
  * undici's MockAgent from intercepting requests. We must override Jest's global fetch
  * to ensure it uses the original fetch function from Node.js's global scope.
@@ -46,12 +46,13 @@ try {
   // Save the original fetch BEFORE any overrides
   // This is the fetch that uses the MockAgent via the global dispatcher we just set
   // In Node.js 18+, fetch is available on globalThis
-  const originalFetch = typeof globalThis !== 'undefined' && globalThis.fetch 
-    ? globalThis.fetch 
-    : typeof global !== 'undefined' && global.fetch 
-      ? global.fetch 
-      : undefined;
-  
+  const originalFetch =
+    typeof globalThis !== 'undefined' && globalThis.fetch
+      ? globalThis.fetch
+      : typeof global !== 'undefined' && global.fetch
+        ? global.fetch
+        : undefined;
+
   if (originalFetch) {
     // Override Jest's fetch to use the saved original fetch
     // This ensures that undici's MockAgent can intercept requests via the global dispatcher
@@ -61,13 +62,13 @@ try {
       // Always use the saved originalFetch, which uses MockAgent via global dispatcher
       return originalFetch.call(globalThis, input, init);
     };
-    
+
     // Override both globalThis.fetch and global.fetch
     globalThis.fetch = fetchWrapper;
     if (typeof global !== 'undefined') {
       global.fetch = fetchWrapper;
     }
-    
+
     // Fetch override complete - MockAgent is now active
   }
 } catch (e) {

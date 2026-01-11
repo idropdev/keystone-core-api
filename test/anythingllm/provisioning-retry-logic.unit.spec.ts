@@ -124,24 +124,23 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       let attemptCount = 0;
 
       // Mock user creation to succeed
-      orchestratorService.executeOperation
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
-              },
+      orchestratorService.executeOperation.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            user: {
+              id: 456,
+              username: 'patient_abc123',
+              role: 'default',
             },
-          }),
-          text: async () => '',
-          headers: {
-            get: jest.fn().mockReturnValue(null),
           },
-        } as any);
+        }),
+        text: async () => '',
+        headers: {
+          get: jest.fn().mockReturnValue(null),
+        },
+      } as any);
 
       // Mock workspace creation to fail 2x, then succeed
       workspaceService.createWorkspace.mockImplementation(async () => {
@@ -263,24 +262,23 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       jest.clearAllMocks();
 
       // Test 503 error on workspace creation
-      orchestratorService.executeOperation
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
-              },
+      orchestratorService.executeOperation.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            user: {
+              id: 456,
+              username: 'patient_abc123',
+              role: 'default',
             },
-          }),
-          text: async () => '',
-          headers: {
-            get: jest.fn().mockReturnValue(null),
           },
-        } as any);
+        }),
+        text: async () => '',
+        headers: {
+          get: jest.fn().mockReturnValue(null),
+        },
+      } as any);
 
       workspaceService.createWorkspace.mockRejectedValue(
         new Error('Service Unavailable'),
@@ -366,24 +364,23 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
 
     it('should respect retry limits and maintain consistent error state', async () => {
       // Mock workspace creation to always fail (simulating retry limit exceeded)
-      orchestratorService.executeOperation
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
-              },
+      orchestratorService.executeOperation.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            user: {
+              id: 456,
+              username: 'patient_abc123',
+              role: 'default',
             },
-          }),
-          text: async () => '',
-          headers: {
-            get: jest.fn().mockReturnValue(null),
           },
-        } as any);
+        }),
+        text: async () => '',
+        headers: {
+          get: jest.fn().mockReturnValue(null),
+        },
+      } as any);
 
       workspaceService.createWorkspace.mockRejectedValue(
         new Error('Persistent failure'),

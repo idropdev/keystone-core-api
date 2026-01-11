@@ -103,7 +103,9 @@ describe('AnythingLLM Reconciliation (E2E)', () => {
       const mappingId = 999; // Test mapping ID
 
       const response = await request(APP_URL)
-        .post(`/api/v1/admin/anythingllm/reconciliation/fix-orphaned-mapping/${mappingId}`)
+        .post(
+          `/api/v1/admin/anythingllm/reconciliation/fix-orphaned-mapping/${mappingId}`,
+        )
         .set('Authorization', `Bearer ${adminToken}`)
         .expect((res) => {
           // May return 200 (success) or 404 (mapping not found)
@@ -137,7 +139,9 @@ describe('AnythingLLM Reconciliation (E2E)', () => {
       // Attempt to fix orphaned mapping
       // Note: This may fail if mapping doesn't exist, but we verify the endpoint is accessible
       await request(APP_URL)
-        .post(`/api/v1/admin/anythingllm/reconciliation/fix-orphaned-mapping/${mappingId}`)
+        .post(
+          `/api/v1/admin/anythingllm/reconciliation/fix-orphaned-mapping/${mappingId}`,
+        )
         .set('Authorization', `Bearer ${adminToken}`)
         .expect((res) => {
           // May return 200 (success) or 404 (mapping not found)

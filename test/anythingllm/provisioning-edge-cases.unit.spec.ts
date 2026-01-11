@@ -187,24 +187,23 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
 
     it('should handle missing workspace properties gracefully', async () => {
       // Mock user creation to succeed
-      orchestratorService.executeOperation
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
-              },
+      orchestratorService.executeOperation.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            user: {
+              id: 456,
+              username: 'patient_abc123',
+              role: 'default',
             },
-          }),
-          text: async () => '',
-          headers: {
-            get: jest.fn().mockReturnValue(null),
           },
-        } as any);
+        }),
+        text: async () => '',
+        headers: {
+          get: jest.fn().mockReturnValue(null),
+        },
+      } as any);
 
       // Mock workspace creation to return response missing 'workspace' property
       workspaceService.createWorkspace.mockResolvedValue({
@@ -251,9 +250,7 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       } as any);
 
       // Verify: Error logged, graceful degradation
-      await expect(
-        service.suspendUser(999, mockUser),
-      ).rejects.toThrow();
+      await expect(service.suspendUser(999, mockUser)).rejects.toThrow();
 
       // Verify error was logged
       expect(auditService.logAuthEvent).toHaveBeenCalledWith(
@@ -271,9 +268,7 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       // Verify: Error logged, graceful degradation
       // The service should handle missing mapping gracefully
       // In a real scenario, this might skip suspension or log a warning
-      await expect(
-        service.suspendUser(999, mockUser),
-      ).rejects.toThrow();
+      await expect(service.suspendUser(999, mockUser)).rejects.toThrow();
 
       // Verify error was logged
       expect(auditService.logAuthEvent).toHaveBeenCalled();

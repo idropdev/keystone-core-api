@@ -8,7 +8,8 @@ import { IsOptional, IsString } from 'class-validator';
 export class DocumentUploadRequestDto {
   @ApiPropertyOptional({
     type: 'string',
-    description: 'Comma-separated workspace slugs to embed document into post-upload',
+    description:
+      'Comma-separated workspace slugs to embed document into post-upload',
     example: 'workspace1,workspace2',
   })
   @IsOptional()

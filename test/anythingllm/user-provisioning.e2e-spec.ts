@@ -101,7 +101,11 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
             AnythingLLMModule,
             AnythingLLMAuthDelegationModule,
             // Import provisioning module to access mapping repository
-            (await import('../../src/anythingllm/provisioning/anythingllm-provisioning.module')).AnythingLLMProvisioningModule,
+            (
+              await import(
+                '../../src/anythingllm/provisioning/anythingllm-provisioning.module'
+              )
+            ).AnythingLLMProvisioningModule,
           ],
         }).compile();
 
@@ -768,7 +772,9 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       const { AnythingLLMUserMappingRepository } = await import(
         '../../src/anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository'
       );
-      const mappingRepository = testModule.get(AnythingLLMUserMappingRepository);
+      const mappingRepository = testModule.get(
+        AnythingLLMUserMappingRepository,
+      );
 
       if (!mappingRepository) {
         // Skip if mapping repository not available (document DB mode)
@@ -776,7 +782,9 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       }
 
       // Poll for mapping to be created (provisioning is async)
-      let mapping: Awaited<ReturnType<typeof mappingRepository.findByKeystoneUserId>> = null;
+      let mapping: Awaited<
+        ReturnType<typeof mappingRepository.findByKeystoneUserId>
+      > = null;
       for (let i = 0; i < 10; i++) {
         mapping = await mappingRepository.findByKeystoneUserId(
           String(defaultUserId),
@@ -820,7 +828,9 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
 
       // Admin user should have workspace created but NOT assigned (admin has access to all workspaces)
       // Verify through mapping repository
-      let adminMapping: Awaited<ReturnType<typeof mappingRepository.findByKeystoneUserId>> = null;
+      let adminMapping: Awaited<
+        ReturnType<typeof mappingRepository.findByKeystoneUserId>
+      > = null;
       for (let i = 0; i < 10; i++) {
         adminMapping = await mappingRepository.findByKeystoneUserId(
           String(adminUserId),
@@ -836,11 +846,11 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       expect(adminMapping?.keystoneUserId).toBe(String(adminUserId));
       expect(adminMapping?.workspaceSlug).toBeDefined();
       expect(adminMapping?.workspaceSlug).toMatch(/^patient-[a-f0-9]+$/); // Format: patient-{hash}
-      
+
       // Note: Admin users have access to all workspaces automatically,
       // so workspace assignment is skipped (service logs this)
       // The mapping confirms workspace was created, which is the expected behavior
-      
+
       // Summary: Default user is assigned, admin user has workspace created but assignment is skipped
       expect(defaultUserId).toBeDefined();
       expect(adminUserId).toBeDefined();
@@ -979,7 +989,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       // Accept either 422 (duplicate email) or 429 (rate limited)
       // Both indicate the duplicate request was properly rejected
       expect([422, 429]).toContain(duplicateResponse.status);
-      
+
       if (duplicateResponse.status === 422) {
         // If we got 422, verify it's because email already exists
         // Response structure: {"errors": {"email": "emailAlreadyExists"}, "status": 422}
@@ -1081,17 +1091,17 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
     it('should handle workspace creation failure and prevent orphaned users (E2E with nock)', async () => {
       // CRITICAL TEST: Verify that when workspace creation fails, we don't create orphaned users
       // This prevents the risk of having AnythingLLM users without workspaces or mappings
-      // 
+      //
       // Expected behavior:
       // 1. Keystone user is created (user registration succeeds)
       // 2. Workspace creation fails (simulated 500 error)
       // 3. No mapping is stored (prevents orphaned mappings)
       // 4. System handles failure gracefully without crashing
-      // 
+      //
       // Note: The provisioning service may create the AnythingLLM user before workspace creation.
       // If workspace creation fails, this could result in an orphaned user. This test verifies
       // that the system handles this scenario gracefully and doesn't store a mapping.
-      
+
       // Mock user creation to succeed (if called)
       setupAnythingLLMMock('post', '/v1/admin/users/new', 200, {
         user: {
@@ -1148,9 +1158,13 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
           const { AnythingLLMUserMappingRepository } = await import(
             '../../src/anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository'
           );
-          const mappingRepository = testModule.get(AnythingLLMUserMappingRepository);
-          const mapping = await mappingRepository.findByKeystoneUserId(String(userId));
-          
+          const mappingRepository = testModule.get(
+            AnythingLLMUserMappingRepository,
+          );
+          const mapping = await mappingRepository.findByKeystoneUserId(
+            String(userId),
+          );
+
           // CRITICAL: No mapping should exist because workspace creation failed
           // The provisioning flow should not store a mapping if workspace creation fails
           expect(mapping).toBeNull();
@@ -1393,7 +1407,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       // to use port 3001 (real AnythingLLM). The test will still run, but the mock server
       // won't receive requests if the app is using port 3001. This is expected behavior
       // for E2E tests that run against a real app instance.
-      // 
+      //
       // The test verifies that retry logic works by checking if provisioning eventually succeeds,
       // even if the mock server isn't used (when app is configured for real AnythingLLM).
 
@@ -1439,25 +1453,29 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       // For E2E, we verify the end-to-end flow works, which includes retry logic handling.
       // The mock server may not receive requests if the app is configured for real AnythingLLM,
       // but that's expected for E2E tests running against a real app instance.
-      
+
       // Poll for provisioning completion by checking if user mapping exists
       // Note: If testModule failed to initialize, we can't verify via repository
       // In that case, we verify that provisioning succeeded by checking the workspace was created
       let provisioningComplete = false;
       const maxWaitTime = 30; // seconds
-      
+
       if (testModule) {
         // Use repository to verify provisioning if testModule is available
         for (let i = 0; i < maxWaitTime; i++) {
           await sleep(1000);
-          
+
           try {
             const { AnythingLLMUserMappingRepository } = await import(
               '../../src/anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository'
             );
-            const mappingRepository = testModule.get(AnythingLLMUserMappingRepository);
+            const mappingRepository = testModule.get(
+              AnythingLLMUserMappingRepository,
+            );
             if (mappingRepository) {
-              const mapping = await mappingRepository.findByKeystoneUserId(String(userId));
+              const mapping = await mappingRepository.findByKeystoneUserId(
+                String(userId),
+              );
               if (mapping && mapping.anythingllmUserId) {
                 provisioningComplete = true;
                 break;
