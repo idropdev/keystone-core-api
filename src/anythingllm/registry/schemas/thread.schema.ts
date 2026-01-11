@@ -131,21 +131,42 @@ export class ChatMessageSchema {
 }
 
 /**
+ * Thread object in create thread response
+ */
+export class ThreadObjectSchema {
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  id: number;
+
+  @ApiProperty({ example: 'Thread' })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ example: 'thread-uuid' })
+  @IsString()
+  slug: string;
+
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  user_id: number;
+
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  workspace_id: number;
+}
+
+/**
  * Response for create thread endpoint
  */
 export class CreateThreadResponseSchema {
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  success: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  threadSlug?: string;
+  @ApiProperty({ type: ThreadObjectSchema })
+  @IsObject()
+  thread: ThreadObjectSchema;
 
   @ApiPropertyOptional({ example: null })
   @IsOptional()
-  error?: string | null;
+  @IsString()
+  message?: string | null;
 }
 
 /**

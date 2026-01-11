@@ -12,6 +12,7 @@ import {
   DocumentUploadResponseSchema,
   UploadRawTextRequestSchema,
   CreateThreadRequestSchema,
+  CreateThreadResponseSchema,
   ThreadChatRequestSchema,
   ThreadChatResponseSchema,
   ThreadChatsResponseSchema,
@@ -382,20 +383,38 @@ export class AnythingLLMAdapterService {
       userId,
     };
 
-    const result = await this.threadService.createThread(
+    const response = await this.threadService.createThread(
       workspaceSlug,
       request,
     );
 
-    if (!result.data.success || !result.data.threadSlug) {
+    if (!response.ok) {
+      const errorText = await response.text();
       throw new Error(
-        `Failed to create thread: ${result.data.error || 'Unknown error'}`,
+        `Failed to create thread: ${errorText || 'Unknown error'}`,
+      );
+    }
+
+    const result = (await response.json()) as {
+      thread: {
+        id: number;
+        name: string;
+        slug: string;
+        user_id: number;
+        workspace_id: number;
+      };
+      message?: string | null;
+    };
+
+    if (!result.thread || !result.thread.slug) {
+      throw new Error(
+        `Failed to create thread: ${result.message || 'Unknown error'}`,
       );
     }
 
     return {
-      slug: result.data.threadSlug,
-      name,
+      slug: result.thread.slug,
+      name: result.thread.name || name,
     };
   }
 

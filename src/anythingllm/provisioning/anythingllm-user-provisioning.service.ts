@@ -982,4 +982,52 @@ export class AnythingLLMUserProvisioningService {
 
     return password;
   }
+
+  /**
+   * Get AnythingLLM workspace mapping for a Keystone user (INTERNAL USE ONLY)
+   *
+   * This method is for internal system use only (tests, background jobs, internal services).
+   * DO NOT expose this as a REST endpoint - it could leak sensitive system architecture.
+   *
+   * Security Considerations:
+   * - Reveals which users have AnythingLLM accounts
+   * - Exposes workspace slug patterns
+   * - Could be used for enumeration attacks if exposed publicly
+   *
+   * @param keystoneUserId - Keystone user ID (string or number)
+   * @returns Workspace mapping or null if not found
+   * @internal
+   */
+  async getWorkspaceMappingForUser(
+    keystoneUserId: string | number,
+  ): Promise<{
+    keystoneUserId: string;
+    anythingllmUserId: number;
+    workspaceSlug: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+  } | null> {
+    if (!this.mappingRepository) {
+      this.logger.warn(
+        'Mapping repository not available - workspace mapping cannot be retrieved',
+      );
+      return null;
+    }
+
+    const mapping = await this.mappingRepository.findByKeystoneUserId(
+      String(keystoneUserId),
+    );
+
+    if (!mapping) {
+      return null;
+    }
+
+    return {
+      keystoneUserId: mapping.keystoneUserId,
+      anythingllmUserId: mapping.anythingllmUserId,
+      workspaceSlug: mapping.workspaceSlug,
+      createdAt: mapping.createdAt,
+      updatedAt: mapping.updatedAt,
+    };
+  }
 }

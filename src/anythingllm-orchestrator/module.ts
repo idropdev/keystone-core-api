@@ -6,7 +6,7 @@ import { AnythingLLMModule } from '../anythingllm/anythingllm.module';
 
 @Module({
   imports: [
-    AnythingLLMPolicyModule,
+    forwardRef(() => AnythingLLMPolicyModule),
     AnythingLLMAuthDelegationModule,
     forwardRef(() => AnythingLLMModule),
   ],

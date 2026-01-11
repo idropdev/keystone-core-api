@@ -5,6 +5,7 @@ import { AnythingLLMModule } from '../anythingllm.module';
 import { AnythingLLMOrchestratorModule } from '../../anythingllm-orchestrator/module';
 import { AuthModule } from '../../auth/auth.module';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
+import { AnythingLLMThreadModule } from '../thread/anythingllm-thread.module';
 
 /**
  * AnythingLLM Workspace Module
@@ -17,6 +18,7 @@ import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-clie
     forwardRef(() => AnythingLLMModule),
     AnythingLLMOrchestratorModule,
     forwardRef(() => AuthModule), // For JWT strategy - use forwardRef to avoid circular dependency
+    forwardRef(() => AnythingLLMThreadModule), // Use forwardRef to avoid potential circular dependency
   ],
   controllers: [AnythingLLMWorkspaceController],
   providers: [AnythingLLMWorkspaceService, AnythingLLMRegistryClient],

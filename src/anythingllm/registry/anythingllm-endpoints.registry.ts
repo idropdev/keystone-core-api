@@ -26,6 +26,8 @@ import {
   DocumentUploadResponseSchema,
   CreateWorkspaceRequestSchema,
   CreateWorkspaceResponseSchema,
+  CreateThreadRequestSchema,
+  CreateThreadResponseSchema,
 } from './schemas';
 
 /**
@@ -113,6 +115,7 @@ export const AnythingLLMSystemEndpointIds = {
   WORKSPACE_COUNT: 'system.workspaceCount',
   DOCUMENT_COUNT: 'system.documentCount',
   WORKSPACE_CREATE: 'workspace.create',
+  THREAD_CREATE: 'thread.create',
 } as const;
 
 export type AnythingLLMSystemEndpointId =
@@ -386,6 +389,17 @@ export const AnythingLLMSystemEndpoints: Record<
     requestSchema: CreateWorkspaceRequestSchema,
     responseSchema: CreateWorkspaceResponseSchema,
     tags: ['workspace'],
+    timeoutMs: 10000,
+  },
+
+  [AnythingLLMSystemEndpointIds.THREAD_CREATE]: {
+    id: AnythingLLMSystemEndpointIds.THREAD_CREATE,
+    method: 'POST',
+    path: '/v1/workspace/:slug/thread/new',
+    auth: 'delegatedPreferred',
+    requestSchema: CreateThreadRequestSchema,
+    responseSchema: CreateThreadResponseSchema,
+    tags: ['workspace', 'thread'],
     timeoutMs: 10000,
   },
 };

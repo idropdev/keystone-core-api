@@ -3,6 +3,8 @@ import {
   Logger,
   ForbiddenException,
   Optional,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnythingLLMOperation } from './domain/anythingllm-operation.enum';
@@ -16,6 +18,7 @@ import {
 import { AccessGrantDomainService } from '../access-control/domain/services/access-grant.domain.service';
 import { UserManagerAssignmentService } from '../users/domain/services/user-manager-assignment.service';
 import { AnythingLLMUserMappingRepository } from '../anythingllm/provisioning/infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
+import { AnythingLLMOrchestratorService } from '../anythingllm-orchestrator/service';
 import { RoleEnum } from '../roles/roles.enum';
 import { AllConfigType } from '../config/config.type';
 
@@ -33,6 +36,9 @@ export class AnythingLLMPolicyService {
     private readonly configService: ConfigService<AllConfigType>,
     @Optional()
     private readonly mappingRepository?: AnythingLLMUserMappingRepository,
+    @Optional()
+    @Inject(forwardRef(() => AnythingLLMOrchestratorService))
+    private readonly orchestratorService?: AnythingLLMOrchestratorService,
   ) {}
 
   /**
@@ -667,37 +673,126 @@ export class AnythingLLMPolicyService {
     const workspaceMappings =
       await this.mappingRepository.findByWorkspaceSlug(workspaceSlug);
 
-    if (workspaceMappings.length === 0) {
-      return false;
-    }
+    // Check if requester owns the workspace (if mappings exist)
+    if (workspaceMappings.length > 0) {
+      const requesterUserIdStr = String(requesterUserId);
+      const ownsWorkspace = workspaceMappings.some(
+        (mapping) => mapping.keystoneUserId === requesterUserIdStr,
+      );
 
-    // Check if requester owns the workspace
-    const requesterUserIdStr = String(requesterUserId);
-    const ownsWorkspace = workspaceMappings.some(
-      (mapping) => mapping.keystoneUserId === requesterUserIdStr,
-    );
+      if (ownsWorkspace) {
+        return true;
+      }
 
-    if (ownsWorkspace) {
-      return true;
-    }
-
-    // If manager, check if any workspace owner is assigned to this manager
-    if (isManager && this.userManagerAssignmentService) {
-      for (const mapping of workspaceMappings) {
-        const workspaceOwnerId = parseInt(mapping.keystoneUserId, 10);
-        if (!isNaN(workspaceOwnerId)) {
-          const isAssigned =
-            await this.userManagerAssignmentService.isManagerAssignedToUser(
-              requesterUserId,
-              workspaceOwnerId,
-            );
-          if (isAssigned) {
-            return true;
+      // If manager, check if any workspace owner is assigned to this manager
+      if (isManager && this.userManagerAssignmentService) {
+        for (const mapping of workspaceMappings) {
+          const workspaceOwnerId = parseInt(mapping.keystoneUserId, 10);
+          if (!isNaN(workspaceOwnerId)) {
+            const isAssigned =
+              await this.userManagerAssignmentService.isManagerAssignedToUser(
+                requesterUserId,
+                workspaceOwnerId,
+              );
+            if (isAssigned) {
+              return true;
+            }
           }
         }
       }
     }
+    
+    // If no mappings found or user doesn't own workspace, check membership via API
+    // This handles workspaces created separately (not through provisioning)
 
+    // Check if user is assigned to workspace (not just owner)
+    // Users can be assigned to workspaces they don't own
+    
+    if (this.orchestratorService && this.mappingRepository) {
+      try {
+        // Get requester's AnythingLLM user ID
+        const requesterUserIdStr = String(requesterUserId);
+        
+        const requesterMapping =
+          await this.mappingRepository.findByKeystoneUserId(
+            requesterUserIdStr,
+          );
+
+        if (requesterMapping) {
+          // Get workspace users from AnythingLLM
+          // Use admin context for this check (system admin)
+          const adminContext: RequesterContextDto = {
+            userId: '1', // System admin
+            roles: ['admin'],
+          };
+
+          // Check workspace membership by getting workspace users
+          // Users can be assigned to workspaces they don't own
+          // Use GET /v1/workspace/{slug} to get workspace ID, then GET /v1/admin/workspaces/{workspaceId}/users
+          try {
+            // Step 1: Get workspace ID from slug using GET /v1/workspace/{slug}
+            const workspaceInfoResponse =
+              await this.orchestratorService.executeOperation({
+                requesterContext: adminContext,
+                operation: AnythingLLMOperation.SYSTEM_READ,
+                endpoint: `/v1/workspace/${workspaceSlug}`,
+                method: 'GET',
+              });
+
+            if (!workspaceInfoResponse.ok) {
+              return false;
+            }
+
+            const workspaceInfoData = await workspaceInfoResponse.json();
+            
+            // Response format: { workspace: [{ id, name, slug, ... }] }
+            const workspaceArray = workspaceInfoData.workspace || [];
+            const workspace = Array.isArray(workspaceArray)
+              ? workspaceArray[0]
+              : workspaceArray;
+
+            if (!workspace || !workspace.id) {
+              return false;
+            }
+
+            // Step 2: Get workspace users using workspace ID via GET /v1/admin/workspaces/{workspaceId}/users
+            const workspaceUsersResponse =
+              await this.orchestratorService.executeOperation({
+                requesterContext: adminContext,
+                operation: AnythingLLMOperation.SYSTEM_READ,
+                endpoint: `/v1/admin/workspaces/${workspace.id}/users`,
+                method: 'GET',
+              });
+
+            if (workspaceUsersResponse.ok) {
+              const workspaceUsersData = await workspaceUsersResponse.json();
+              // Response format: { users: [{ userId, role }] }
+              const users = workspaceUsersData.users || [];
+
+              // Check if requester's AnythingLLM user ID is in workspace users
+              const userInWorkspace = users.some(
+                (u: any) => u.userId === requesterMapping.anythingllmUserId,
+              );
+
+              if (userInWorkspace) {
+                return true;
+              }
+            }
+          } catch (error) {
+            // Log error but don't fail - fall through to return false
+            this.logger.warn(
+              `Failed to check workspace membership for user ${requesterUserId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            );
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail - fall through to return false
+        this.logger.warn(
+          `Failed to check workspace membership for user ${requesterUserId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      }
+    }
+    
     return false;
   }
 

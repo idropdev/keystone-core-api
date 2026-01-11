@@ -39,6 +39,7 @@ export class ServiceIdentityGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
     const requestId = request.headers['x-request-id'] || 'unknown';
+    const path = request.path || request.url;
 
     // Check for Authorization header
     if (!authHeader) {

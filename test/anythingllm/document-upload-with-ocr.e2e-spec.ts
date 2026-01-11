@@ -85,15 +85,15 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
   beforeAll(async () => {
     adminToken = await getAdminToken();
 
-    // Set up auth delegation service for delegated tokens (HS256)
-    // Note: We don't import AnythingLLMProvisioningModule here as it causes
-    // circular dependency issues in the test environment
+    // Set up test module with provisioning service for internal workspace lookup
     if (!SKIP_ANYTHINGLLM_TESTS) {
       try {
         testModule = await Test.createTestingModule({
           imports: [
             AnythingLLMModule,
             AnythingLLMAuthDelegationModule,
+            // Import provisioning module for internal workspace mapping lookup
+            (await import('../../src/anythingllm/provisioning/anythingllm-provisioning.module')).AnythingLLMProvisioningModule,
           ],
         }).compile();
 
@@ -102,7 +102,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         );
       } catch (error) {
         console.warn(
-          'Failed to initialize auth delegation service:',
+          'Failed to initialize test services:',
           error,
         );
         authDelegationService = null;
@@ -186,23 +186,62 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         return;
       }
 
-      // Generate workspace slug using the same algorithm as the provisioning service
-      // The provisioning service uses: patient-{sha256(keystoneUserId)}
-      // This is deterministic, so the computed slug will always match the actual workspace
-      console.log('[INFO] Generating workspace slug using provisioning algorithm...');
+      // Use internal service method to retrieve workspace slug from mapping
+      // This is more secure than exposing as REST endpoint (prevents enumeration attacks)
+      console.log('[INFO] Retrieving workspace slug from internal provisioning service...');
       
-      const hash = crypto
-        .createHash('sha256')
-        .update(String(testUser.id))
-        .digest('hex');
-      workspaceSlug = `patient-${hash}`;
-      
-      console.log(`[INFO] Expected workspace slug: ${workspaceSlug}`);
+      const { AnythingLLMUserProvisioningService } = await import(
+        '../../src/anythingllm/provisioning/anythingllm-user-provisioning.service'
+      );
+      const provisioningService = testModule?.get(AnythingLLMUserProvisioningService);
 
-      // Poll for workspace to exist in AnythingLLM (provisioning is async)
-      // This confirms that provisioning completed successfully
+      if (!provisioningService) {
+        console.warn('[WARN] Provisioning service not available, falling back to hash generation');
+        // Fallback: Generate workspace slug using hash (same as provisioning service)
+        const hash = crypto
+          .createHash('sha256')
+          .update(String(testUser.id))
+          .digest('hex');
+        workspaceSlug = `patient-${hash}`;
+      } else {
+        // Poll for mapping to be created (provisioning is async)
+        let mapping: Awaited<ReturnType<typeof provisioningService.getWorkspaceMappingForUser>> = null;
+        const maxAttempts = 20;
+        const pollInterval = 2000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          mapping = await provisioningService.getWorkspaceMappingForUser(testUser.id);
+          
+          if (mapping && mapping.workspaceSlug) {
+            workspaceSlug = mapping.workspaceSlug;
+            console.log(`[INFO] Found workspace slug from internal service: ${workspaceSlug}`);
+            console.log(`[INFO] AnythingLLM user ID: ${mapping.anythingllmUserId}`);
+            break;
+          }
+
+          if (attempt < maxAttempts - 1) {
+            console.log(`[INFO] Workspace mapping not found yet, retrying... (${attempt + 1}/${maxAttempts})`);
+            await sleep(pollInterval);
+          }
+        }
+
+        if (!workspaceSlug && mapping) {
+          throw new Error('Mapping found but no workspace slug');
+        }
+        if (!workspaceSlug) {
+          console.warn('[WARN] No mapping found after polling - falling back to hash generation');
+          // Fallback to hash generation if provisioning hasn't completed yet
+          const hash = crypto
+            .createHash('sha256')
+            .update(String(testUser.id))
+            .digest('hex');
+          workspaceSlug = `patient-${hash}`;
+        }
+      }
+
+      // Verify workspace exists in AnythingLLM
       let workspaceFound = false;
-      const maxAttempts = 20;
+      const maxAttempts = 10;
       const pollInterval = 2000;
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
