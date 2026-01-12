@@ -15,8 +15,8 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 import { Response, Request as ExpressRequest } from 'express';
-import { OptionalJwtGuard } from '../guards/optional-jwt.guard';
 import { AnythingLLMSystemService } from './anythingllm-system.service';
 import { UpstreamError } from '../registry/upstream-error';
 import {
@@ -36,26 +36,26 @@ import { randomUUID } from 'crypto';
 /**
  * AnythingLLM System Controller
  *
- * User-facing controller for system endpoints with optional JWT authentication.
+ * User-facing controller for system endpoints requiring JWT authentication.
  *
  * Authentication Strategy:
- * - ALWAYS uses service-to-service authentication (Keystone → AnythingLLM)
- * - When user JWT is present (user/manager/admin):
- *   → Extracts user context (userId, roles) from JWT
- *   → Uses delegated token with service identity (sub: 'svc-keystone')
- *   → Embeds user context in act claim: { sub: userId, roles: ['admin'|'manager'|'user'] }
- * - When no user JWT:
- *   → Uses pure service identity (GCP OIDC token)
+ * - REQUIRES valid JWT token (HS256) for all requests
+ * - Extracts user context (userId, roles) from JWT
+ * - Uses delegated token with service identity (sub: 'svc-keystone')
+ * - Embeds user context in act claim: { sub: userId, roles: ['admin'|'manager'|'user'] }
+ *
+ * Security:
+ * - All endpoints require valid JWT authentication
+ * - Invalid or missing tokens are rejected with 401 Unauthorized
  *
  * HIPAA Compliance:
- * - Optional JWT guard allows both user and service identity
  * - Never logs tokens or sensitive authentication data
  * - All errors are normalized to prevent information leakage
  * - Auth responses normalized (no raw AnythingLLM messages)
  */
 @ApiTags('AnythingLLM System')
 @Controller('anythingllm/v1/system')
-@UseGuards(OptionalJwtGuard)
+@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
 export class AnythingLLMSystemController {
   private readonly logger = new Logger(AnythingLLMSystemController.name);
@@ -285,12 +285,18 @@ export class AnythingLLMSystemController {
 
   @Get('vector-count')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get vector count' })
+  @ApiOperation({
+    summary: 'Get vector count',
+    description: 'Number of all vectors in connected vector database',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Vector count',
+    description: 'OK',
     type: VectorCountResponseSchema,
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
   async getVectorCount(
     @Request() request: ExpressRequest & { user?: JwtPayloadType },
     @Res({ passthrough: true }) response: Response,

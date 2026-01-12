@@ -97,11 +97,12 @@ export class SystemInfoResponseSchema {
 
 /**
  * Response for vector count endpoint
+ * Matches AnythingLLM API: GET /v1/system/vector-count
  */
 export class VectorCountResponseSchema {
-  @ApiProperty({ example: 1000 })
+  @ApiProperty({ example: 5450, description: 'Number of all vectors in connected vector database' })
   @IsNumber()
-  count: number;
+  vectorCount: number;
 }
 
 /**

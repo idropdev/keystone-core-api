@@ -240,7 +240,8 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
         .timeout(10000);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('version');
+      // AnythingLLM system endpoint returns { settings: {...} }
+      expect(response.body).toHaveProperty('settings');
       expect(response.headers['x-request-id']).toBeDefined();
     }, 30000);
 
@@ -262,7 +263,8 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
         .timeout(10000);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('version');
+      // AnythingLLM system endpoint returns { settings: {...} }
+      expect(response.body).toHaveProperty('settings');
     }, 30000);
 
     it('should allow regular user to get system info when SYSTEM_VISIBILITY_ALLOW_USERS=true', async () => {
@@ -288,7 +290,8 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
       expect([200, 403]).toContain(response.status);
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('version');
+        // AnythingLLM system endpoint returns { settings: {...} }
+        expect(response.body).toHaveProperty('settings');
       } else {
         expect(response.body).toHaveProperty('error');
       }
@@ -320,7 +323,8 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
         .timeout(10000);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('version');
+      // AnythingLLM system endpoint returns { settings: {...} }
+      expect(response.body).toHaveProperty('settings');
     }, 30000);
   });
 
@@ -343,7 +347,8 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
         .timeout(10000);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('count');
+      // Matches AnythingLLM API: { vectorCount: number }
+      expect(response.body).toHaveProperty('vectorCount');
       expect(typeof response.body.count).toBe('number');
     }, 30000);
 
@@ -365,7 +370,8 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
         .timeout(10000);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('count');
+      // Matches AnythingLLM API: { vectorCount: number }
+      expect(response.body).toHaveProperty('vectorCount');
     }, 30000);
 
     it('should allow regular user to get vector count when SYSTEM_VISIBILITY_ALLOW_USERS=true', async () => {

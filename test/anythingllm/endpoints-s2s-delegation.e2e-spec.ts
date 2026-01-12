@@ -275,7 +275,8 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
       expect([200, 500, 503]).toContain(response.status);
 
       if (response.status === 200) {
-        expect(response.body).toHaveProperty('version');
+        // AnythingLLM system endpoint returns { settings: {...} }
+        expect(response.body).toHaveProperty('settings');
         expect(response.headers['x-request-id']).toBeDefined();
       }
     }, 30000);
