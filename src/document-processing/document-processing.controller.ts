@@ -41,6 +41,11 @@ import { UploadDocumentDto } from './dto/upload-document.dto';
 import { DocumentResponseDto } from './dto/document-response.dto';
 import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
+import { DocumentQueryDto } from './dto/document-query.dto';
+import {
+  DocumentQueryResponseDto,
+  DocumentQueryItemDto,
+} from './dto/document-query-response.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 import { extractActorFromRequest } from './utils/actor-extractor.util';
@@ -418,6 +423,44 @@ export class DocumentProcessingController {
       query,
     );
     return result;
+  }
+
+  @Post('query')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Query Documents with Advanced Filters',
+    description:
+      'Query documents using advanced filters, boolean combinators, extracted field queries, and full-text search. Authorization is enforced FIRST - query scope is restricted to documents the authenticated actor has access to.',
+  })
+  @ApiBody({
+    type: DocumentQueryDto,
+    description: 'Query filters, pagination, and sorting options',
+  })
+  @ApiOkResponse({
+    description: 'Paginated list of documents matching the query',
+    type: DocumentQueryResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient permissions',
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid query parameters',
+  })
+  async queryDocuments(
+    @Request() req,
+    @Body() queryDto: DocumentQueryDto,
+  ): Promise<DocumentQueryResponseDto> {
+    // Hard deny admins
+    if (req.user?.role?.id === RoleEnum.admin) {
+      throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    const actor = extractActorFromRequest(req);
+    return this.documentProcessingService.queryDocuments(actor, queryDto);
   }
 
   @Delete(':documentId')

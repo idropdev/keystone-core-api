@@ -157,4 +157,50 @@ export class DocumentRepositoryAdapter implements DocumentRepositoryPort {
 
     return mapped;
   }
+
+  async findByOriginManagerId(managerId: number): Promise<Document[]> {
+    const entities = await this.documentRepository.find({
+      where: {
+        originManagerId: managerId,
+        deletedAt: IsNull(),
+      },
+    });
+    return entities.map(DocumentMapper.toDomain);
+  }
+
+  async findByTemporaryManagerId(userId: number): Promise<Document[]> {
+    const entities = await this.documentRepository.find({
+      where: {
+        temporaryManagerId: userId,
+        deletedAt: IsNull(),
+      },
+    });
+    return entities.map(DocumentMapper.toDomain);
+  }
+
+  async findByUserIds(userIds: number[]): Promise<Document[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+    const entities = await this.documentRepository.find({
+      where: {
+        userId: In(userIds),
+        deletedAt: IsNull(),
+      },
+    });
+    return entities.map(DocumentMapper.toDomain);
+  }
+
+  async findByDocumentIds(documentIds: string[]): Promise<Document[]> {
+    if (documentIds.length === 0) {
+      return [];
+    }
+    const entities = await this.documentRepository.find({
+      where: {
+        id: In(documentIds),
+        deletedAt: IsNull(),
+      },
+    });
+    return entities.map(DocumentMapper.toDomain);
+  }
 }

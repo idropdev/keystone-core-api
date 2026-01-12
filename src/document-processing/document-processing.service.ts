@@ -3,6 +3,7 @@ import {
   Logger,
   ForbiddenException,
   NotFoundException,
+  Inject,
 } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
@@ -17,6 +18,14 @@ import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
 import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
+import { DocumentQueryDto } from './dto/document-query.dto';
+import {
+  DocumentQueryResponseDto,
+  DocumentQueryItemDto,
+} from './dto/document-query-response.dto';
+import { DocumentQueryDomainService } from './domain/services/document-query.domain.service';
+import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
+import { UserManagerAssignmentService } from '../users/domain/services/user-manager-assignment.service';
 
 /**
  * Orchestration Service (Application Layer)
@@ -35,6 +44,10 @@ export class DocumentProcessingService {
   constructor(
     private readonly domainService: DocumentProcessingDomainService,
     private readonly accessService: DocumentAccessDomainService,
+    private readonly queryDomainService: DocumentQueryDomainService,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
+    private readonly userManagerAssignmentService: UserManagerAssignmentService,
   ) {}
 
   async uploadDocument(
@@ -326,6 +339,77 @@ export class DocumentProcessingService {
       actor,
     );
     return this.toResponseDto(document);
+  }
+
+  /**
+   * Query documents with advanced filtering
+   */
+  async queryDocuments(
+    actor: Actor,
+    queryDto: DocumentQueryDto,
+  ): Promise<DocumentQueryResponseDto> {
+    // Execute query via domain service
+    const result = await this.queryDomainService.executeQuery(actor, queryDto);
+
+    // Map to response DTOs with ownership context
+    const items: DocumentQueryItemDto[] = await Promise.all(
+      result.data.map(async (doc) => {
+        const responseDto = this.toResponseDto(doc);
+        const ownershipContext = await this.determineOwnershipContext(
+          doc,
+          actor,
+        );
+        return {
+          ...responseDto,
+          ownershipContext,
+        } as DocumentQueryItemDto;
+      }),
+    );
+
+    return {
+      data: items,
+      hasNextPage: result.hasNextPage,
+    };
+  }
+
+  /**
+   * Determine ownership context for a document
+   */
+  private async determineOwnershipContext(
+    document: Document,
+    actor: Actor,
+  ): Promise<'own' | 'assigned_user' | 'granted'> {
+    if (actor.type === 'user') {
+      // User owns if temporaryManagerId matches
+      if (document.temporaryManagerId === actor.id) {
+        return 'own';
+      }
+      // Otherwise, accessed via grant
+      return 'granted';
+    }
+
+    if (actor.type === 'manager') {
+      // Manager owns if originManagerId matches
+      // Need to resolve manager.id from actor.id
+      const manager = await this.managerRepository.findByUserId(actor.id);
+      if (manager && document.originManagerId === manager.id) {
+        return 'own';
+      }
+      // Check if document is from assigned user
+      const assignments =
+        await this.userManagerAssignmentService.getAssignmentsByManager(
+          actor.id,
+        );
+      const assignedUserIds = assignments.map((a) => a.userId);
+      if (assignedUserIds.includes(Number(document.userId))) {
+        return 'assigned_user';
+      }
+      // Otherwise, accessed via grant
+      return 'granted';
+    }
+
+    // Default to granted for safety
+    return 'granted';
   }
 
   /**

@@ -7,6 +7,8 @@ import { DocumentProcessingController } from './document-processing.controller';
 import { DocumentProcessingService } from './document-processing.service';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
 import { DocumentAccessDomainService } from './domain/services/document-access.domain.service';
+import { DocumentQueryDomainService } from './domain/services/document-query.domain.service';
+import { QueryBuilderService } from './infrastructure/query/query-builder.service';
 import { DocumentEntity } from './infrastructure/persistence/relational/entities/document.entity';
 import { ExtractedFieldEntity } from './infrastructure/persistence/relational/entities/extracted-field.entity';
 import { ManagerEntity } from '../managers/infrastructure/persistence/relational/entities/manager.entity';
@@ -64,6 +66,10 @@ import { UsersModule } from '../users/users.module';
     // Domain layer
     DocumentProcessingDomainService,
     DocumentAccessDomainService,
+    DocumentQueryDomainService,
+
+    // Query builder service
+    QueryBuilderService,
 
     // Infrastructure adapters (Hexagonal Architecture)
     {
