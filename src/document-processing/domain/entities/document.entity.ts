@@ -6,6 +6,12 @@ export class Document {
   id: string;
   userId: string | number;
 
+  // Origin authority (IMMUTABLE - set at creation, never changes)
+  // NOTE: originManagerId is nullable - if null, temporaryManagerId must be set
+  originManagerId?: number; // Manager who is the custodian of this document
+  temporaryManagerId?: number; // User who uploaded without a manager (temporary manager)
+  originUserContextId?: number; // Optional: user who uploaded (intake context, not ownership)
+
   // Classification
   documentType: DocumentType;
   status: DocumentStatus;

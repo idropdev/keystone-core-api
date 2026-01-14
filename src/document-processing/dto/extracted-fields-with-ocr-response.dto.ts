@@ -11,17 +11,18 @@ export class ExtractedFieldsWithOcrResponseDto {
   fields: ExtractedFieldResponseDto[];
 
   @ApiProperty({
-    description: 'Document AI OCR output (raw OCR result from Google Document AI). Contains text, confidence, pageCount, entities, and fullResponse.',
+    description:
+      'Document AI OCR output (raw OCR result from Google Document AI). Contains text, confidence, pageCount, entities, and fullResponse.',
     required: false,
   })
   @Expose()
   document_output?: any;
 
   @ApiProperty({
-    description: 'Vision AI OCR output (raw OCR result from Google Vision AI). Contains text, confidence, pageCount, entities, and fullResponse.',
+    description:
+      'Vision AI OCR output (raw OCR result from Google Vision AI). Contains text, confidence, pageCount, entities, and fullResponse.',
     required: false,
   })
   @Expose()
   vision_output?: any;
 }
-

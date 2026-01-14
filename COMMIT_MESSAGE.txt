@@ -1,0 +1,68 @@
+feat(anythingllm): implement automatic user provisioning with workspace assignment
+
+Implement HIPAA-compliant automatic user provisioning from Keystone to AnythingLLM,
+including user creation, workspace assignment, and suspension synchronization via
+service-to-service admin APIs.
+
+BREAKING CHANGES:
+- Added new database migration for anythingllm_user_mappings table
+- UsersService now requires AnythingLLMUserProvisioningService dependency
+
+Features:
+- Automatic user provisioning on user creation, update, and suspension
+- Workspace creation and assignment using deterministic slug generation
+- User mapping persistence for idempotent provisioning operations
+- Asynchronous fire-and-forget provisioning to prevent user-facing delays
+- Comprehensive audit logging for all provisioning events
+- HIPAA-compliant implementation (no PHI in logs, secure password handling)
+
+New Components:
+- AnythingLLMUserProvisioningService: Core provisioning logic with retry support
+- WorkspaceMapperService: Deterministic workspace slug generation from user IDs
+- AnythingLLMUserMapping entity and repository for mapping persistence
+- Database migration: CreateAnythingLLMUserMappings1767000000000
+- E2E test suite: user-provisioning.e2e-spec.ts with full workflow coverage
+
+Integration Points:
+- UsersService.create(): Triggers provisioning after user creation
+- UsersService.update(): Syncs status changes (suspension) to AnythingLLM
+- UsersService.remove(): Triggers suspension sync before soft-delete
+- Uses existing AnythingLLMAdminService for API calls
+- Leverages service identity authentication for secure API access
+
+Refactorings and Improvements:
+- Enhanced access control service with improved error handling
+- Improved audit service with better query capabilities and PHI sanitization
+- Refined document processing with better state machine handling
+- Updated manager architecture with cleaner domain services
+- Enhanced revocation service with improved domain logic
+- Improved test utilities and helpers across all E2E test suites
+- Updated test constants and configuration for better maintainability
+
+Technical Details:
+- Provisioning is asynchronous and non-blocking (fire-and-forget pattern)
+- Idempotent operations: checks for existing mappings before creating
+- Error handling: logs errors without failing user operations
+- Workspace slugs use SHA-256 hash of user ID for deterministic generation
+- Supports relational databases only (document DB support TODO)
+- All provisioning events are audited via AuditService
+
+Testing:
+- Comprehensive E2E test suite covering full provisioning workflow
+- Tests user creation, workspace assignment, status sync, and deletion
+- Includes service identity authentication verification
+- Tests handle asynchronous provisioning with polling mechanism
+
+Documentation:
+- Updated AnythingLLM service identity VM setup documentation
+- Added inline documentation for HIPAA compliance considerations
+- Added TODO comments for future improvements (bounded executor, document DB support)
+
+Files Changed: 120 files
+- 1,223 insertions, 1,020 deletions
+- New provisioning module with 6 files
+- New database migration
+- New E2E test suite
+- Updates across access-control, audit, document-processing, managers,
+  revocation, users, and test utilities
+

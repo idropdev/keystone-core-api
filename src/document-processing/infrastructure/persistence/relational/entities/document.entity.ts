@@ -11,6 +11,7 @@ import {
   Index,
 } from 'typeorm';
 import { UserEntity } from '../../../../../users/infrastructure/persistence/relational/entities/user.entity';
+import { ManagerEntity } from '../../../../../managers/infrastructure/persistence/relational/entities/manager.entity';
 import { ExtractedFieldEntity } from './extracted-field.entity';
 import { DocumentStatus } from '../../../../domain/enums/document-status.enum';
 import { DocumentType } from '../../../../domain/enums/document-type.enum';
@@ -29,6 +30,38 @@ export class DocumentEntity extends EntityRelationalHelper {
 
   @Column({ name: 'user_id' })
   userId: number;
+
+  // Origin authority (IMMUTABLE - set at creation, never changes)
+  // TODO: Enforce immutability at application level - originManagerId cannot be updated after creation
+  // NOTE: originManagerId references managers.id, not user.id
+  // NOTE: originManagerId is nullable - if null, temporaryManagerId must be set
+  @ManyToOne(() => ManagerEntity, { nullable: true, eager: false })
+  @JoinColumn({ name: 'origin_manager_id' })
+  @Index()
+  originManager?: ManagerEntity;
+
+  @Column({ name: 'origin_manager_id', nullable: true })
+  originManagerId?: number | null;
+
+  // Temporary manager (user who uploaded without a manager)
+  // NOTE: If temporaryManagerId is set, originManagerId must be null
+  // When a real manager is assigned, temporaryManagerId is cleared and originManagerId is set
+  @ManyToOne(() => UserEntity, { nullable: true, eager: false })
+  @JoinColumn({ name: 'temporary_manager_id' })
+  @Index()
+  temporaryManager?: UserEntity;
+
+  @Column({ name: 'temporary_manager_id', nullable: true })
+  temporaryManagerId?: number | null;
+
+  // Optional: user who uploaded (intake context, not ownership)
+  // Visible only to origin manager and auditors
+  @ManyToOne(() => UserEntity, { nullable: true, eager: false })
+  @JoinColumn({ name: 'origin_user_context_id' })
+  originUserContext?: UserEntity;
+
+  @Column({ name: 'origin_user_context_id', nullable: true })
+  originUserContextId?: number | null;
 
   @Column({ name: 'document_type', type: 'varchar', length: 50 })
   @Index()

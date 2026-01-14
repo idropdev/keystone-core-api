@@ -54,4 +54,13 @@ APPLE_APP_AUDIENCE=
 # Receives account change notifications (email changes, consent revoked, account deletions)
 # HIPAA-compliant: All events logged, sessions invalidated as needed, accounts soft-deleted[]
 
+# AnythingLLM Service Identity Configuration
+# TODO: These secrets must live in GCP Secret Manager in production.
+ANYTHINGLLM_SERVICE_AUTH_MODE=gcp
+ANYTHINGLLM_SERVICE_AUDIENCE=anythingllm-internal
+# Base URL should include /api prefix if needed
+# Example: https://anythingllm.internal.example.com/api
+# Example (local): http://localhost:3001/api
+ANYTHINGLLM_BASE_URL=http://localhost:3001/api
+
 WORKER_HOST=redis://redis:6379/1

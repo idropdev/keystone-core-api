@@ -141,11 +141,11 @@ export default registerAs<DocumentProcessingConfig>(
         DOC_PROCESSING_OCR_POST_PROCESSING_CONFIDENCE_THRESHOLD: process.env
           .DOC_PROCESSING_OCR_POST_PROCESSING_CONFIDENCE_THRESHOLD
           ? parseFloat(
-              process.env.DOC_PROCESSING_OCR_POST_PROCESSING_CONFIDENCE_THRESHOLD,
+              process.env
+                .DOC_PROCESSING_OCR_POST_PROCESSING_CONFIDENCE_THRESHOLD,
             )
           : 0.8,
-        DEBUG_OCR_STORE_SOURCES:
-          process.env.DEBUG_OCR_STORE_SOURCES === 'true',
+        DEBUG_OCR_STORE_SOURCES: process.env.DEBUG_OCR_STORE_SOURCES === 'true',
       },
       { enableImplicitConversion: true },
     );
@@ -165,8 +165,7 @@ export default registerAs<DocumentProcessingConfig>(
       retentionYears: validatedConfig.DOC_PROCESSING_RETENTION_YEARS,
       syncMaxPages: validatedConfig.DOC_PROCESSING_SYNC_MAX_PAGES,
       ocrMerge: {
-        enabled:
-          validatedConfig.DOC_PROCESSING_OCR_MERGE_ENABLED !== false,
+        enabled: validatedConfig.DOC_PROCESSING_OCR_MERGE_ENABLED !== false,
         minAgreement:
           validatedConfig.DOC_PROCESSING_OCR_MERGE_MIN_AGREEMENT || 0.7,
         forceMergeOnLowAgreement:
@@ -181,7 +180,8 @@ export default registerAs<DocumentProcessingConfig>(
         useLanguageModel:
           validatedConfig.DOC_PROCESSING_OCR_POST_PROCESSING_USE_LM || false,
         useRegex:
-          validatedConfig.DOC_PROCESSING_OCR_POST_PROCESSING_USE_REGEX !== false,
+          validatedConfig.DOC_PROCESSING_OCR_POST_PROCESSING_USE_REGEX !==
+          false,
         confidenceThreshold:
           validatedConfig.DOC_PROCESSING_OCR_POST_PROCESSING_CONFIDENCE_THRESHOLD ||
           0.8,
@@ -205,8 +205,7 @@ export default registerAs<DocumentProcessingConfig>(
         },
       },
       debug: {
-        storeOcrSources:
-          validatedConfig.DEBUG_OCR_STORE_SOURCES || false,
+        storeOcrSources: validatedConfig.DEBUG_OCR_STORE_SOURCES || false,
       },
     };
   },

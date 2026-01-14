@@ -41,5 +41,20 @@ export class RoleSeedService {
         }),
       );
     }
+
+    const countManager = await this.repository.count({
+      where: {
+        id: RoleEnum.manager,
+      },
+    });
+
+    if (!countManager) {
+      await this.repository.save(
+        this.repository.create({
+          id: RoleEnum.manager,
+          name: 'Manager',
+        }),
+      );
+    }
   }
 }

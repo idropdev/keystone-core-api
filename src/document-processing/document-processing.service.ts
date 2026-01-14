@@ -1,6 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
+import { DocumentAccessDomainService } from './domain/services/document-access.domain.service';
+import { Actor } from '../access-control/domain/services/access-grant.domain.service';
 import { Document } from './domain/entities/document.entity';
 import { DocumentType } from './domain/enums/document-type.enum';
 import { DocumentStatus } from './domain/enums/document-status.enum';
@@ -10,6 +18,14 @@ import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
 import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
+import { DocumentQueryDto } from './dto/document-query.dto';
+import {
+  DocumentQueryResponseDto,
+  DocumentQueryItemDto,
+} from './dto/document-query-response.dto';
+import { DocumentQueryDomainService } from './domain/services/document-query.domain.service';
+import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
+import { UserManagerAssignmentService } from '../users/domain/services/user-manager-assignment.service';
 
 /**
  * Orchestration Service (Application Layer)
@@ -27,18 +43,26 @@ export class DocumentProcessingService {
 
   constructor(
     private readonly domainService: DocumentProcessingDomainService,
+    private readonly accessService: DocumentAccessDomainService,
+    private readonly queryDomainService: DocumentQueryDomainService,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
+    private readonly userManagerAssignmentService: UserManagerAssignmentService,
   ) {}
 
   async uploadDocument(
-    userId: string | number,
+    actor: Actor,
     fileBuffer: Buffer,
     fileName: string,
     mimeType: string,
     documentType: DocumentType,
     description?: string,
   ): Promise<Document> {
+    // Determine originManagerId:
+    // - If actor is a manager → they become the origin manager
+    // - If actor is a user → we need their assigned manager (handled in domain service)
     return this.domainService.uploadDocument(
-      userId,
+      actor,
       fileBuffer,
       fileName,
       mimeType,
@@ -47,7 +71,17 @@ export class DocumentProcessingService {
     );
   }
 
-  async getDocument(
+  /**
+   * Get document with access control (uses DocumentAccessDomainService)
+   */
+  async getDocument(documentId: string, actor: Actor): Promise<Document> {
+    return this.accessService.getDocument(documentId, actor);
+  }
+
+  /**
+   * Legacy method for backward compatibility (deprecated - use getDocument with Actor)
+   */
+  async getDocumentLegacy(
     documentId: string,
     userId: string | number,
   ): Promise<Document> {
@@ -56,9 +90,9 @@ export class DocumentProcessingService {
 
   async getDocumentStatus(
     documentId: string,
-    userId: string | number,
+    actor: Actor,
   ): Promise<DocumentStatusResponseDto> {
-    const document = await this.domainService.getDocument(documentId, userId);
+    const document = await this.accessService.getDocument(documentId, actor);
 
     const response = new DocumentStatusResponseDto();
     response.id = document.id;
@@ -74,47 +108,95 @@ export class DocumentProcessingService {
   }
 
   async listDocuments(
-    userId: string | number,
+    actor: Actor,
     query: DocumentListQueryDto,
   ): Promise<InfinityPaginationResponseDto<DocumentResponseDto>> {
-    const result = await this.domainService.listDocuments(userId, {
-      page: query.page,
-      limit: query.limit,
+    const result = await this.accessService.listDocuments(actor, {
+      skip: query.page ? (query.page - 1) * (query.limit || 10) : 0,
+      limit: query.limit || 10,
       status: query.status,
     });
 
     return {
       data: result.data.map((doc) => this.toResponseDto(doc)),
-      hasNextPage: result.page * result.limit < result.total,
+      hasNextPage: result.skip + result.limit < result.total,
     };
   }
 
-  async deleteDocument(
-    documentId: string,
-    userId: string | number,
-  ): Promise<void> {
-    return this.domainService.deleteDocument(documentId, userId);
+  async deleteDocument(documentId: string, actor: Actor): Promise<void> {
+    // First, check if document exists (to return 404 if not found)
+    // This must be done before authorization check to return correct status code
+    const documentExists = await this.accessService.documentExists(documentId);
+    if (!documentExists) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // Now check authorization (only origin manager can delete)
+    const canDelete = await this.accessService.canPerformOperation(
+      documentId,
+      'delete',
+      actor,
+    );
+
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'Only the origin manager can delete documents',
+      );
+    }
+
+    // Get document for deletion (already verified it exists and user is authorized)
+    await this.accessService.getDocument(documentId, actor);
+
+    // Delete via domain service (it will handle soft delete and audit)
+    return this.domainService.deleteDocument(documentId, actor.id);
   }
 
-  async getDownloadUrl(
-    documentId: string,
-    userId: string | number,
-  ): Promise<string> {
-    return this.domainService.getDownloadUrl(documentId, userId);
+  async getDownloadUrl(documentId: string, actor: Actor): Promise<string> {
+    // Check authorization (origin manager OR granted access)
+    const canDownload = await this.accessService.canPerformOperation(
+      documentId,
+      'download',
+      actor,
+    );
+
+    if (!canDownload) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists and get file URI
+    await this.accessService.getDocument(documentId, actor);
+
+    // Generate signed URL via domain service
+    return this.domainService.getDownloadUrl(documentId, actor.id);
   }
 
   async getExtractedFields(
     documentId: string,
-    userId: string | number,
+    actor: Actor,
   ): Promise<ExtractedFieldsWithOcrResponseDto> {
     this.logger.log(
       `[APP SERVICE] Getting extracted fields for document ${documentId}`,
     );
 
+    // Check authorization (origin manager OR granted access)
+    const canView = await this.accessService.canPerformOperation(
+      documentId,
+      'view',
+      actor,
+    );
+
+    if (!canView) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists
+    await this.accessService.getDocument(documentId, actor);
+
+    // Get fields via domain service
     // Get extracted fields
     const fields = await this.domainService.getExtractedFields(
       documentId,
-      userId,
+      actor.id,
     );
 
     this.logger.log(
@@ -149,7 +231,7 @@ export class DocumentProcessingService {
     try {
       documentOutput = await this.domainService.getDocumentAiOutput(
         documentId,
-        userId,
+        actor.id,
       );
       this.logger.debug(
         `[APP SERVICE] Retrieved Document AI output for document ${documentId}`,
@@ -171,7 +253,7 @@ export class DocumentProcessingService {
     try {
       visionOutput = await this.domainService.getVisionAiOutput(
         documentId,
-        userId,
+        actor.id,
       );
       this.logger.debug(
         `[APP SERVICE] Retrieved Vision AI output for document ${documentId}`,
@@ -203,18 +285,131 @@ export class DocumentProcessingService {
     return response;
   }
 
-  async getVisionAiOutput(
-    documentId: string,
-    userId: string | number,
-  ): Promise<any> {
-    return this.domainService.getVisionAiOutput(documentId, userId);
+  async getVisionAiOutput(documentId: string, actor: Actor): Promise<any> {
+    // Check authorization (origin manager OR granted access)
+    const canView = await this.accessService.canPerformOperation(
+      documentId,
+      'view',
+      actor,
+    );
+
+    if (!canView) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists
+    await this.accessService.getDocument(documentId, actor);
+
+    return this.domainService.getVisionAiOutput(documentId, actor.id);
   }
 
-  async getDocumentAiOutput(
+  async getDocumentAiOutput(documentId: string, actor: Actor): Promise<any> {
+    // Check authorization (origin manager OR granted access)
+    const canView = await this.accessService.canPerformOperation(
+      documentId,
+      'view',
+      actor,
+    );
+
+    if (!canView) {
+      throw new ForbiddenException('Access denied to document');
+    }
+
+    // Get document to verify it exists
+    await this.accessService.getDocument(documentId, actor);
+
+    return this.domainService.getDocumentAiOutput(documentId, actor.id);
+  }
+
+  /**
+   * Trigger OCR processing (origin manager only)
+   */
+  async triggerOcr(documentId: string, actor: Actor): Promise<void> {
+    return this.domainService.triggerOcr(documentId, actor);
+  }
+
+  async assignManager(
     documentId: string,
-    userId: string | number,
-  ): Promise<any> {
-    return this.domainService.getDocumentAiOutput(documentId, userId);
+    managerId: number,
+    actor: Actor,
+  ): Promise<DocumentResponseDto> {
+    const document = await this.domainService.assignManager(
+      documentId,
+      managerId,
+      actor,
+    );
+    return this.toResponseDto(document);
+  }
+
+  /**
+   * Query documents with advanced filtering
+   */
+  async queryDocuments(
+    actor: Actor,
+    queryDto: DocumentQueryDto,
+  ): Promise<DocumentQueryResponseDto> {
+    // Execute query via domain service
+    const result = await this.queryDomainService.executeQuery(actor, queryDto);
+
+    // Map to response DTOs with ownership context
+    const items: DocumentQueryItemDto[] = await Promise.all(
+      result.data.map(async (doc) => {
+        const responseDto = this.toResponseDto(doc);
+        const ownershipContext = await this.determineOwnershipContext(
+          doc,
+          actor,
+        );
+        return {
+          ...responseDto,
+          ownershipContext,
+        } as DocumentQueryItemDto;
+      }),
+    );
+
+    return {
+      data: items,
+      hasNextPage: result.hasNextPage,
+    };
+  }
+
+  /**
+   * Determine ownership context for a document
+   */
+  private async determineOwnershipContext(
+    document: Document,
+    actor: Actor,
+  ): Promise<'own' | 'assigned_user' | 'granted'> {
+    if (actor.type === 'user') {
+      // User owns if temporaryManagerId matches
+      if (document.temporaryManagerId === actor.id) {
+        return 'own';
+      }
+      // Otherwise, accessed via grant
+      return 'granted';
+    }
+
+    if (actor.type === 'manager') {
+      // Manager owns if originManagerId matches
+      // Need to resolve manager.id from actor.id
+      const manager = await this.managerRepository.findByUserId(actor.id);
+      if (manager && document.originManagerId === manager.id) {
+        return 'own';
+      }
+      // Check if document is from assigned user
+      const assignments =
+        await this.userManagerAssignmentService.getAssignmentsByManager(
+          actor.id,
+        );
+      const assignedUserIds = assignments.map((a) => a.userId);
+      if (assignedUserIds.includes(Number(document.userId))) {
+        return 'assigned_user';
+      }
+      // Otherwise, accessed via grant
+      return 'granted';
+    }
+
+    // Default to granted for safety
+    return 'granted';
   }
 
   /**
@@ -237,6 +432,9 @@ export class DocumentProcessingService {
         uploadedAt: document.uploadedAt,
         processedAt: document.processedAt,
         createdAt: document.createdAt,
+        updatedAt: document.updatedAt,
+        originManagerId: document.originManagerId ?? null,
+        temporaryManagerId: document.temporaryManagerId ?? null,
       },
       { excludeExtraneousValues: true },
     );

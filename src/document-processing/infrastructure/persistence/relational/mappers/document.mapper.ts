@@ -6,6 +6,9 @@ export class DocumentMapper {
     const domain = new Document();
     domain.id = entity.id;
     domain.userId = entity.userId || entity.user?.id; // Use direct userId or relation
+    domain.originManagerId = entity.originManagerId || undefined;
+    domain.temporaryManagerId = entity.temporaryManagerId || undefined;
+    domain.originUserContextId = entity.originUserContextId || undefined;
     domain.documentType = entity.documentType;
     domain.status = entity.status;
     domain.rawFileUri = entity.rawFileUri;
@@ -42,6 +45,12 @@ export class DocumentMapper {
       typeof domain.userId === 'string'
         ? parseInt(domain.userId, 10)
         : domain.userId;
+
+    // Set origin manager ID (IMMUTABLE - set at creation only)
+    // Convert undefined to null for nullable fields to ensure TypeORM properly clears them
+    entity.originManagerId = domain.originManagerId ?? null;
+    entity.temporaryManagerId = domain.temporaryManagerId ?? null;
+    entity.originUserContextId = domain.originUserContextId ?? null;
 
     entity.documentType = domain.documentType;
     entity.status = domain.status;

@@ -33,4 +33,10 @@ export interface DocumentRepositoryPort {
   findExtractedFieldsByDocumentId(
     documentId: string,
   ): Promise<ExtractedField[]>;
+
+  // Query scope helpers
+  findByOriginManagerId(managerId: number): Promise<Document[]>;
+  findByTemporaryManagerId(userId: number): Promise<Document[]>;
+  findByUserIds(userIds: number[]): Promise<Document[]>;
+  findByDocumentIds(documentIds: string[]): Promise<Document[]>;
 }

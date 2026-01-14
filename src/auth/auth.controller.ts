@@ -24,6 +24,7 @@ import {
   ApiUnprocessableEntityResponse,
   ApiTooManyRequestsResponse,
   ApiNoContentResponse,
+  ApiCreatedResponse,
 } from '@nestjs/swagger';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { AuthForgotPasswordDto } from './dto/auth-forgot-password.dto';
@@ -36,6 +37,7 @@ import { LoginResponseDto } from './dto/login-response.dto';
 import { NullableType } from '../utils/types/nullable.type';
 import { User } from '../users/domain/user';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { AuthRegisterResponseDto } from './dto/auth-register-response.dto';
 import { Throttle } from '@nestjs/throttler';
 import { ServiceApiKeyGuard } from './guards/service-api-key.guard';
 import {
@@ -91,8 +93,9 @@ export class AuthController {
     description:
       'Register a new user account with email and password. A confirmation email will be sent. Rate limited to 5 requests per minute.',
   })
-  @ApiNoContentResponse({
-    description: 'Registration successful. Confirmation email sent.',
+  @ApiCreatedResponse({
+    type: AuthRegisterResponseDto,
+    description: 'User created successfully. Confirmation email sent.',
   })
   @ApiBadRequestResponse({
     description: 'Invalid request body or validation errors',
@@ -104,11 +107,17 @@ export class AuthController {
     description:
       'Rate limit exceeded. Maximum 5 registration attempts per minute.',
   })
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @SerializeOptions({
+    groups: ['me'],
+  })
+  @HttpCode(HttpStatus.CREATED)
   // HIPAA Security: Rate limiting on registration (5 requests per 60 seconds)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async register(@Body() createUserDto: AuthRegisterLoginDto): Promise<void> {
-    return this.service.register(createUserDto);
+  async register(
+    @Body() createUserDto: AuthRegisterLoginDto,
+  ): Promise<AuthRegisterResponseDto> {
+    const user = await this.service.register(createUserDto);
+    return { user };
   }
 
   @Post('email/confirm')

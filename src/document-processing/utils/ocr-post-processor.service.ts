@@ -48,10 +48,9 @@ export class OcrPostProcessorService {
         { infer: true },
       ) || false;
     this.useRegex =
-      this.configService.get(
-        'documentProcessing.ocrPostProcessing.useRegex',
-        { infer: true },
-      ) !== false; // Default true
+      this.configService.get('documentProcessing.ocrPostProcessing.useRegex', {
+        infer: true,
+      }) !== false; // Default true
     this.confidenceThreshold =
       this.configService.get(
         'documentProcessing.ocrPostProcessing.confidenceThreshold',
@@ -87,10 +86,7 @@ export class OcrPostProcessorService {
       // Apply corrections to text
       for (const correction of regexCorrections) {
         if (correction.confidence >= this.confidenceThreshold) {
-          processedText = this.applyCorrection(
-            processedText,
-            correction,
-          );
+          processedText = this.applyCorrection(processedText, correction);
         }
       }
     }
@@ -102,27 +98,20 @@ export class OcrPostProcessorService {
 
       for (const correction of formatCorrections) {
         if (correction.confidence >= this.confidenceThreshold) {
-          processedText = this.applyCorrection(
-            processedText,
-            correction,
-          );
+          processedText = this.applyCorrection(processedText, correction);
         }
       }
     }
 
     // Apply language model scoring (if enabled)
     if (this.useLanguageModel) {
-      const lmCorrections = await this.applyLanguageModelCorrections(
-        processedText,
-      );
+      const lmCorrections =
+        await this.applyLanguageModelCorrections(processedText);
       corrections.push(...lmCorrections);
 
       for (const correction of lmCorrections) {
         if (correction.confidence >= this.confidenceThreshold) {
-          processedText = this.applyCorrection(
-            processedText,
-            correction,
-          );
+          processedText = this.applyCorrection(processedText, correction);
         }
       }
     }
@@ -148,9 +137,7 @@ export class OcrPostProcessorService {
   /**
    * Apply regex corrections for common OCR confusions
    */
-  private applyRegexCorrections(
-    text: string,
-  ): PostProcessingCorrection[] {
+  private applyRegexCorrections(text: string): PostProcessingCorrection[] {
     const corrections: PostProcessingCorrection[] = [];
 
     // Common OCR confusion patterns
@@ -161,15 +148,45 @@ export class OcrPostProcessorService {
       type: PostProcessingCorrection['correctionType'];
     }> = [
       // I/l/1 confusion (context-dependent)
-      { pattern: /\b([a-z]+)l([a-z]+)\b/gi, replacement: '$1I$2', confidence: 0.6, type: 'regex' },
+      {
+        pattern: /\b([a-z]+)l([a-z]+)\b/gi,
+        replacement: '$1I$2',
+        confidence: 0.6,
+        type: 'regex',
+      },
       // O/0 confusion (in alphanumeric contexts)
-      { pattern: /\b([A-Z]+)0([A-Z]+)\b/g, replacement: '$1O$2', confidence: 0.7, type: 'regex' },
+      {
+        pattern: /\b([A-Z]+)0([A-Z]+)\b/g,
+        replacement: '$1O$2',
+        confidence: 0.7,
+        type: 'regex',
+      },
       // rn/m confusion
-      { pattern: /\b([a-z]+)rn([a-z]+)\b/gi, replacement: '$1m$2', confidence: 0.8, type: 'regex' },
+      {
+        pattern: /\b([a-z]+)rn([a-z]+)\b/gi,
+        replacement: '$1m$2',
+        confidence: 0.8,
+        type: 'regex',
+      },
       // Common word corrections
-      { pattern: /\bteh\b/gi, replacement: 'the', confidence: 0.9, type: 'context' },
-      { pattern: /\badn\b/gi, replacement: 'and', confidence: 0.9, type: 'context' },
-      { pattern: /\btaht\b/gi, replacement: 'that', confidence: 0.9, type: 'context' },
+      {
+        pattern: /\bteh\b/gi,
+        replacement: 'the',
+        confidence: 0.9,
+        type: 'context',
+      },
+      {
+        pattern: /\badn\b/gi,
+        replacement: 'and',
+        confidence: 0.9,
+        type: 'context',
+      },
+      {
+        pattern: /\btaht\b/gi,
+        replacement: 'that',
+        confidence: 0.9,
+        type: 'context',
+      },
     ];
 
     for (const { pattern, replacement, confidence, type } of patterns) {
@@ -201,9 +218,7 @@ export class OcrPostProcessorService {
   /**
    * Apply format corrections (dates, phones, etc.)
    */
-  private applyFormatCorrections(
-    text: string,
-  ): PostProcessingCorrection[] {
+  private applyFormatCorrections(text: string): PostProcessingCorrection[] {
     const corrections: PostProcessingCorrection[] = [];
 
     // Date format normalization
@@ -336,12 +351,9 @@ export class OcrPostProcessorService {
       0,
     );
     const improvementRatio =
-      originalText.length > 0
-        ? totalOriginalLength / originalText.length
-        : 0;
+      originalText.length > 0 ? totalOriginalLength / originalText.length : 0;
 
     // Quality score is combination of confidence and improvement ratio
     return avgConfidence * Math.min(1.0, improvementRatio * 2);
   }
 }
-

@@ -3,11 +3,14 @@ import {
   Logger,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Inject,
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { DocumentRepositoryPort } from '../ports/document.repository.port';
 import { StorageServicePort } from '../ports/storage.service.port';
 import { OcrServicePort } from '../ports/ocr.service.port';
@@ -19,7 +22,13 @@ import { ProcessingMethod } from '../enums/processing-method.enum';
 import { AllConfigType } from '../../../config/config.type';
 import { AuditService } from '../../../audit/audit.service';
 import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
-import { Pdf2JsonService } from '../../infrastructure/pdf-extraction/pdf2json.service';
+import {
+  Pdf2JsonService,
+  PdfParseError,
+} from '../../infrastructure/pdf-extraction/pdf2json.service';
+import { DocumentStateMachine } from '../utils/document-state-machine.util';
+import { Actor } from '../../../access-control/domain/services/access-grant.domain.service';
+import { ManagerRepositoryPort } from '../../../managers/domain/repositories/manager.repository.port';
 import { OcrMergeService } from '../../utils/ocr-merge.service';
 import { OcrPostProcessorService } from '../../utils/ocr-post-processor.service';
 
@@ -57,17 +66,18 @@ export class DocumentProcessingDomainService {
     @Inject('StorageServicePort')
     private readonly storageService: StorageServicePort,
     @Inject('OcrServicePort')
-    private readonly ocrService: OcrServicePort, // Backward compatibility
+    private readonly ocrService: OcrServicePort,
     @Inject('VisionOcrServicePort')
     private readonly visionOcrService: OcrServicePort,
     @Inject('DocumentAiOcrServicePort')
     private readonly documentAiOcrService: OcrServicePort,
-    private readonly ocrMergeService: OcrMergeService,
     private readonly auditService: AuditService,
     private readonly configService: ConfigService<AllConfigType>,
     private readonly pdf2JsonService: Pdf2JsonService,
-    @Optional()
-    private readonly ocrPostProcessorService?: OcrPostProcessorService,
+    private readonly ocrMergeService: OcrMergeService,
+    private readonly ocrPostProcessorService: OcrPostProcessorService,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
   ) {
     this.retentionYears = this.configService.getOrThrow(
       'documentProcessing.retentionYears',
@@ -77,9 +87,13 @@ export class DocumentProcessingDomainService {
 
   /**
    * Upload document and initiate processing
+   *
+   * Origin Manager Assignment:
+   * - If actor is a manager → they become the origin manager
+   * - If actor is a user → get their assigned manager (must have one assigned)
    */
   async uploadDocument(
-    userId: string | number,
+    actor: Actor,
     fileBuffer: Buffer,
     fileName: string,
     mimeType: string,
@@ -87,10 +101,90 @@ export class DocumentProcessingDomainService {
     description?: string,
   ): Promise<Document> {
     try {
-      // 1. Create domain entity (initial state)
+      // 1. Determine originManagerId and temporaryManagerId
+      let originManagerId: number | undefined;
+      let temporaryManagerId: number | undefined;
+      let originUserContextId: number | undefined;
+
+      if (actor.type === 'manager') {
+        this.logger.log(
+          `[DOCUMENT UPLOAD] Manager upload initiated: managerUserId=${actor.id}, documentType=${documentType}`,
+        );
+
+        // Manager uploads → find their Manager ID from their User ID
+        // NOTE: actor.id is the User ID, but originManagerId must be Manager ID
+        this.logger.debug(
+          `[DOCUMENT UPLOAD] Looking up Manager for manager User ID: ${actor.id}`,
+        );
+        const manager = await this.managerRepository.findByUserId(actor.id);
+
+        if (!manager) {
+          this.logger.error(
+            `[DOCUMENT UPLOAD] ❌ BLOCKED: Manager not found for manager User ID: ${actor.id}`,
+          );
+          throw new BadRequestException(
+            'Manager not found. Please contact an administrator.',
+          );
+        }
+
+        this.logger.log(
+          `[DOCUMENT UPLOAD] Found Manager: managerId=${manager.id}, managerUserId=${actor.id}, displayName="${manager.displayName}"`,
+        );
+
+        // HIPAA Requirement: Only verified managers can upload documents
+        this.logger.debug(
+          `[DOCUMENT UPLOAD] Checking manager verification status: managerId=${manager.id}`,
+        );
+
+        this.logger.log(
+          `[DOCUMENT UPLOAD] Manager retrieved: managerId=${manager.id}, displayName="${manager.displayName}", verificationStatus="${manager.verificationStatus}", verifiedAt=${manager.verifiedAt || 'null'}, verifiedByAdminId=${manager.verifiedByAdminId || 'null'}`,
+        );
+
+        if (manager.verificationStatus !== 'verified') {
+          this.logger.warn(
+            `[DOCUMENT UPLOAD] ❌ FORBIDDEN (403): Manager ${actor.id} attempted to upload but manager is not verified. ` +
+              `Manager details: id=${manager.id}, displayName="${manager.displayName}", ` +
+              `verificationStatus="${manager.verificationStatus}" (expected: "verified")`,
+          );
+          throw new ForbiddenException(
+            'Manager must be verified before uploading documents. Please contact an administrator.',
+          );
+        }
+
+        this.logger.log(
+          `[DOCUMENT UPLOAD] ✅ Verification check passed: managerId=${manager.id} is verified. Proceeding with upload.`,
+        );
+
+        // Manager uploads → set originManagerId, temporaryManagerId = null
+        originManagerId = manager.id;
+        temporaryManagerId = undefined;
+      } else if (actor.type === 'user') {
+        this.logger.log(
+          `[DOCUMENT UPLOAD] User upload initiated: userId=${actor.id}, documentType=${documentType}`,
+        );
+
+        // User uploads → set temporaryManagerId, originManagerId = null
+        // Users can now upload without requiring an assigned manager
+        this.logger.log(
+          `[DOCUMENT UPLOAD] User ${actor.id} uploading as temporary manager (no assigned manager required)`,
+        );
+
+        originManagerId = undefined;
+        temporaryManagerId = actor.id; // User becomes temporary manager
+        originUserContextId = actor.id; // Track who uploaded (intake context)
+      } else {
+        throw new BadRequestException(
+          'Only users and managers can upload documents',
+        );
+      }
+
+      // 2. Create domain entity (initial state)
       const document = new Document();
       // NOTE: ID will be auto-generated by database as UUID
-      document.userId = userId;
+      document.userId = actor.id; // Uploader ID (for backward compatibility)
+      document.originManagerId = originManagerId; // IMMUTABLE - set at creation (nullable)
+      document.temporaryManagerId = temporaryManagerId; // User who uploaded without manager (nullable)
+      document.originUserContextId = originUserContextId; // Optional: user who uploaded
       document.documentType = documentType;
       document.status = DocumentStatus.UPLOADED;
       document.fileName = fileName;
@@ -103,19 +197,30 @@ export class DocumentProcessingDomainService {
       document.updatedAt = new Date();
       document.retryCount = 0;
 
+      // Set retention policy: scheduledDeletionAt = now + retentionYears
+      const scheduledDeletionAt = new Date();
+      scheduledDeletionAt.setFullYear(
+        scheduledDeletionAt.getFullYear() + this.retentionYears,
+      );
+      document.scheduledDeletionAt = scheduledDeletionAt;
+
       // 2. Save to database (get UUID from database)
       const savedDocument = await this.documentRepository.save(document);
 
       // 3. Upload to GCS
       const gcsUri = await this.storageService.storeRaw(fileBuffer, {
         documentId: savedDocument.id,
-        userId,
+        userId: actor.id,
         fileName,
         mimeType,
         contentLength: fileBuffer.length,
       });
 
-      // 4. Update document with GCS URI and status
+      // 4. Update document with GCS URI and status (validate state transition)
+      DocumentStateMachine.validateTransition(
+        savedDocument.status,
+        DocumentStatus.STORED,
+      );
       await this.documentRepository.updateStatus(
         savedDocument.id,
         DocumentStatus.STORED,
@@ -126,7 +231,7 @@ export class DocumentProcessingDomainService {
 
       // 5. Audit log
       this.auditService.logAuthEvent({
-        userId,
+        userId: String(actor.id),
         provider: 'document-processing',
         event: DocumentEventType.DOCUMENT_UPLOADED as any,
         success: true,
@@ -134,24 +239,22 @@ export class DocumentProcessingDomainService {
           documentId: savedDocument.id,
           documentType,
           fileSize: fileBuffer.length,
+          originManagerId: originManagerId || null,
+          temporaryManagerId: temporaryManagerId || null,
+          actorType: actor.type,
         },
       });
 
       this.logger.log(
-        `Document uploaded: ${savedDocument.id} (user: ${userId})`,
+        `Document uploaded: ${savedDocument.id} (actor: ${actor.type}:${actor.id}, originManager: ${originManagerId || 'none'}, temporaryManager: ${temporaryManagerId || 'none'})`,
       );
 
-      // 6. Trigger async processing (don't await) - pass buffer for PDF analysis
-      this.startProcessing(
-        savedDocument.id,
-        gcsUri,
-        mimeType,
-        fileBuffer,
-      ).catch((error) => {
-        this.logger.error(
-          `Failed to start processing for document ${savedDocument.id}: ${error.message}`,
-        );
-      });
+      // 6. Document is now in STORED state, ready for OCR processing
+      // OCR must be manually triggered via POST /v1/documents/:documentId/ocr/trigger
+      // This avoids overhead of automatic processing and maintains domain architecture
+      this.logger.log(
+        `Document ${savedDocument.id} uploaded and stored. OCR processing must be manually triggered by origin manager or temporary manager.`,
+      );
 
       return savedDocument;
     } catch (error) {
@@ -170,6 +273,16 @@ export class DocumentProcessingDomainService {
     fileBuffer?: Buffer,
   ): Promise<void> {
     try {
+      // Get document to check current status
+      const document = await this.documentRepository.findById(documentId);
+      if (!document) throw new Error('Document not found');
+
+      // Validate state transition before updating
+      DocumentStateMachine.validateTransition(
+        document.status,
+        DocumentStatus.PROCESSING,
+      );
+
       // Update status to PROCESSING
       await this.documentRepository.updateStatus(
         documentId,
@@ -178,9 +291,6 @@ export class DocumentProcessingDomainService {
           processingStartedAt: new Date(),
         },
       );
-
-      const document = await this.documentRepository.findById(documentId);
-      if (!document) throw new Error('Document not found');
 
       // Audit log
       this.auditService.logAuthEvent({
@@ -288,13 +398,17 @@ export class DocumentProcessingDomainService {
                 : null;
 
             // Store OCR results in fullResponse for comparison endpoints
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
 
             // IMPORTANT: Serialize to avoid circular references
             if (visionOcrResult) {
-              ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+              ocrResult.fullResponse.rawVisionResult =
+                this.serializeOcrResult(visionOcrResult);
               this.logger.log(
                 `[DIRECT_EXTRACTION] Stored Vision AI output for comparison`,
               );
@@ -309,7 +423,8 @@ export class DocumentProcessingDomainService {
             }
 
             if (documentAiOcrResult) {
-              ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+              ocrResult.fullResponse.rawDocumentAiResult =
+                this.serializeOcrResult(documentAiOcrResult);
               this.logger.log(
                 `[DIRECT_EXTRACTION] Stored Document AI output for comparison`,
               );
@@ -331,16 +446,29 @@ export class DocumentProcessingDomainService {
           }
         } catch (pdf2jsonError) {
           // pdf2json failed - check error type for intelligent fallback
-          const errorMessage = pdf2jsonError.message || String(pdf2jsonError);
-          const isXRefError = errorMessage.includes(
-            'Invalid XRef stream header',
-          );
+          // Error is already wrapped in PdfParseError with clean message
+          const isPdfParseError = pdf2jsonError instanceof PdfParseError;
+          const errorMessage = isPdfParseError
+            ? pdf2jsonError.message
+            : pdf2jsonError?.message || String(pdf2jsonError);
+          const errorType = isPdfParseError
+            ? pdf2jsonError.errorType
+            : errorMessage.includes('Invalid XRef stream header') ||
+                errorMessage.includes('XRef')
+              ? 'XRef'
+              : 'Unknown';
+          const isXRefError = errorType === 'XRef';
 
-          this.logger.warn(`[PDF2JSON] pdf2json failed for ${documentId}`);
-          this.logger.warn(`[PDF2JSON] Error details: ${errorMessage}`);
-          this.logger.debug(
-            `[PDF2JSON] Error stack: ${pdf2jsonError.stack || 'No stack trace'}`,
+          this.logger.warn(
+            `[PDF2JSON] pdf2json failed for ${documentId}: ${errorType} error`,
           );
+          this.logger.warn(`[PDF2JSON] Error: ${errorMessage}`);
+          // Only log stack trace in debug mode (not in production logs)
+          if (isPdfParseError && pdf2jsonError.originalError) {
+            this.logger.debug(
+              `[PDF2JSON] Original error details available (suppressed from main logs)`,
+            );
+          }
 
           // Multi-tier fallback strategy:
           // 1. If XRef error, try pdf-parse (handles corrupted XRef better)
@@ -396,34 +524,41 @@ export class DocumentProcessingDomainService {
                 );
 
                 try {
-                  const [visionResult, documentAiResult] = await Promise.allSettled([
-                    this.visionOcrService.processDocument(
-                      gcsUri,
-                      mimeType,
-                      document.pageCount,
-                    ),
-                    this.documentAiOcrService.processDocument(
-                      gcsUri,
-                      mimeType,
-                      document.pageCount,
-                    ),
-                  ]);
+                  const [visionResult, documentAiResult] =
+                    await Promise.allSettled([
+                      this.visionOcrService.processDocument(
+                        gcsUri,
+                        mimeType,
+                        document.pageCount,
+                      ),
+                      this.documentAiOcrService.processDocument(
+                        gcsUri,
+                        mimeType,
+                        document.pageCount,
+                      ),
+                    ]);
 
                   const visionOcrResult =
-                    visionResult.status === 'fulfilled' ? visionResult.value : null;
+                    visionResult.status === 'fulfilled'
+                      ? visionResult.value
+                      : null;
                   const documentAiOcrResult =
                     documentAiResult.status === 'fulfilled'
                       ? documentAiResult.value
                       : null;
 
                   // Store OCR results in fullResponse for comparison endpoints
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
 
                   // IMPORTANT: Serialize to avoid circular references
                   if (visionOcrResult) {
-                    ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+                    ocrResult.fullResponse.rawVisionResult =
+                      this.serializeOcrResult(visionOcrResult);
                   } else if (visionResult.status === 'rejected') {
                     ocrResult.fullResponse.rawVisionResult = {
                       error: true,
@@ -432,7 +567,8 @@ export class DocumentProcessingDomainService {
                   }
 
                   if (documentAiOcrResult) {
-                    ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+                    ocrResult.fullResponse.rawDocumentAiResult =
+                      this.serializeOcrResult(documentAiOcrResult);
                   } else if (documentAiResult.status === 'rejected') {
                     ocrResult.fullResponse.rawDocumentAiResult = {
                       error: true,
@@ -451,14 +587,30 @@ export class DocumentProcessingDomainService {
                   `Insufficient text from pdf-parse: ${extractedText.length} characters`,
                 );
               }
-            } catch (pdfParseError) {
+            } catch (pdfParseError: any) {
               // pdf-parse also failed - fall back to parallel OCR
-              this.logger.warn(
-                `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to parallel OCR`,
+              const errorMessage =
+                pdfParseError?.message ||
+                String(pdfParseError) ||
+                'Unknown pdf-parse error';
+
+              // Check for specific constructor error (known issue with malformed PDFs)
+              const isConstructorError = errorMessage.includes(
+                'Class constructors cannot be invoked without',
               );
-              this.logger.warn(
-                `[PDF-PARSE] Error: ${pdfParseError.message || pdfParseError}`,
-              );
+
+              if (isConstructorError) {
+                this.logger.warn(
+                  `[PDF-PARSE] pdf-parse constructor error for ${documentId} (malformed PDF structure) - falling back to OCR`,
+                );
+              } else {
+                this.logger.warn(
+                  `[PDF-PARSE] pdf-parse also failed for ${documentId}, falling back to parallel OCR`,
+                );
+                this.logger.warn(
+                  `[PDF-PARSE] Error: ${errorMessage.substring(0, 200)}`,
+                );
+              }
 
               const mergeEnabled =
                 this.configService.get('documentProcessing.ocrMerge.enabled', {
@@ -513,16 +665,23 @@ export class DocumentProcessingDomainService {
                     { enablePostProcessing: postProcessingEnabled },
                   );
                   // Store raw OCR results in fullResponse for comparison endpoints
-                  if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
+                  if (
+                    ocrResult.fullResponse &&
+                    typeof ocrResult.fullResponse === 'object'
+                  ) {
                     ocrResult.fullResponse.rawVisionResult = visionOcrResult;
-                    ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                    ocrResult.fullResponse.rawDocumentAiResult =
+                      documentAiOcrResult;
                   }
                   processingMethod = ProcessingMethod.OCR_MERGED;
                 } else if (visionOcrResult) {
                   ocrResult = visionOcrResult;
                   // Store Vision AI result for comparison endpoints
                   // Ensure fullResponse is an object
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
                   ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -538,10 +697,14 @@ export class DocumentProcessingDomainService {
                   ocrResult = documentAiOcrResult;
                   // Store Document AI result for comparison endpoints
                   // Ensure fullResponse is an object
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
-                  ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                  ocrResult.fullResponse.rawDocumentAiResult =
+                    documentAiOcrResult;
                   // Also store Vision AI failure info if it failed
                   if (visionResult.status === 'rejected') {
                     ocrResult.fullResponse.rawVisionResult = {
@@ -602,8 +765,12 @@ export class DocumentProcessingDomainService {
                 if (documentAiOcrResult) {
                   ocrResult = documentAiOcrResult;
                   // Store both results for comparison endpoints
-                  if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
-                    ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                  if (
+                    ocrResult.fullResponse &&
+                    typeof ocrResult.fullResponse === 'object'
+                  ) {
+                    ocrResult.fullResponse.rawDocumentAiResult =
+                      documentAiOcrResult;
                     if (visionOcrResult) {
                       ocrResult.fullResponse.rawVisionResult = visionOcrResult;
                     }
@@ -616,7 +783,10 @@ export class DocumentProcessingDomainService {
                   ocrResult = visionOcrResult;
                   // Store Vision AI result for comparison endpoints
                   // Ensure fullResponse is an object
-                  if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                  if (
+                    !ocrResult.fullResponse ||
+                    typeof ocrResult.fullResponse !== 'object'
+                  ) {
                     ocrResult.fullResponse = {};
                   }
                   ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -633,6 +803,12 @@ export class DocumentProcessingDomainService {
                 }
               }
 
+              // Fall back to OCR - this is expected for corrupted/malformed PDFs
+              ocrResult = await this.ocrService.processDocument(
+                gcsUri,
+                mimeType,
+                document.pageCount,
+              );
               this.logger.log(
                 `[PDF PROCESSING] OCR fallback completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
               );
@@ -654,8 +830,8 @@ export class DocumentProcessingDomainService {
               ) || false;
 
             if (mergeEnabled) {
-              const [visionResult, documentAiResult] =
-                await Promise.allSettled([
+              const [visionResult, documentAiResult] = await Promise.allSettled(
+                [
                   this.visionOcrService.processDocument(
                     gcsUri,
                     mimeType,
@@ -666,7 +842,8 @@ export class DocumentProcessingDomainService {
                     mimeType,
                     document.pageCount,
                   ),
-                ]);
+                ],
+              );
 
               const visionOcrResult =
                 visionResult.status === 'fulfilled' ? visionResult.value : null;
@@ -696,9 +873,14 @@ export class DocumentProcessingDomainService {
 
                 // Store raw OCR results in fullResponse for comparison endpoints
                 // IMPORTANT: Serialize to avoid circular references
-                if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
-                  ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
-                  ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+                if (
+                  ocrResult.fullResponse &&
+                  typeof ocrResult.fullResponse === 'object'
+                ) {
+                  ocrResult.fullResponse.rawVisionResult =
+                    this.serializeOcrResult(visionOcrResult);
+                  ocrResult.fullResponse.rawDocumentAiResult =
+                    this.serializeOcrResult(documentAiOcrResult);
                 }
 
                 processingMethod = ProcessingMethod.OCR_MERGED;
@@ -706,7 +888,10 @@ export class DocumentProcessingDomainService {
                 ocrResult = visionOcrResult;
                 // Store Vision AI result for comparison endpoints
                 // Ensure fullResponse is an object (it should be from Vision AI adapter)
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
                 ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -722,10 +907,14 @@ export class DocumentProcessingDomainService {
                 ocrResult = documentAiOcrResult;
                 // Store Document AI result for comparison endpoints
                 // Ensure fullResponse is an object
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
-                ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                ocrResult.fullResponse.rawDocumentAiResult =
+                  documentAiOcrResult;
                 // Also store Vision AI failure info if it failed
                 if (visionResult.status === 'rejected') {
                   ocrResult.fullResponse.rawVisionResult = {
@@ -747,8 +936,8 @@ export class DocumentProcessingDomainService {
               );
 
               // Run both OCRs in parallel even when merge is disabled
-              const [visionResult, documentAiResult] =
-                await Promise.allSettled([
+              const [visionResult, documentAiResult] = await Promise.allSettled(
+                [
                   this.visionOcrService.processDocument(
                     gcsUri,
                     mimeType,
@@ -759,7 +948,8 @@ export class DocumentProcessingDomainService {
                     mimeType,
                     document.pageCount,
                   ),
-                ]);
+                ],
+              );
 
               const visionOcrResult =
                 visionResult.status === 'fulfilled' ? visionResult.value : null;
@@ -785,10 +975,14 @@ export class DocumentProcessingDomainService {
                 ocrResult = documentAiOcrResult;
                 // Store both results for comparison endpoints
                 // Ensure fullResponse is an object
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
-                ocrResult.fullResponse.rawDocumentAiResult = documentAiOcrResult;
+                ocrResult.fullResponse.rawDocumentAiResult =
+                  documentAiOcrResult;
                 if (visionOcrResult) {
                   ocrResult.fullResponse.rawVisionResult = visionOcrResult;
                 } else if (visionResult.status === 'rejected') {
@@ -806,7 +1000,10 @@ export class DocumentProcessingDomainService {
                 ocrResult = visionOcrResult;
                 // Store Vision AI result for comparison endpoints
                 // Ensure fullResponse is an object
-                if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+                if (
+                  !ocrResult.fullResponse ||
+                  typeof ocrResult.fullResponse !== 'object'
+                ) {
                   ocrResult.fullResponse = {};
                 }
                 ocrResult.fullResponse.rawVisionResult = visionOcrResult;
@@ -898,9 +1095,14 @@ export class DocumentProcessingDomainService {
 
             // Store raw OCR results in fullResponse for comparison endpoints
             // IMPORTANT: Serialize to avoid circular references
-            if (ocrResult.fullResponse && typeof ocrResult.fullResponse === 'object') {
-              ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
-              ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+            if (
+              ocrResult.fullResponse &&
+              typeof ocrResult.fullResponse === 'object'
+            ) {
+              ocrResult.fullResponse.rawVisionResult =
+                this.serializeOcrResult(visionOcrResult);
+              ocrResult.fullResponse.rawDocumentAiResult =
+                this.serializeOcrResult(documentAiOcrResult);
             }
 
             processingMethod = ProcessingMethod.OCR_MERGED;
@@ -912,11 +1114,15 @@ export class DocumentProcessingDomainService {
             ocrResult = visionOcrResult;
             // Store Vision AI result for comparison endpoints
             // Ensure fullResponse is an object (it should be from Vision AI adapter)
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+            ocrResult.fullResponse.rawVisionResult =
+              this.serializeOcrResult(visionOcrResult);
             // Also store Document AI failure info if it failed
             if (documentAiResult.status === 'rejected') {
               ocrResult.fullResponse.rawDocumentAiResult = {
@@ -933,11 +1139,15 @@ export class DocumentProcessingDomainService {
             ocrResult = documentAiOcrResult;
             // Store Document AI result for comparison endpoints
             // Ensure fullResponse is an object
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+            ocrResult.fullResponse.rawDocumentAiResult =
+              this.serializeOcrResult(documentAiOcrResult);
             // Also store Vision AI failure info if it failed
             if (visionResult.status === 'rejected') {
               ocrResult.fullResponse.rawVisionResult = {
@@ -998,13 +1208,18 @@ export class DocumentProcessingDomainService {
             ocrResult = documentAiOcrResult;
             // Store both results for comparison endpoints
             // Ensure fullResponse is an object
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawDocumentAiResult = this.serializeOcrResult(documentAiOcrResult);
+            ocrResult.fullResponse.rawDocumentAiResult =
+              this.serializeOcrResult(documentAiOcrResult);
             if (visionOcrResult) {
-              ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+              ocrResult.fullResponse.rawVisionResult =
+                this.serializeOcrResult(visionOcrResult);
             } else if (visionResult.status === 'rejected') {
               // Store Vision AI failure info
               ocrResult.fullResponse.rawVisionResult = {
@@ -1020,11 +1235,15 @@ export class DocumentProcessingDomainService {
             ocrResult = visionOcrResult;
             // Store Vision AI result for comparison endpoints
             // Ensure fullResponse is an object
-            if (!ocrResult.fullResponse || typeof ocrResult.fullResponse !== 'object') {
+            if (
+              !ocrResult.fullResponse ||
+              typeof ocrResult.fullResponse !== 'object'
+            ) {
               ocrResult.fullResponse = {};
             }
             // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawVisionResult = this.serializeOcrResult(visionOcrResult);
+            ocrResult.fullResponse.rawVisionResult =
+              this.serializeOcrResult(visionOcrResult);
             // Store Document AI failure info if it failed
             if (documentAiResult.status === 'rejected') {
               ocrResult.fullResponse.rawDocumentAiResult = {
@@ -1049,7 +1268,9 @@ export class DocumentProcessingDomainService {
 
       // Store processed output JSON
       // Serialize fullResponse to avoid circular references when storing
-      const serializedFullResponse = this.serializeFullResponse(ocrResult.fullResponse);
+      const serializedFullResponse = this.serializeFullResponse(
+        ocrResult.fullResponse,
+      );
 
       const processedUri = await this.storageService.storeProcessed(
         serializedFullResponse,
@@ -1066,6 +1287,16 @@ export class DocumentProcessingDomainService {
       await this.extractAndSaveFields(documentId, ocrResult);
 
       // Update document with results
+      // Validate state transition before updating
+      const currentDocument =
+        await this.documentRepository.findById(documentId);
+      if (currentDocument) {
+        DocumentStateMachine.validateTransition(
+          currentDocument.status,
+          DocumentStatus.PROCESSED,
+        );
+      }
+
       // Log what we're about to store (before serialization)
       this.logger.log(
         `[STORAGE] Before saving ocrJsonOutput for document ${documentId}`,
@@ -1079,12 +1310,12 @@ export class DocumentProcessingDomainService {
       this.logger.debug(
         `[STORAGE] Has rawDocumentAiResult: ${!!ocrResult.fullResponse?.rawDocumentAiResult}`,
       );
-      this.logger.debug(
-        `[STORAGE] Processing method: ${processingMethod}`,
-      );
+      this.logger.debug(`[STORAGE] Processing method: ${processingMethod}`);
 
       // Serialize fullResponse before storing in database to avoid circular references
-      const serializedOcrJsonOutput = this.serializeFullResponse(ocrResult.fullResponse);
+      const serializedOcrJsonOutput = this.serializeFullResponse(
+        ocrResult.fullResponse,
+      );
 
       // Log what we're actually storing (after serialization)
       if (serializedOcrJsonOutput) {
@@ -1242,10 +1473,26 @@ export class DocumentProcessingDomainService {
         `Processing failed for document ${documentId}, retry ${retryCount}/${this.maxRetryCount}`,
       );
 
+      // First transition to FAILED (valid from PROCESSING)
+      DocumentStateMachine.validateTransition(
+        document.status,
+        DocumentStatus.FAILED,
+      );
+
       await this.documentRepository.update(documentId, {
         retryCount,
         errorMessage,
-        status: DocumentStatus.QUEUED,
+        status: DocumentStatus.FAILED,
+      });
+
+      // Then transition to PROCESSING for retry (valid from FAILED)
+      DocumentStateMachine.validateTransition(
+        DocumentStatus.FAILED,
+        DocumentStatus.PROCESSING,
+      );
+
+      await this.documentRepository.update(documentId, {
+        status: DocumentStatus.PROCESSING,
       });
 
       // Retry after delay (note: no buffer available on retry, will use OCR)
@@ -1254,9 +1501,20 @@ export class DocumentProcessingDomainService {
           documentId,
           document.rawFileUri,
           document.mimeType,
-        ).catch(() => {});
+        ).catch((retryError: any) => {
+          // Log retry failure but don't throw - error will be handled in handleProcessingError
+          this.logger.error(
+            `Retry ${retryCount} failed for document ${documentId}: ${this.sanitizeError(retryError)}`,
+          );
+        });
       }, 30000 * retryCount); // Exponential backoff: 30s, 60s, 90s
     } else {
+      // Validate state transition before marking as failed
+      DocumentStateMachine.validateTransition(
+        document.status,
+        DocumentStatus.FAILED,
+      );
+
       // Mark as failed
       await this.documentRepository.updateStatus(
         documentId,
@@ -1404,6 +1662,238 @@ export class DocumentProcessingDomainService {
     this.logger.log(
       `Document soft-deleted: ${documentId} (hard delete at ${scheduledDeletionAt.toISOString()})`,
     );
+  }
+
+  /**
+   * Trigger OCR processing (origin manager only)
+   *
+   * Authority Rules (from Phase 2):
+   * - Only origin manager can trigger OCR
+   * - Document must be in STORED, PROCESSED, or FAILED state
+   * - Re-processing allowed (PROCESSED → PROCESSING)
+   *
+   * @param documentId - Document UUID
+   * @param actor - Actor requesting OCR trigger (must be origin manager)
+   * @throws ForbiddenException if actor is not origin manager
+   * @throws BadRequestException if document state doesn't allow processing
+   */
+  /**
+   * Manually trigger OCR processing for a document
+   *
+   * OCR processing is always manual - it must be explicitly triggered by the origin manager
+   * or temporary manager via this endpoint. This avoids overhead of automatic processing
+   * and maintains domain architecture with role-based access control.
+   *
+   * HIPAA Requirement: Only verified origin managers or temporary managers can trigger OCR
+   */
+  async triggerOcr(documentId: string, actor: Actor): Promise<void> {
+    // 1. Get document
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // 2. Check if actor is origin manager OR temporary manager
+    let isOriginManager = false;
+    let isTemporaryManager = false;
+
+    if (actor.type === 'manager') {
+      // Find Manager for this manager user
+      const manager = await this.managerRepository.findByUserId(actor.id);
+
+      if (!manager) {
+        throw new ForbiddenException(
+          'Manager not found. Please contact an administrator.',
+        );
+      }
+
+      // HIPAA Requirement: Only verified managers can trigger OCR
+      if (manager.verificationStatus !== 'verified') {
+        throw new ForbiddenException(
+          'Manager must be verified before triggering OCR. Please contact an administrator.',
+        );
+      }
+
+      // Verify this manager is the origin manager
+      if (document.originManagerId === manager.id) {
+        isOriginManager = true;
+      }
+    } else if (actor.type === 'user') {
+      // Check if user is temporary manager
+      if (document.temporaryManagerId === actor.id) {
+        isTemporaryManager = true;
+      }
+    }
+
+    // Verify actor has authority (origin manager or temporary manager)
+    if (!isOriginManager && !isTemporaryManager) {
+      this.auditService.logAuthEvent({
+        userId: String(actor.id),
+        provider: 'document-processing',
+        event: DocumentEventType.UNAUTHORIZED_DOCUMENT_ACCESS as any,
+        success: false,
+        metadata: {
+          documentId,
+          actorType: actor.type,
+          actorId: actor.id,
+          operation: 'trigger-ocr',
+          originManagerId: document.originManagerId || null,
+          temporaryManagerId: document.temporaryManagerId || null,
+        },
+      });
+
+      throw new ForbiddenException(
+        'Only the origin manager or temporary manager can trigger OCR processing',
+      );
+    }
+
+    // 3. Validate document state allows processing
+    if (!DocumentStateMachine.canProcess(document.status)) {
+      throw new BadRequestException(
+        `Document cannot be processed in current state: ${document.status}. ` +
+          `Document must be in STORED, PROCESSED, or FAILED state to trigger OCR.`,
+      );
+    }
+
+    // 4. Validate state transition
+    DocumentStateMachine.validateTransition(
+      document.status,
+      DocumentStatus.PROCESSING,
+    );
+
+    // 5. Trigger processing (async, don't await)
+    this.startProcessing(
+      documentId,
+      document.rawFileUri,
+      document.mimeType,
+    ).catch((error) => {
+      this.logger.error(
+        `Failed to trigger OCR for document ${documentId}: ${error.message}`,
+      );
+    });
+
+    // 6. Audit log
+    this.auditService.logAuthEvent({
+      userId: String(actor.id),
+      provider: 'document-processing',
+      event: DocumentEventType.DOCUMENT_PROCESSING_STARTED as any,
+      success: true,
+      metadata: {
+        documentId,
+        actorType: actor.type,
+        actorId: actor.id,
+        operation: 'trigger-ocr',
+        fromStatus: document.status,
+      },
+    });
+
+    this.logger.log(
+      `OCR triggered for document ${documentId} by ${isOriginManager ? 'origin manager' : 'temporary manager'} ${actor.id}`,
+    );
+  }
+
+  /**
+   * Assign a real manager to a document (transfer authority from temporary manager)
+   *
+   * Only the temporary manager can initiate this transfer.
+   * After transfer, temporary manager loses all privileges and real manager gains full authority.
+   *
+   * @param documentId - Document UUID
+   * @param managerId - Manager ID to assign as origin manager
+   * @param actor - Actor requesting the transfer (must be temporary manager)
+   * @returns Updated document
+   */
+  async assignManager(
+    documentId: string,
+    managerId: number,
+    actor: Actor,
+  ): Promise<Document> {
+    // 1. Get document
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // 2. Verify actor is temporary manager
+    if (actor.type !== 'user') {
+      throw new ForbiddenException(
+        'Only users can transfer authority to a manager',
+      );
+    }
+
+    if (document.temporaryManagerId !== actor.id) {
+      this.auditService.logAuthEvent({
+        userId: String(actor.id),
+        provider: 'document-processing',
+        event: DocumentEventType.UNAUTHORIZED_DOCUMENT_ACCESS as any,
+        success: false,
+        metadata: {
+          documentId,
+          actorType: actor.type,
+          actorId: actor.id,
+          operation: 'assign-manager',
+          temporaryManagerId: document.temporaryManagerId || null,
+        },
+      });
+
+      throw new ForbiddenException(
+        'Only the temporary manager can assign a real manager to this document',
+      );
+    }
+
+    // 3. Verify document has temporary manager (not already assigned)
+    if (!document.temporaryManagerId) {
+      throw new BadRequestException(
+        'Document already has an origin manager assigned',
+      );
+    }
+
+    // 4. Verify manager exists and is verified
+    const manager = await this.managerRepository.findById(managerId);
+    if (!manager) {
+      throw new NotFoundException('Manager not found');
+    }
+
+    if (manager.verificationStatus !== 'verified') {
+      throw new ForbiddenException(
+        'Manager must be verified before being assigned to a document. Please contact an administrator.',
+      );
+    }
+
+    // 5. Store previous temporary manager ID for audit
+    const previousTemporaryManagerId = document.temporaryManagerId;
+
+    // 6. Update document: set originManagerId, clear temporaryManagerId
+    // This is the only place where originManagerId can be set after creation
+    // IMPORTANT: Use null (not undefined) to ensure TypeORM clears the field in database
+    // The mapper will convert null properly to clear the database field
+    document.originManagerId = manager.id;
+    document.temporaryManagerId = null as unknown as number | undefined; // Explicitly set to null to clear field
+    document.updatedAt = new Date();
+
+    const updatedDocument = await this.documentRepository.save(document);
+
+    // 7. Audit log
+    this.auditService.logAuthEvent({
+      userId: String(actor.id),
+      provider: 'document-processing',
+      event: 'DOCUMENT_AUTHORITY_TRANSFERRED' as any,
+      success: true,
+      metadata: {
+        documentId,
+        actorType: actor.type,
+        actorId: actor.id,
+        operation: 'assign-manager',
+        previousTemporaryManagerId: previousTemporaryManagerId || null,
+        newOriginManagerId: manager.id,
+      },
+    });
+
+    this.logger.log(
+      `Document ${documentId} authority transferred from temporary manager ${actor.id} to origin manager ${manager.id}`,
+    );
+
+    return updatedDocument;
   }
 
   /**

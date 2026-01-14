@@ -3,7 +3,20 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "setupFilesAfterEnv": ["<rootDir>/setup-e2e.ts"],
+  "globalTeardown": "<rootDir>/teardown-e2e.ts",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "useESM": false,
+        "isolatedModules": false
+      }
+    ]
+  },
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^pdf-parse$": "<rootDir>/mocks/pdf-parse.mock.js"
+  },
+  "extensionsToTreatAsEsm": []
 }

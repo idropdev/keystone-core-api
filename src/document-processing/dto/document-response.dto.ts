@@ -61,5 +61,27 @@ export class DocumentResponseDto {
   @Expose()
   createdAt: Date;
 
+  @ApiProperty()
+  @Expose()
+  updatedAt: Date;
+
+  @ApiProperty({
+    description:
+      'Origin manager ID (Manager ID, not User ID). Null if temporary manager is set.',
+    required: false,
+    nullable: true,
+  })
+  @Expose()
+  originManagerId?: number | null;
+
+  @ApiProperty({
+    description:
+      'Temporary manager ID (User ID). Set when user uploads without assigned manager. Null if origin manager is set.',
+    required: false,
+    nullable: true,
+  })
+  @Expose()
+  temporaryManagerId?: number | null;
+
   // SECURITY: Never expose GCS URIs, full OCR output, or internal IDs
 }
