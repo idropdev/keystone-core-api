@@ -117,6 +117,7 @@ export class GcpVisionAiAdapter implements OcrServicePort {
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('fs');
       if (!fs.existsSync(credentialsPath)) {
         return false;
@@ -126,7 +127,7 @@ export class GcpVisionAiAdapter implements OcrServicePort {
       const keyJson = JSON.parse(keyContent);
 
       return keyJson.type === 'impersonated_service_account';
-    } catch (error) {
+    } catch (_error) {
       // If we can't parse, assume it's not impersonation
       return false;
     }

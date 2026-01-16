@@ -464,7 +464,7 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
       let serviceToken: string;
       try {
         serviceToken = await serviceIdentityService.getIdToken();
-      } catch (error) {
+      } catch (_error) {
         console.log('[SKIP] Service identity not available, skipping test');
         return;
       }
@@ -494,7 +494,7 @@ describe('AnythingLLM Endpoints S2S Token Delegation (E2E)', () => {
       let serviceToken: string;
       try {
         serviceToken = await serviceIdentityService.getIdToken();
-      } catch (error) {
+      } catch (_error) {
         console.log('[SKIP] Service identity not available, skipping test');
         return;
       }

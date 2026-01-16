@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { Test } from '@nestjs/testing';
-import { APP_URL, ANYTHINGLLM_BASE_URL } from '../utils/constants';
+import { APP_URL, ANYTHINGLLM_BASE_URL } from '../utils/constants'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { createTestUser, getAdminToken, TestUser } from '../utils/test-helpers';
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { AnythingLLMModule } from '../../src/anythingllm/anythingllm.module';
@@ -68,14 +68,14 @@ describe('External User Lookup (E2E)', () => {
   /**
    * Helper to get service identity token for AnythingLLM API calls
    */
-  async function getServiceToken(): Promise<string | null> {
+  async function _getServiceToken(): Promise<string | null> {
     if (SKIP_ANYTHINGLLM_TESTS || !serviceIdentityService) {
       return null;
     }
 
     try {
       return await serviceIdentityService.getIdToken();
-    } catch (error) {
+    } catch (_error) {
       console.warn(
         '[SKIP] GCP service identity not available in test environment (expected)',
       );

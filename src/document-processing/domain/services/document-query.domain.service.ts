@@ -3,19 +3,17 @@ import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DocumentRepositoryPort } from '../ports/document.repository.port';
 import { Document } from '../entities/document.entity';
-import { AccessGrantDomainService, Actor } from '../../../access-control/domain/services/access-grant.domain.service';
+import {
+  AccessGrantDomainService,
+  Actor,
+} from '../../../access-control/domain/services/access-grant.domain.service';
 import { ManagerRepositoryPort } from '../../../managers/domain/repositories/manager.repository.port';
 import { UserManagerAssignmentService } from '../../../users/domain/services/user-manager-assignment.service';
 import { AuditService } from '../../../audit/audit.service';
 import { DocumentEntity } from '../../infrastructure/persistence/relational/entities/document.entity';
 import { DocumentMapper } from '../../infrastructure/persistence/relational/mappers/document.mapper';
 import { QueryBuilderService } from '../../infrastructure/query/query-builder.service';
-import {
-  DocumentQueryDto,
-  SortDto,
-  PaginationDto,
-} from '../../dto/document-query.dto';
-import { SelectQueryBuilder } from 'typeorm';
+import { DocumentQueryDto } from '../../dto/document-query.dto';
 
 /**
  * Paginated query result
@@ -109,7 +107,10 @@ export class DocumentQueryDomainService {
     // STEP 6: Apply sorting
     const sort = queryDto.sort || { field: 'uploadedAt', order: 'desc' };
     const sortField = this.mapFieldToColumn(sort.field!);
-    queryBuilder.orderBy(`document.${sortField}`, sort.order!.toUpperCase() as 'ASC' | 'DESC');
+    queryBuilder.orderBy(
+      `document.${sortField}`,
+      sort.order!.toUpperCase() as 'ASC' | 'DESC',
+    );
 
     // STEP 7: Apply pagination
     const pagination = queryDto.pagination || { page: 1, limit: 20 };
@@ -169,7 +170,8 @@ export class DocumentQueryDomainService {
     const documentIds = new Set<string>();
 
     // 1. Get documents where user is temporary manager
-    const temporaryManagerDocs = await this.documentRepository.findByTemporaryManagerId(userId);
+    const temporaryManagerDocs =
+      await this.documentRepository.findByTemporaryManagerId(userId);
     temporaryManagerDocs.forEach((doc) => documentIds.add(doc.id));
 
     // 2. Get documents with active AccessGrants
@@ -201,7 +203,8 @@ export class DocumentQueryDomainService {
     }
 
     // 2. Get documents where manager is origin manager
-    const originManagerDocs = await this.documentRepository.findByOriginManagerId(manager.id);
+    const originManagerDocs =
+      await this.documentRepository.findByOriginManagerId(manager.id);
     originManagerDocs.forEach((doc) => documentIds.add(doc.id));
 
     // 3. Get documents with active AccessGrants (using manager.id for grants, but grants use manager userId...)
@@ -214,10 +217,14 @@ export class DocumentQueryDomainService {
 
     // 4. Get documents of assigned users
     // NOTE: findByManagerId takes User ID (managerUserId), not Manager ID
-    const assignments = await this.userManagerAssignmentService.getAssignmentsByManager(managerUserId);
+    const assignments =
+      await this.userManagerAssignmentService.getAssignmentsByManager(
+        managerUserId,
+      );
     const assignedUserIds = assignments.map((assignment) => assignment.userId);
     if (assignedUserIds.length > 0) {
-      const assignedUsersDocs = await this.documentRepository.findByUserIds(assignedUserIds);
+      const assignedUsersDocs =
+        await this.documentRepository.findByUserIds(assignedUserIds);
       assignedUsersDocs.forEach((doc) => documentIds.add(doc.id));
     }
 

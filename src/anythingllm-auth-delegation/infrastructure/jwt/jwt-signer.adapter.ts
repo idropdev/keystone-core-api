@@ -47,7 +47,7 @@ export class JwtSignerAdapter implements JwtSignerPort {
               );
               return;
             }
-          } catch (decodeErr) {
+          } catch (_decodeErr) {
             // If we can't decode, log warning but don't fail (token might still be valid)
             console.warn(
               'Warning: Could not verify token algorithm after signing',

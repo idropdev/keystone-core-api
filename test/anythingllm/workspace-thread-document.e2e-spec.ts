@@ -147,7 +147,7 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
   });
 
   // Helper to create a test workspace via Keystone API
-  const createTestWorkspace = async (
+  const _createTestWorkspace = async (
     name: string,
     slug: string,
   ): Promise<string> => {
@@ -265,7 +265,7 @@ describe('AnythingLLM Workspace, Thread, Document (E2E)', () => {
   });
 
   describe('Workspace Embeddings', () => {
-    it('should update workspace embeddings via Keystone API', async () => {
+    it('should update workspace embeddings via Keystone API', () => {
       if (SKIP_ANYTHINGLLM_TESTS || !createdWorkspaceSlug || !adminUser) {
         return;
       }
@@ -605,18 +605,18 @@ Created at: ${new Date().toISOString()}`;
                         resolve();
                         return;
                       }
-                    } catch (error) {
+                    } catch (_error) {
                       // Ignore parse errors for non-JSON lines
                     }
                   }
                 }
               }
-            } catch (error) {
+            } catch (_error) {
               clearTimeout(timeoutId);
-              reject(error);
+              reject(_error);
             }
-          } catch (error) {
-            reject(error);
+          } catch (_error) {
+            reject(_error);
           }
         });
       } catch (error: any) {
@@ -640,7 +640,7 @@ Created at: ${new Date().toISOString()}`;
   });
 
   describe('Vector Search', () => {
-    it('should perform vector search via Keystone API', async () => {
+    it('should perform vector search via Keystone API', () => {
       if (SKIP_ANYTHINGLLM_TESTS || !createdWorkspaceSlug || !adminUser) {
         return;
       }
@@ -654,7 +654,7 @@ Created at: ${new Date().toISOString()}`;
   });
 
   describe('OpenAI-Compatible Endpoints', () => {
-    it('should get chat completions via Keystone API', async () => {
+    it('should get chat completions via Keystone API', () => {
       if (SKIP_ANYTHINGLLM_TESTS || !adminUser) {
         return;
       }
@@ -666,7 +666,7 @@ Created at: ${new Date().toISOString()}`;
       );
     });
 
-    it('should get embeddings via Keystone API', async () => {
+    it('should get embeddings via Keystone API', () => {
       if (SKIP_ANYTHINGLLM_TESTS || !adminUser) {
         return;
       }

@@ -1,24 +1,12 @@
 import request from 'supertest';
 import { Test } from '@nestjs/testing';
 import * as jwt from 'jsonwebtoken';
-import { ANYTHINGLLM_BASE_URL, APP_URL } from '../utils/constants';
-import { createTestUser, getAdminToken, TestUser } from '../utils/test-helpers';
+import { ANYTHINGLLM_BASE_URL, APP_URL } from '../utils/constants'; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { getAdminToken, createTestUser, TestUser } from '../utils/test-helpers';
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { AnythingLLMModule } from '../../src/anythingllm/anythingllm.module';
 import { AnythingLLMServiceIdentityService } from '../../src/anythingllm/services/anythingllm-service-identity.service';
-import {
-  DelegatedTokenClaims,
-  ActorClaim,
-} from '../../src/anythingllm-auth-delegation/domain/delegated-token-claims.entity';
-
-/**
- * Sleep utility to avoid rate limiting
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
+import { DelegatedTokenClaims } from '../../src/anythingllm-auth-delegation/domain/delegated-token-claims.entity'; /**
  * Mint a delegated JWT token for testing
  *
  * @param payload - Token payload (will be merged with standard claims)
@@ -88,7 +76,7 @@ function mintDelegatedJWT(
  * not unit testing JWT parsing.
  */
 describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
-  let adminToken: string;
+  let _adminToken: string;
   let serviceIdentityService: AnythingLLMServiceIdentityService | null = null;
   let testModule: any;
   let testUser: TestUser;
@@ -108,7 +96,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
   const AUTH_MODE = process.env.ANYTHINGLLM_SERVICE_AUTH_MODE;
 
   beforeAll(async () => {
-    adminToken = await getAdminToken();
+    _adminToken = await getAdminToken();
 
     // Create a test user for identity propagation tests
     testUser = await createTestUser(RoleEnum.user, 'delegated-auth-test');
@@ -152,7 +140,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
 
     if (AUTH_MODE !== 'keystone_delegated_jwt') {
       console.log(
-        `[SKIP] ANYTHINGLLM_SERVICE_AUTH_MODE is not 'keystone_delegated_jwt' (current: ${AUTH_MODE})`,
+        `[SKIP] ANYTHINGLLM_SERVICE_AUTH_MODE is not 'keystone_delegated_jwt'(current: ${AUTH_MODE})`,
       );
       return true;
     }
@@ -206,7 +194,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call AnythingLLM admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 200 and valid JSON response
@@ -245,7 +233,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint (requires systemActor=true)
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // If we get 200, systemActor semantics are preserved
@@ -268,7 +256,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       }
 
       // Mint delegated JWT with unique requester context
-      const uniqueUserId = `user-${Date.now()}`;
+      const uniqueUserId = `user - ${Date.now()} `;
       const token = mintDelegatedJWT(
         {
           sub: 'svc-keystone',
@@ -289,7 +277,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // The key assertion is that the request succeeds, proving identity propagation
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Request should succeed (identity propagated correctly)
@@ -331,7 +319,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 401
@@ -368,7 +356,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 401
@@ -407,7 +395,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 401
@@ -445,7 +433,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 401
@@ -482,7 +470,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 401
@@ -530,7 +518,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
         // Call admin endpoint
         const response = await request(ANYTHINGLLM_URL)
           .get('/v1/admin/users')
-          .set('Authorization', `Bearer ${token}`)
+          .set('Authorization', `Bearer ${token} `)
           .set('X-Client-Service', 'keystone-test');
 
         // Assert: HTTP 401
@@ -574,7 +562,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // If not implemented, this test will pass (scope enforcement is optional)
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // If scope enforcement is enabled and implemented, expect 403
@@ -618,7 +606,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 200
@@ -657,7 +645,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call endpoint that would require scope
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Request should succeed (scope enforcement is optional/disabled)
@@ -691,7 +679,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       let serviceToken: string;
       try {
         serviceToken = await serviceIdentityService.getIdToken();
-      } catch (error) {
+      } catch (_error) {
         console.log(
           '[SKIP] GCP service identity not available (expected in test env), skipping GCP mode test',
         );
@@ -701,7 +689,7 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       // Call admin endpoint with GCP token
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${serviceToken}`)
+        .set('Authorization', `Bearer ${serviceToken} `)
         .set('X-Client-Service', 'keystone-test');
 
       // Assert: HTTP 200 (GCP mode still works)
@@ -738,10 +726,10 @@ describe('AnythingLLM Delegated JWT Auth (E2E)', () => {
       );
 
       // Send request with correlation ID
-      const correlationId = `test-correlation-${Date.now()}`;
+      const correlationId = `test - correlation - ${Date.now()} `;
       const response = await request(ANYTHINGLLM_URL)
         .get('/v1/admin/users')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${token} `)
         .set('X-Client-Service', 'keystone-test')
         .set('X-Correlation-ID', correlationId);
 

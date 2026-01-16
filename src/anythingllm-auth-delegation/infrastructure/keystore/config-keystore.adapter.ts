@@ -11,7 +11,7 @@ import { KeystorePort } from './keystore.port';
 export class ConfigKeystoreAdapter implements KeystorePort {
   constructor(private readonly configService: ConfigService<AllConfigType>) {}
 
-  async getDelegatedTokenSecret(): Promise<string> {
+  getDelegatedTokenSecret(): Promise<string> {
     const secret = this.configService.get<string>(
       'anythingllm.delegatedTokenSecret',
       { infer: true },
@@ -31,27 +31,27 @@ export class ConfigKeystoreAdapter implements KeystorePort {
       );
     }
 
-    return secret;
+    return Promise.resolve(secret);
   }
 
-  async getIssuer(): Promise<string | undefined> {
+  getIssuer(): Promise<string | undefined> {
     // Try to get issuer from auth.jwtIssuer config
     const issuer = this.configService.get<string>('auth.jwtIssuer', {
       infer: true,
     });
 
     if (issuer) {
-      return issuer;
+      return Promise.resolve(issuer);
     }
 
     // Fallback: Try to get from app.url (for local development)
     const appUrl = this.configService.get<string>('app.url', { infer: true });
     if (appUrl) {
-      return appUrl;
+      return Promise.resolve(appUrl);
     }
 
     // Final fallback: Use localhost:3000/api (matches AnythingLLM expectations)
     // AnythingLLM expects one of: anythingllm-internal, http://localhost:3000/api, http://localhost:3000
-    return 'http://localhost:3000/api';
+    return Promise.resolve('http://localhost:3000/api');
   }
 }

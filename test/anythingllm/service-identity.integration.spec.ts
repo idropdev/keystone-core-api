@@ -37,6 +37,7 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
 
     if (credentialsPath) {
       // Check if the key file exists
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('fs');
       if (fs.existsSync(credentialsPath)) {
         hasCredentials = true;
@@ -57,7 +58,9 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
       );
     } else {
       // Check for ADC credentials (Application Default Credentials)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const path = require('path');
       const adcPath = path.join(
         process.env.HOME || process.env.USERPROFILE || '',
@@ -264,6 +267,7 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
 
       // Verify credential detection matches what the service will use
       if (credentialsPath) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const fs = require('fs');
         const exists = fs.existsSync(credentialsPath);
         expect(exists).toBe(true);
@@ -273,7 +277,9 @@ describe('AnythingLLM Service Identity - Integration Tests', () => {
           `✅ Using service account impersonation: ${impersonateServiceAccount}`,
         );
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const fs = require('fs');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const path = require('path');
         const adcPath = path.join(
           process.env.HOME || process.env.USERPROFILE || '',

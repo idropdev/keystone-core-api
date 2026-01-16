@@ -5,7 +5,6 @@ import {
   getAdminToken,
   TestUser,
   createTestManager,
-  TestManager,
 } from '../utils/test-helpers';
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { AnythingLLMModule } from '../../src/anythingllm/anythingllm.module';
@@ -847,7 +846,7 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
   });
 
   describe('Role Mapping Verification', () => {
-    it('should verify role mapping table correctness', async () => {
+    it('should verify role mapping table correctness', () => {
       // This test verifies the role mapping logic matches expected values
       // RoleEnum.admin (1) → 'admin'
       // RoleEnum.manager (3) → 'manager'
@@ -875,12 +874,12 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
 
   describe('Admin-Only User Creation Authorization', () => {
     let managerToken: string;
-    let managerUser: TestUser;
+    let _managerUser: TestUser;
 
     beforeAll(async () => {
       // Create a manager user for testing authorization
       const manager = await createTestManager(adminToken);
-      managerUser = {
+      _managerUser = {
         id: manager.userId,
         email: '',
         token: manager.token,
@@ -992,7 +991,7 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
         console.log(
           `[SUCCESS] Manager correctly denied user creation (status: ${createUserResponse.status})`,
         );
-      } catch (error) {
+      } catch (_error) {
         // If token issuance fails, that's also acceptable (policy might deny it)
         console.log(
           '[SUCCESS] Manager correctly denied delegated token issuance',
@@ -1057,7 +1056,7 @@ describe('AnythingLLM Role Mapping in User Provisioning (E2E)', () => {
             `Unexpected status for manager lookup: ${lookupResponse.status}`,
           );
         }
-      } catch (error) {
+      } catch (_error) {
         // Expected - manager might not be able to issue token or lookup might fail
         console.log('[INFO] Manager token lookup failed as expected');
       }

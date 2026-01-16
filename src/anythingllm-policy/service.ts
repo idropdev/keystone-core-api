@@ -1,7 +1,6 @@
 import {
   Injectable,
   Logger,
-  ForbiddenException,
   Optional,
   Inject,
   forwardRef,
@@ -9,7 +8,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AnythingLLMOperation } from './domain/anythingllm-operation.enum';
 import { ResourceContext } from './domain/resource-context.entity';
-import { PermissionRule } from './domain/permission-rule.entity';
 import {
   AuthorizeOperationDto,
   AuthorizeOperationResponseDto,
@@ -195,7 +193,7 @@ export class AnythingLLMPolicyService {
     resourceContext: ResourceContext | undefined,
     isAdmin: boolean,
     isManager: boolean,
-    isUser: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     if (isAdmin) {
       return {
@@ -254,7 +252,7 @@ export class AnythingLLMPolicyService {
     resourceContext: ResourceContext | undefined,
     isAdmin: boolean,
     isManager: boolean,
-    isUser: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     if (isAdmin) {
       return {
@@ -311,9 +309,10 @@ export class AnythingLLMPolicyService {
     requesterContext: RequesterContextDto,
     resourceContext: ResourceContext | undefined,
     isAdmin: boolean,
-    isManager: boolean,
-    isUser: boolean,
+    _isManager: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
+    await Promise.resolve();
     if (isAdmin) {
       return {
         allowed: true,
@@ -340,7 +339,7 @@ export class AnythingLLMPolicyService {
     resourceContext: ResourceContext | undefined,
     isAdmin: boolean,
     isManager: boolean,
-    isUser: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     if (isAdmin) {
       return {
@@ -399,7 +398,7 @@ export class AnythingLLMPolicyService {
     resourceContext: ResourceContext | undefined,
     isAdmin: boolean,
     isManager: boolean,
-    isUser: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     if (isAdmin) {
       return {
@@ -526,7 +525,7 @@ export class AnythingLLMPolicyService {
     resourceContext: ResourceContext | undefined,
     isAdmin: boolean,
     isManager: boolean,
-    isUser: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     if (isAdmin) {
       return {
@@ -582,12 +581,13 @@ export class AnythingLLMPolicyService {
    * Service Identity: Bypass (handled separately)
    */
   private async authorizeDocumentUpload(
-    requesterContext: RequesterContextDto,
-    resourceContext: ResourceContext | undefined,
+    _requesterContext: RequesterContextDto,
+    _resourceContext: ResourceContext | undefined,
     isManager: boolean,
     isUser: boolean,
     isAdmin: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
+    await Promise.resolve();
     // Admin and Manager are allowed
     if (isAdmin || isManager) {
       return {
@@ -620,12 +620,13 @@ export class AnythingLLMPolicyService {
    * Admin: all workspaces
    */
   private async authorizeWorkspaceCreate(
-    requesterContext: RequesterContextDto,
-    resourceContext: ResourceContext | undefined,
-    isAdmin: boolean,
-    isManager: boolean,
-    isUser: boolean,
+    _requesterContext: RequesterContextDto,
+    _resourceContext: ResourceContext | undefined,
+    _isAdmin: boolean,
+    _isManager: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
+    await Promise.resolve();
     // Workspace creation is generally allowed (workspace provisioning handles ownership)
     return {
       allowed: true,
@@ -640,12 +641,13 @@ export class AnythingLLMPolicyService {
    * Admin: all workspaces
    */
   private async authorizeWorkspaceList(
-    requesterContext: RequesterContextDto,
-    resourceContext: ResourceContext | undefined,
-    isAdmin: boolean,
-    isManager: boolean,
-    isUser: boolean,
+    _requesterContext: RequesterContextDto,
+    _resourceContext: ResourceContext | undefined,
+    _isAdmin: boolean,
+    _isManager: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
+    await Promise.resolve();
     // List operations are allowed but results will be filtered by workspace ownership
     return {
       allowed: true,
@@ -813,11 +815,12 @@ export class AnythingLLMPolicyService {
    * All authenticated users allowed
    */
   private async authorizeSystemAuthCheck(
-    requesterContext: RequesterContextDto,
-    isAdmin: boolean,
-    isManager: boolean,
-    isUser: boolean,
+    _requesterContext: RequesterContextDto,
+    _isAdmin: boolean,
+    _isManager: boolean,
+    _isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
+    await Promise.resolve();
     // All authenticated users allowed
     return {
       allowed: true,
@@ -831,12 +834,13 @@ export class AnythingLLMPolicyService {
    * User: check SYSTEM_VISIBILITY_ALLOW_USERS config flag
    */
   private async authorizeSystemRead(
-    requesterContext: RequesterContextDto,
+    _requesterContext: RequesterContextDto,
     isAdmin: boolean,
     isManager: boolean,
     isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     // Admin/Manager: always allowed
+    await Promise.resolve();
     if (isAdmin || isManager) {
       return {
         allowed: true,
@@ -884,7 +888,7 @@ export class AnythingLLMPolicyService {
     isUser: boolean,
   ): Promise<AuthorizeOperationResponseDto> {
     // Same as SYSTEM_READ
-    return this.authorizeSystemRead(
+    return await this.authorizeSystemRead(
       requesterContext,
       isAdmin,
       isManager,

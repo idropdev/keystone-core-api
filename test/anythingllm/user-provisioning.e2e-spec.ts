@@ -9,9 +9,9 @@ import { AnythingLLMAuthDelegationModule } from '../../src/anythingllm-auth-dele
 import { AnythingLLMAuthDelegationService } from '../../src/anythingllm-auth-delegation/service';
 import { AnythingLLMOperation } from '../../src/anythingllm-policy/domain/anythingllm-operation.enum';
 import * as jwt from 'jsonwebtoken';
-import nock from 'nock';
-import * as fs from 'fs';
-import * as path from 'path';
+// import nock from 'nock';
+// import * as fs from 'fs';
+// import * as path from 'path';
 import {
   setupAnythingLLMMock,
   setupNock,
@@ -112,7 +112,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
         authDelegationService = testModule.get(
           AnythingLLMAuthDelegationService,
         );
-      } catch (error) {
+      } catch (_error) {
         // Module initialization failed - service will be null
         // Tests will skip AnythingLLM verification gracefully
         authDelegationService = null;
@@ -142,7 +142,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
             .delete(`/api/anythingllm/admin/users/${anythingllmUserId}`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(200);
-        } catch (error) {
+        } catch (_error) {
           // Ignore cleanup errors
         }
       }
@@ -214,7 +214,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
           let delegatedToken: string;
           try {
             delegatedToken = await getAdminDelegatedToken();
-          } catch (error) {
+          } catch (_error) {
             return;
           }
 
@@ -406,6 +406,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       }
 
       // Generate expected workspace slug using the same algorithm as WorkspaceMapperService
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const crypto = require('crypto');
       const hash = crypto
         .createHash('sha256')
@@ -519,6 +520,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       }
 
       // Generate expected workspace slug
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const crypto = require('crypto');
       const hash = crypto
         .createHash('sha256')
@@ -528,7 +530,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
 
       // Poll for complete provisioning flow (provisioning is async)
       let anythingllmUserId: number | null = null;
-      const workspaceId: number | null = null;
+      const _workspaceId: number | null = null;
       let assignmentVerified = false;
       let attempts = 0;
       const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max wait
@@ -655,7 +657,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
           }
         } catch (error: any) {
           const statusCode = error.status || error.response?.status;
-          const errorMessage = error.message || '';
+          const _errorMessage = error.message || '';
 
           if (statusCode === 401) {
             throw new Error(
@@ -707,7 +709,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
      * Explicit mapping verification would require database access which is not
      * available in E2E tests without exposing internal implementation details.
      */
-    it('should complete the full provisioning flow: user → workspace → assignment → verification', async () => {
+    it('should complete the full provisioning flow: user → workspace → assignment → verification', () => {
       if (SKIP_ANYTHINGLLM_TESTS || !createdUser) {
         return;
       }
@@ -1168,7 +1170,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
           // CRITICAL: No mapping should exist because workspace creation failed
           // The provisioning flow should not store a mapping if workspace creation fails
           expect(mapping).toBeNull();
-        } catch (e) {
+        } catch (_e) {
           // If repository is not available, skip this check
           // But log that we couldn't verify
         }
@@ -1215,7 +1217,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
             // User doesn't exist - this is the expected behavior
             // The system correctly prevented orphaned user creation
           }
-        } catch (e) {
+        } catch (_e) {
           // If we can't verify, skip this check
           // The test still verifies that Keystone user exists and no mapping was stored
         }
@@ -1237,7 +1239,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
         },
       });
 
-      const assignmentMock = setupAnythingLLMMock(
+      const _assignmentMock = setupAnythingLLMMock(
         'post',
         '/v1/admin/workspaces/patient-test123/manage-users',
         500,
@@ -1361,7 +1363,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
 
       // Use delegated token to query AnythingLLM with HS256 token
       const delegatedToken = await getAdminDelegatedToken();
-      const anythingllmBaseUrl = ANYTHINGLLM_BASE_URL;
+      const _anythingllmBaseUrl = ANYTHINGLLM_BASE_URL;
 
       // Query AnythingLLM user status
       // Note: This requires the AnythingLLM user ID from the mapping
@@ -1414,7 +1416,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
       // Increase timeout to allow for retries (1s + 2s + 4s = 7s minimum, plus provisioning time)
       // Total timeout: 60 seconds to be safe
       // Use nock to fail first 2 attempts, succeed on 3rd
-      const retryMock = setupRetryMock(
+      const _retryMock = setupRetryMock(
         'post',
         '/v1/workspace/new',
         2, // Fail 2 times
@@ -1481,7 +1483,7 @@ describe('AnythingLLM User Provisioning (E2E)', () => {
                 break;
               }
             }
-          } catch (e) {
+          } catch (_e) {
             // Continue polling if repository lookup fails
           }
         }

@@ -2,9 +2,8 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
-  ForbiddenException,
-  Logger,
   Inject,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';

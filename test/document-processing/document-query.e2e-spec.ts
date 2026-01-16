@@ -6,8 +6,6 @@ import {
   createTestManager,
   uploadTestDocument,
   createAccessGrant,
-  getTestPdfPath,
-  readPdfFile,
   TestUser,
   TestManager,
 } from '../utils/test-helpers';
@@ -133,7 +131,10 @@ describe('Document Query Endpoint (E2E)', () => {
     }, 120000);
 
     it('should create access grant for granted user', async () => {
-      if (!testDocuments.managerDocuments || testDocuments.managerDocuments.length === 0) {
+      if (
+        !testDocuments.managerDocuments ||
+        testDocuments.managerDocuments.length === 0
+      ) {
         throw new Error('Manager documents not created');
       }
 
@@ -547,7 +548,9 @@ describe('Document Query Endpoint (E2E)', () => {
 
       expect(response.body).toHaveProperty('data');
       if (response.body.data.length > 1) {
-        const dates = response.body.data.map((doc: any) => new Date(doc.uploadedAt).getTime());
+        const dates = response.body.data.map((doc: any) =>
+          new Date(doc.uploadedAt).getTime(),
+        );
         // Check if dates are in descending order
         for (let i = 0; i < dates.length - 1; i++) {
           expect(dates[i]).toBeGreaterThanOrEqual(dates[i + 1]);

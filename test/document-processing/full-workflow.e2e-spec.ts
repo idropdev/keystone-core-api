@@ -1,11 +1,9 @@
-import * as path from 'path';
 import request from 'supertest';
 import { APP_URL } from '../utils/constants';
 import {
   createTestUser,
   getAdminToken,
   createTestManager,
-  uploadTestDocument,
   createAccessGrant,
   getTestPdfPath,
   readPdfFile,
@@ -59,14 +57,14 @@ describe('Document Processing Full Workflow (E2E)', () => {
   // Test 1: User Creation and Authentication
   // ============================================================================
   describe('User Creation and Authentication', () => {
-    it('should create and authenticate a regular user', async () => {
+    it('should create and authenticate a regular user', () => {
       expect(regularUser).toBeDefined();
       expect(regularUser.id).toBeGreaterThan(0);
       expect(regularUser.token).toBeDefined();
       expect(regularUser.roleId).toBe(RoleEnum.user);
     });
 
-    it('should create and authenticate a manager', async () => {
+    it('should create and authenticate a manager', () => {
       expect(manager).toBeDefined();
       expect(manager.id).toBeGreaterThan(0);
       expect(manager.userId).toBeGreaterThan(0);
@@ -433,7 +431,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Check status multiple times to see progression
       // Note: OCR processing may be fast or async, so we check a few times
-      const previousStatus: string | null = null;
+      // const previousStatus: string | null = null;
       const maxAttempts = 10;
       const delayMs = 3000; // 3 seconds between checks (to avoid rate limiting)
 

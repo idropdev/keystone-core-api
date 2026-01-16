@@ -72,9 +72,14 @@ describe('AnythingLLM Reconciliation (E2E)', () => {
       }
 
       // Setup nock interceptors that validate HS256 tokens
-      const userListMock = setupAnythingLLMMock('get', '/v1/admin/users', 200, {
-        users: [],
-      });
+      const _userListMock = setupAnythingLLMMock(
+        'get',
+        '/v1/admin/users',
+        200,
+        {
+          users: [],
+        },
+      );
 
       const response = await request(APP_URL)
         .get('/api/v1/admin/anythingllm/reconciliation/status')
@@ -127,7 +132,7 @@ describe('AnythingLLM Reconciliation (E2E)', () => {
       }
 
       // Setup nock interceptor that validates HS256 tokens
-      const suspendUserMock = setupAnythingLLMMock(
+      const _suspendUserMock = setupAnythingLLMMock(
         'post',
         '/v1/admin/users/999/suspend',
         200,
@@ -161,11 +166,16 @@ describe('AnythingLLM Reconciliation (E2E)', () => {
 
       // Setup nock interceptors that validate HS256 tokens
       // If RS256 tokens are used, these will return 401
-      const userListMock = setupAnythingLLMMock('get', '/v1/admin/users', 200, {
-        users: [],
-      });
+      const _userListMock = setupAnythingLLMMock(
+        'get',
+        '/v1/admin/users',
+        200,
+        {
+          users: [],
+        },
+      );
 
-      const externalUserMock = setupAnythingLLMMock(
+      const _externalUserMock = setupAnythingLLMMock(
         'get',
         '/v1/admin/users/external/123',
         404,

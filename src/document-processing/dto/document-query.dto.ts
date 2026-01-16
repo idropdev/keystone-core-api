@@ -6,15 +6,11 @@ import {
   IsNumber,
   IsArray,
   ValidateNested,
-  IsIn,
   Min,
   Max,
   IsObject,
-  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { DocumentStatus } from '../domain/enums/document-status.enum';
-import { DocumentType } from '../domain/enums/document-type.enum';
 
 /**
  * Queryable document fields
@@ -33,7 +29,7 @@ export const QUERYABLE_FIELDS = [
   'createdAt',
 ] as const;
 
-export type QueryableField = typeof QUERYABLE_FIELDS[number];
+export type QueryableField = (typeof QUERYABLE_FIELDS)[number];
 
 /**
  * Query operators supported by the document query endpoint
@@ -198,7 +194,8 @@ export class PaginationDto {
  */
 export class DocumentQueryDto {
   @ApiPropertyOptional({
-    description: 'Query filters (field filters, boolean combinators, extracted field filters)',
+    description:
+      'Query filters (field filters, boolean combinators, extracted field filters)',
     type: Object,
   })
   @IsOptional()
@@ -208,7 +205,8 @@ export class DocumentQueryDto {
   query?: BooleanQueryDto | FieldFilterDto | ExtractedFieldFilterDto;
 
   @ApiPropertyOptional({
-    description: 'Full-text search query (searches fileName, description, extractedText)',
+    description:
+      'Full-text search query (searches fileName, description, extractedText)',
     example: 'glucose levels high',
   })
   @IsOptional()

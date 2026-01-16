@@ -2,7 +2,6 @@ import request from 'supertest';
 import { Test } from '@nestjs/testing';
 import { APP_URL, ANYTHINGLLM_BASE_URL } from '../utils/constants';
 import {
-  createTestUser,
   getAdminToken,
   readPdfFile,
   getTestPdfPath,
@@ -14,7 +13,6 @@ import { AnythingLLMAuthDelegationModule } from '../../src/anythingllm-auth-dele
 import { AnythingLLMAuthDelegationService } from '../../src/anythingllm-auth-delegation/service';
 import { AnythingLLMOperation } from '../../src/anythingllm-policy/domain/anythingllm-operation.enum';
 import * as jwt from 'jsonwebtoken';
-import * as crypto from 'crypto';
 
 /**
  * Sleep utility to avoid rate limiting
@@ -176,7 +174,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
    * Step 2: Verify the user belongs to the created workspace
    */
   describe('Step 2: Verify User Belongs to Workspace', () => {
-    it('should verify user was auto-provisioned with workspace in AnythingLLM', async () => {
+    it('should verify user was auto-provisioned with workspace in AnythingLLM', () => {
       if (SKIP_ANYTHINGLLM_TESTS || !testUser || !authDelegationService) {
         return;
       }
@@ -187,10 +185,6 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
         '[INFO] Generating workspace slug using deterministic hash (matches provisioning service algorithm)...',
       );
 
-      const hash = crypto
-        .createHash('sha256')
-        .update(String(testUser.id))
-        .digest('hex');
       workspaceSlug = `workspace-for-user-${testUser.id}`;
 
       console.log(`[INFO] Generated workspace slug: ${workspaceSlug}`);
@@ -260,7 +254,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
           if (attempt < maxAttempts - 1) {
             await sleep(pollInterval);
           }
-        } catch (error) {
+        } catch (_error) {
           if (attempt < maxAttempts - 1) {
             await sleep(pollInterval);
           }
@@ -630,7 +624,7 @@ describe('Document Upload with OCR to AnythingLLM (E2E)', () => {
                     resolve();
                     return;
                   }
-                } catch (error) {
+                } catch (_error) {
                   // Ignore parse errors for non-JSON lines
                 }
               }

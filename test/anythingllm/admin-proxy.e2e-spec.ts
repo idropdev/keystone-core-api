@@ -56,7 +56,7 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
   }
 
   /**
-   * Helper to get a mock user JWT token for rejection tests
+   * Helper to get a mock user JWT token
    */
   function getMockUserJwt(): string {
     const header = Buffer.from(
@@ -92,7 +92,7 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
           .delete(`/api/anythingllm/admin/users/${userId}`)
           .set('Authorization', `Bearer ${serviceToken}`);
         console.log(`Cleaned up e2e test user: ${userId}`);
-      } catch (error) {
+      } catch (_error) {
         console.log(`Failed to cleanup user ${userId}`);
       }
     }
@@ -104,7 +104,7 @@ describe('AnythingLLM Admin Proxy (E2E)', () => {
           .delete(`/api/anythingllm/admin/invite/${inviteId}`)
           .set('Authorization', `Bearer ${serviceToken}`);
         console.log(`Cleaned up e2e test invite: ${inviteId}`);
-      } catch (error) {
+      } catch (_error) {
         console.log(`Failed to cleanup invite ${inviteId}`);
       }
     }

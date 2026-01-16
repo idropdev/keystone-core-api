@@ -30,7 +30,7 @@ import { AllConfigType } from '../../src/config/config.type';
  */
 describe('AnythingLLM Service Identity (E2E)', () => {
   let clientService: AnythingLLMClientService;
-  let configService: ConfigService<AllConfigType>;
+  let _configService: ConfigService<AllConfigType>;
   let module: TestingModule;
 
   const anythingllmBaseUrl =
@@ -52,7 +52,7 @@ describe('AnythingLLM Service Identity (E2E)', () => {
     clientService = module.get<AnythingLLMClientService>(
       AnythingLLMClientService,
     );
-    configService = module.get<ConfigService<AllConfigType>>(ConfigService);
+    _configService = module.get<ConfigService<AllConfigType>>(ConfigService);
   });
 
   afterAll(async () => {

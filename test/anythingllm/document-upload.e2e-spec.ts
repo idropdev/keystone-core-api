@@ -672,7 +672,7 @@ describe('AnythingLLM Document Upload (E2E)', () => {
       const RATE_LIMIT_WAIT_MS = 65000; // 65 seconds
       const maxRetries = 3;
       let response: any;
-      let lastError: any;
+      // let lastError: any;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
@@ -708,7 +708,7 @@ describe('AnythingLLM Document Upload (E2E)', () => {
           // Success - break out of retry loop
           break;
         } catch (error: any) {
-          lastError = error;
+          // lastError = error;
 
           // Check if error is from supertest expecting a status code
           const status =

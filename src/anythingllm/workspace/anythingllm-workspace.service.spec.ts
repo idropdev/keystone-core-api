@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnythingLLMWorkspaceService } from './anythingllm-workspace.service';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
+import { AnythingLLMClientService } from '../services/anythingllm-client.service';
 
 describe('AnythingLLMWorkspaceService', () => {
   let service: AnythingLLMWorkspaceService;
@@ -26,6 +27,14 @@ describe('AnythingLLMWorkspaceService', () => {
           provide: AnythingLLMRegistryClient,
           useValue: mockRegistryClient,
         },
+        {
+          provide: AnythingLLMOrchestratorService,
+          useValue: { executeOperation: jest.fn() },
+        },
+        {
+          provide: AnythingLLMClientService,
+          useValue: { callAnythingLLM: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -39,92 +48,68 @@ describe('AnythingLLMWorkspaceService', () => {
   });
 
   describe('createWorkspace', () => {
-    it('should call registry client with request body', async () => {
+    it('should call client service with request body when no user context', async () => {
       const request = { name: 'Test Workspace', slug: 'test-workspace' };
 
       await service.createWorkspace(request);
 
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.CREATE_WORKSPACE,
-        { body: request },
-      );
+      expect(
+        (service as any).clientService.callAnythingLLM,
+      ).toHaveBeenCalledWith('/v1/workspace/new', {
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: { 'Content-Type': 'application/json' },
+      });
     });
   });
 
   describe('listWorkspaces', () => {
-    it('should call registry client with correct endpoint', async () => {
-      await service.listWorkspaces();
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.LIST_WORKSPACES,
+    it('should throw error (temporarily disabled)', async () => {
+      await expect(service.listWorkspaces()).rejects.toThrow(
+        'Non-admin workspace endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('getWorkspace', () => {
-    it('should call registry client with slug param', async () => {
-      const slug = 'test-workspace';
-
-      await service.getWorkspace(slug);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.GET_WORKSPACE,
-        { params: { slug } },
+    it('should throw error (temporarily disabled)', async () => {
+      await expect(service.getWorkspace('slug')).rejects.toThrow(
+        'Non-admin workspace endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('updateWorkspace', () => {
-    it('should call registry client with params and body', async () => {
-      const slug = 'test-workspace';
+    it('should throw error (temporarily disabled)', async () => {
       const request = { name: 'Updated Workspace' };
-
-      await service.updateWorkspace(slug, request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.UPDATE_WORKSPACE,
-        { params: { slug }, body: request },
+      await expect(service.updateWorkspace('slug', request)).rejects.toThrow(
+        'Non-admin workspace endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('deleteWorkspace', () => {
-    it('should call registry client with slug param', async () => {
-      const slug = 'test-workspace';
-
-      await service.deleteWorkspace(slug);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.DELETE_WORKSPACE,
-        { params: { slug } },
+    it('should throw error (temporarily disabled)', async () => {
+      await expect(service.deleteWorkspace('slug')).rejects.toThrow(
+        'Non-admin workspace endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('updateEmbeddings', () => {
-    it('should call registry client with params and body', async () => {
-      const slug = 'test-workspace';
+    it('should throw error (temporarily disabled)', async () => {
       const request = { adds: ['doc1.json'], deletes: ['doc2.json'] };
-
-      await service.updateEmbeddings(slug, request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.UPDATE_WORKSPACE_EMBEDDINGS,
-        { params: { slug }, body: request },
+      await expect(service.updateEmbeddings('slug', request)).rejects.toThrow(
+        'Non-admin workspace endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('updatePin', () => {
-    it('should call registry client with params and body', async () => {
-      const slug = 'test-workspace';
+    it('should throw error (temporarily disabled)', async () => {
       const request = { docPath: 'doc1.json', pinned: true };
-
-      await service.updatePin(slug, request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.UPDATE_WORKSPACE_PIN,
-        { params: { slug }, body: request },
+      await expect(service.updatePin('slug', request)).rejects.toThrow(
+        'Non-admin workspace endpoints have been temporarily disabled',
       );
     });
   });

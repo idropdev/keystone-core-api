@@ -66,7 +66,7 @@ const STRESS_TEST_ENABLED = process.env.ENABLE_STRESS_TEST === 'true';
 const RATE_LIMIT_TTL_MS = 60000; // 60 seconds
 const RATE_LIMIT_BUFFER_MS = 5000; // 5 second buffer
 const AUTH_ENDPOINT_LIMIT = 5; // requests per TTL
-const GLOBAL_ENDPOINT_LIMIT = 10; // requests per TTL
+const _GLOBAL_ENDPOINT_LIMIT = 10; // requests per TTL
 
 /**
  * Sleep utility with logging option
@@ -90,14 +90,18 @@ async function retryWithRateLimitHandling<T>(
     isAuthEndpoint?: boolean;
   } = {},
 ): Promise<T> {
-  const { maxRetries = 5, operation = 'operation', isAuthEndpoint = false } = options;
+  const {
+    maxRetries = 5,
+    operation = 'operation',
+    isAuthEndpoint: _isAuthEndpoint = false,
+  } = options;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error: any) {
       const status = error.status || error.response?.status;
-      
+
       if (status === 429) {
         // Rate limited - extract Retry-After header if available
         const retryAfter = error.response?.headers?.['retry-after'];
@@ -107,7 +111,7 @@ async function retryWithRateLimitHandling<T>(
 
         console.log(
           `[429] Rate limited on ${operation} (attempt ${attempt + 1}/${maxRetries}). ` +
-          `Waiting ${Math.round(waitTime / 1000)}s for rate limit reset...`
+            `Waiting ${Math.round(waitTime / 1000)}s for rate limit reset...`,
         );
 
         if (attempt < maxRetries - 1) {
@@ -125,7 +129,7 @@ async function retryWithRateLimitHandling<T>(
       const backoffMs = Math.min(1000 * Math.pow(2, attempt), 30000);
       console.log(
         `[RETRY] ${operation} failed (attempt ${attempt + 1}/${maxRetries}): ${error.message}. ` +
-        `Retrying in ${backoffMs}ms...`
+          `Retrying in ${backoffMs}ms...`,
       );
       await sleep(backoffMs);
     }
@@ -137,7 +141,7 @@ async function retryWithRateLimitHandling<T>(
 /**
  * Generate deterministic workspace slug (matches provisioning service)
  */
-function generateWorkspaceSlug(keystoneUserId: number | string): string {
+function _generateWorkspaceSlug(keystoneUserId: number | string): string {
   const hash = crypto
     .createHash('sha256')
     .update(String(keystoneUserId))
@@ -170,7 +174,11 @@ const metrics: TestMetrics = {
   responseTimes: [],
 };
 
-function recordRequest(success: boolean, responseTimeMs: number, rateLimited = false) {
+function recordRequest(
+  success: boolean,
+  responseTimeMs: number,
+  rateLimited = false,
+) {
   metrics.totalRequests++;
   if (rateLimited) {
     metrics.rateLimitedRequests++;
@@ -181,7 +189,8 @@ function recordRequest(success: boolean, responseTimeMs: number, rateLimited = f
   }
   metrics.responseTimes.push(responseTimeMs);
   metrics.averageResponseTimeMs =
-    metrics.responseTimes.reduce((a, b) => a + b, 0) / metrics.responseTimes.length;
+    metrics.responseTimes.reduce((a, b) => a + b, 0) /
+    metrics.responseTimes.length;
 }
 
 // ============================================================================
@@ -210,8 +219,8 @@ describe('Keystone Full Workflow E2E Suite', () => {
 
   // Test resources created during the suite
   const testResources: {
-    workspaceSlug: string | null;        // Admin-created workspace (for admin tests)
-    userWorkspaceSlug: string | null;    // User's auto-provisioned workspace (for user tests)
+    workspaceSlug: string | null; // Admin-created workspace (for admin tests)
+    userWorkspaceSlug: string | null; // User's auto-provisioned workspace (for user tests)
     threadSlug: string | null;
     documentId: string | null;
     anythingllmUserId: number | null;
@@ -237,14 +246,15 @@ describe('Keystone Full Workflow E2E Suite', () => {
       adminUserContext = { id: decoded.id, role: decoded.role };
     }
 
-    const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-      requesterContext: {
-        userId: String(adminUserContext.id),
-        roles: ['admin'],
-      },
-      operation: AnythingLLMOperation.SYSTEM_READ,
-      scope: ['anythingllm:admin:read', 'anythingllm:admin:write'],
-    });
+    const delegatedTokenResponse =
+      await authDelegationService.issueDelegatedToken({
+        requesterContext: {
+          userId: String(adminUserContext.id),
+          roles: ['admin'],
+        },
+        operation: AnythingLLMOperation.SYSTEM_READ,
+        scope: ['anythingllm:admin:read', 'anythingllm:admin:write'],
+      });
 
     return delegatedTokenResponse.token;
   };
@@ -274,9 +284,14 @@ describe('Keystone Full Workflow E2E Suite', () => {
           imports: [AnythingLLMModule, AnythingLLMAuthDelegationModule],
         }).compile();
 
-        authDelegationService = testModule.get(AnythingLLMAuthDelegationService);
+        authDelegationService = testModule.get(
+          AnythingLLMAuthDelegationService,
+        );
       } catch (error) {
-        console.warn('[SETUP] Failed to initialize auth delegation service:', error);
+        console.warn(
+          '[SETUP] Failed to initialize auth delegation service:',
+          error,
+        );
         authDelegationService = null;
       }
     }
@@ -286,7 +301,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
     metrics.endTime = Date.now();
 
     // Cleanup resources
-    if (!SKIP_ANYTHINGLLM_TESTS && testResources.workspaceSlug && authDelegationService) {
+    if (
+      !SKIP_ANYTHINGLLM_TESTS &&
+      testResources.workspaceSlug &&
+      authDelegationService
+    ) {
       try {
         const delegatedToken = await getAdminDelegatedToken();
         await fetch(
@@ -309,12 +328,16 @@ describe('Keystone Full Workflow E2E Suite', () => {
     console.log('\n' + '='.repeat(80));
     console.log('KEYSTONE FULL WORKFLOW E2E SUITE - COMPLETED');
     console.log('='.repeat(80));
-    console.log(`Duration: ${Math.round((metrics.endTime - metrics.startTime) / 1000)}s`);
+    console.log(
+      `Duration: ${Math.round((metrics.endTime - metrics.startTime) / 1000)}s`,
+    );
     console.log(`Total Requests: ${metrics.totalRequests}`);
     console.log(`Successful: ${metrics.successfulRequests}`);
     console.log(`Failed: ${metrics.failedRequests}`);
     console.log(`Rate Limited: ${metrics.rateLimitedRequests}`);
-    console.log(`Avg Response Time: ${Math.round(metrics.averageResponseTimeMs)}ms`);
+    console.log(
+      `Avg Response Time: ${Math.round(metrics.averageResponseTimeMs)}ms`,
+    );
     console.log('='.repeat(80) + '\n');
   });
 
@@ -362,7 +385,10 @@ describe('Keystone Full Workflow E2E Suite', () => {
     describe('1.3 Regular User Creation & Authentication', () => {
       it('should create and authenticate regular user', async () => {
         const start = Date.now();
-        testUsers.regularUser = await createTestUser(RoleEnum.user, 'full-workflow-user');
+        testUsers.regularUser = await createTestUser(
+          RoleEnum.user,
+          'full-workflow-user',
+        );
         recordRequest(true, Date.now() - start);
 
         expect(testUsers.regularUser).toBeDefined();
@@ -393,19 +419,24 @@ describe('Keystone Full Workflow E2E Suite', () => {
       }, 30000);
 
       it('should include correct act claim structure', async () => {
-        if (SKIP_ANYTHINGLLM_TESTS || !authDelegationService || !testUsers.regularUser) {
+        if (
+          SKIP_ANYTHINGLLM_TESTS ||
+          !authDelegationService ||
+          !testUsers.regularUser
+        ) {
           return;
         }
 
-        const delegatedTokenResponse = await authDelegationService.issueDelegatedToken({
-          requesterContext: {
-            userId: String(testUsers.regularUser.id),
-            roles: ['user'],
-            sessionId: 'test-session',
-          },
-          operation: AnythingLLMOperation.SYSTEM_READ,
-          scope: ['anythingllm:system:read'],
-        });
+        const delegatedTokenResponse =
+          await authDelegationService.issueDelegatedToken({
+            requesterContext: {
+              userId: String(testUsers.regularUser.id),
+              roles: ['user'],
+              sessionId: 'test-session',
+            },
+            operation: AnythingLLMOperation.SYSTEM_READ,
+            scope: ['anythingllm:system:read'],
+          });
 
         const decoded = jwt.decode(delegatedTokenResponse.token) as any;
         expect(decoded.act.sub).toBe(String(testUsers.regularUser.id));
@@ -464,7 +495,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
       }, 60000);
 
       it('should verify user exists in AnythingLLM', async () => {
-        if (SKIP_ANYTHINGLLM_TESTS || !testUsers.ocrTestUser || !authDelegationService) {
+        if (
+          SKIP_ANYTHINGLLM_TESTS ||
+          !testUsers.ocrTestUser ||
+          !authDelegationService
+        ) {
           return;
         }
 
@@ -488,16 +523,21 @@ describe('Keystone Full Workflow E2E Suite', () => {
               if (data.user) {
                 userFound = true;
                 testResources.anythingllmUserId = data.user.id;
-                expect(data.user.externalId).toBe(String(testUsers.ocrTestUser.id));
+                expect(data.user.externalId).toBe(
+                  String(testUsers.ocrTestUser.id),
+                );
                 expect(data.user.externalProvider).toBe('keystone');
               }
             }
-          } catch (error) {
+          } catch (_error) {
             // Continue polling
           }
 
           if (!userFound && attempt < maxAttempts - 1) {
-            await sleep(pollInterval, `Polling for user (attempt ${attempt + 1})`);
+            await sleep(
+              pollInterval,
+              `Polling for user (attempt ${attempt + 1})`,
+            );
           }
         }
 
@@ -507,7 +547,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
 
     describe('2.2 Workspace Auto-Creation', () => {
       it('should auto-create workspace for user', async () => {
-        if (SKIP_ANYTHINGLLM_TESTS || !testUsers.ocrTestUser || !authDelegationService) {
+        if (
+          SKIP_ANYTHINGLLM_TESTS ||
+          !testUsers.ocrTestUser ||
+          !authDelegationService
+        ) {
           return;
         }
 
@@ -515,13 +559,17 @@ describe('Keystone Full Workflow E2E Suite', () => {
         // Note: AnythingLLM may auto-generate workspace slugs based on the name,
         // so we need to fetch the actual slug that was created, not calculate it
         const delegatedToken = await getAdminDelegatedToken();
-        
+
         // Poll for workspace mapping to be created
         let actualWorkspaceSlug: string | null = null;
         const maxAttempts = 15;
         const pollInterval = 2000;
 
-        for (let attempt = 0; attempt < maxAttempts && !actualWorkspaceSlug; attempt++) {
+        for (
+          let attempt = 0;
+          attempt < maxAttempts && !actualWorkspaceSlug;
+          attempt++
+        ) {
           try {
             // Query the user's workspace mapping via admin endpoint
             const response = await fetch(
@@ -536,11 +584,16 @@ describe('Keystone Full Workflow E2E Suite', () => {
               // Check if user has workspaces assigned
               if (data.user?.workspaces?.length > 0) {
                 actualWorkspaceSlug = data.user.workspaces[0].slug;
-                console.log(`[INFO] Found user's workspace slug: ${actualWorkspaceSlug}`);
+                console.log(
+                  `[INFO] Found user's workspace slug: ${actualWorkspaceSlug}`,
+                );
               }
             }
           } catch (error) {
-            console.warn(`[POLL] Attempt ${attempt + 1}/${maxAttempts} - Error:`, error);
+            console.warn(
+              `[POLL] Attempt ${attempt + 1}/${maxAttempts} - Error:`,
+              error,
+            );
           }
 
           if (!actualWorkspaceSlug && attempt < maxAttempts - 1) {
@@ -552,11 +605,15 @@ describe('Keystone Full Workflow E2E Suite', () => {
         // AnythingLLM generates: workspace-for-user-{userId} from name "Workspace for user {userId}"
         if (!actualWorkspaceSlug) {
           actualWorkspaceSlug = `workspace-for-user-${testUsers.ocrTestUser.id}`;
-          console.log(`[INFO] Using fallback workspace slug: ${actualWorkspaceSlug}`);
+          console.log(
+            `[INFO] Using fallback workspace slug: ${actualWorkspaceSlug}`,
+          );
         }
 
         testResources.userWorkspaceSlug = actualWorkspaceSlug;
-        console.log(`[INFO] User's auto-provisioned workspace slug: ${testResources.userWorkspaceSlug}`);
+        console.log(
+          `[INFO] User's auto-provisioned workspace slug: ${testResources.userWorkspaceSlug}`,
+        );
 
         expect(testResources.userWorkspaceSlug).toBeDefined();
       }, 60000);
@@ -604,7 +661,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
       }, 60000);
 
       it('should map manager role correctly', async () => {
-        if (SKIP_ANYTHINGLLM_TESTS || !authDelegationService || !testUsers.manager) {
+        if (
+          SKIP_ANYTHINGLLM_TESTS ||
+          !authDelegationService ||
+          !testUsers.manager
+        ) {
           return;
         }
 
@@ -624,7 +685,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
       }, 30000);
 
       it('should map user role to default', async () => {
-        if (SKIP_ANYTHINGLLM_TESTS || !authDelegationService || !testUsers.ocrTestUser) {
+        if (
+          SKIP_ANYTHINGLLM_TESTS ||
+          !authDelegationService ||
+          !testUsers.ocrTestUser
+        ) {
           return;
         }
 
@@ -674,7 +739,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
 
     describe('3.2 OCR Processing', () => {
       it('should trigger OCR processing', async () => {
-        if (SKIP_OCR_TESTS || !testResources.documentId || !testUsers.ocrTestUser) {
+        if (
+          SKIP_OCR_TESTS ||
+          !testResources.documentId ||
+          !testUsers.ocrTestUser
+        ) {
           console.log('[SKIP] OCR tests disabled or no document');
           return;
         }
@@ -693,7 +762,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
       }, 60000);
 
       it('should retrieve OCR fields', async () => {
-        if (SKIP_OCR_TESTS || !testResources.documentId || !testUsers.ocrTestUser) {
+        if (
+          SKIP_OCR_TESTS ||
+          !testResources.documentId ||
+          !testUsers.ocrTestUser
+        ) {
           return;
         }
 
@@ -841,7 +914,11 @@ describe('Keystone Full Workflow E2E Suite', () => {
     describe('4.4 Thread Operations', () => {
       it('should create thread in workspace (user creates own thread)', async () => {
         // Use the USER's auto-provisioned workspace (from Phase 2.2), not admin-created workspace
-        if (SKIP_ANYTHINGLLM_TESTS || !testResources.userWorkspaceSlug || !testUsers.ocrTestUser) {
+        if (
+          SKIP_ANYTHINGLLM_TESTS ||
+          !testResources.userWorkspaceSlug ||
+          !testUsers.ocrTestUser
+        ) {
           return;
         }
 
@@ -850,7 +927,9 @@ describe('Keystone Full Workflow E2E Suite', () => {
         // User creates thread in their OWN auto-provisioned workspace - this is the correct flow
         // Users should be able to manage their own threads in their own workspace
         const response = await request(APP_URL)
-          .post(`/api/anythingllm/v1/workspace/${testResources.userWorkspaceSlug}/thread/new`)
+          .post(
+            `/api/anythingllm/v1/workspace/${testResources.userWorkspaceSlug}/thread/new`,
+          )
           .auth(testUsers.ocrTestUser.token, { type: 'bearer' })
           .send({ name: threadName })
           .expect(200);
@@ -860,7 +939,9 @@ describe('Keystone Full Workflow E2E Suite', () => {
         expect(response.body.thread).toHaveProperty('name', threadName);
 
         testResources.threadSlug = response.body.thread.slug;
-        console.log(`[SUCCESS] User ${testUsers.ocrTestUser.id} created thread in their workspace`);
+        console.log(
+          `[SUCCESS] User ${testUsers.ocrTestUser.id} created thread in their workspace`,
+        );
       }, 30000);
     });
 
@@ -914,7 +995,9 @@ describe('Keystone Full Workflow E2E Suite', () => {
         }
 
         expect(response.status).toBe(200);
-        expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+        expect(response.headers.get('content-type')).toMatch(
+          /text\/event-stream/,
+        );
 
         if (!response.body) {
           throw new Error('Response body is null');
@@ -925,7 +1008,7 @@ describe('Keystone Full Workflow E2E Suite', () => {
         const decoder = new TextDecoder();
         let buffer = '';
         const chunks: string[] = [];
-        let fullResponse = '';
+        let _fullResponse = '';
 
         const timeoutPromise = new Promise<void>((_, reject) => {
           setTimeout(() => reject(new Error('Stream timeout')), 60000);
@@ -953,9 +1036,10 @@ describe('Keystone Full Workflow E2E Suite', () => {
                   try {
                     const data = JSON.parse(text);
                     if (data.textResponse) {
-                      fullResponse += data.textResponse;
+                      _fullResponse += data.textResponse;
                     }
                     if (data.close) {
+                      expect(_fullResponse.length).toBeGreaterThan(0);
                       resolve();
                       return;
                     }
@@ -973,7 +1057,9 @@ describe('Keystone Full Workflow E2E Suite', () => {
         await Promise.race([streamPromise, timeoutPromise]);
 
         expect(chunks.length).toBeGreaterThan(0);
-        console.log(`[SUCCESS] User ${testUsers.ocrTestUser.id} streamed chat with ${chunks.length} chunks in their own thread`);
+        console.log(
+          `[SUCCESS] User ${testUsers.ocrTestUser.id} streamed chat with ${chunks.length} chunks in their own thread`,
+        );
       }, 90000);
 
       it('should allow admin to access any user thread (support/oversight)', async () => {
@@ -987,7 +1073,8 @@ describe('Keystone Full Workflow E2E Suite', () => {
           return;
         }
 
-        const chatMessage = 'Admin oversight: What documents are in this workspace?';
+        const chatMessage =
+          'Admin oversight: What documents are in this workspace?';
 
         // Admin can access ALL threads per policy (authorizeThreadChat: Admin → all threads)
         // This is for support/oversight purposes - admin accesses user's workspace
@@ -1016,7 +1103,9 @@ describe('Keystone Full Workflow E2E Suite', () => {
         }
 
         expect(response.status).toBe(200);
-        console.log(`[SUCCESS] Admin ${testUsers.admin.id} accessed user's thread for oversight`);
+        console.log(
+          `[SUCCESS] Admin ${testUsers.admin.id} accessed user's thread for oversight`,
+        );
       }, 60000);
     });
   });
@@ -1136,7 +1225,12 @@ describe('Keystone Full Workflow E2E Suite', () => {
         // First creation should succeed
         const firstResponse = await request(APP_URL)
           .post('/api/v1/auth/email/register')
-          .send({ email, password, firstName: 'Idempotency', lastName: 'Test' });
+          .send({
+            email,
+            password,
+            firstName: 'Idempotency',
+            lastName: 'Test',
+          });
 
         expect(firstResponse.status).toBe(201);
 
@@ -1183,9 +1277,13 @@ describe('Keystone Full Workflow E2E Suite', () => {
         }
 
         const responses = await Promise.all(requests);
-        const rateLimitedCount = responses.filter((r) => r.status === 429).length;
+        const rateLimitedCount = responses.filter(
+          (r) => r.status === 429,
+        ).length;
 
-        console.log(`[STRESS] Rate limited requests: ${rateLimitedCount}/${requestCount}`);
+        console.log(
+          `[STRESS] Rate limited requests: ${rateLimitedCount}/${requestCount}`,
+        );
 
         // We should hit rate limiting after exceeding the limit
         expect(rateLimitedCount).toBeGreaterThan(0);
@@ -1198,7 +1296,10 @@ describe('Keystone Full Workflow E2E Suite', () => {
         }
 
         // Wait for rate limit window to reset
-        await sleep(RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS, 'Rate limit window reset');
+        await sleep(
+          RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS,
+          'Rate limit window reset',
+        );
 
         // Request should now succeed
         const response = await request(APP_URL)
@@ -1227,7 +1328,12 @@ describe('Keystone Full Workflow E2E Suite', () => {
                 const email = `stress-${Date.now()}-${i}@example.com`;
                 return request(APP_URL)
                   .post('/api/v1/auth/email/register')
-                  .send({ email, password: 'secret', firstName: 'Stress', lastName: 'Test' });
+                  .send({
+                    email,
+                    password: 'secret',
+                    firstName: 'Stress',
+                    lastName: 'Test',
+                  });
               },
               { operation: `register stress user ${i}`, isAuthEndpoint: true },
             ),
@@ -1242,7 +1348,9 @@ describe('Keystone Full Workflow E2E Suite', () => {
           (r) => r.status === 'fulfilled' && r.value.status === 201,
         ).length;
 
-        console.log(`[STRESS] Concurrent registrations: ${successCount}/${userCount} succeeded`);
+        console.log(
+          `[STRESS] Concurrent registrations: ${successCount}/${userCount} succeeded`,
+        );
         expect(successCount).toBeGreaterThan(0);
       }, 120000);
     });
@@ -1282,8 +1390,12 @@ describe('Keystone Full Workflow E2E Suite', () => {
       console.log(`Manager User: ${testUsers.manager?.userId || 'N/A'}`);
       console.log(`Regular User: ${testUsers.regularUser?.id || 'N/A'}`);
       console.log(`OCR Test User: ${testUsers.ocrTestUser?.id || 'N/A'}`);
-      console.log(`User Workspace Slug: ${testResources.userWorkspaceSlug || 'N/A'}`);
-      console.log(`Admin Workspace Slug: ${testResources.workspaceSlug || 'N/A'}`);
+      console.log(
+        `User Workspace Slug: ${testResources.userWorkspaceSlug || 'N/A'}`,
+      );
+      console.log(
+        `Admin Workspace Slug: ${testResources.workspaceSlug || 'N/A'}`,
+      );
       console.log(`Thread Slug: ${testResources.threadSlug || 'N/A'}`);
       console.log(`Document ID: ${testResources.documentId || 'N/A'}`);
       console.log('-'.repeat(60) + '\n');

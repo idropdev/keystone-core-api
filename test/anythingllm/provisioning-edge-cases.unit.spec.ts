@@ -39,6 +39,8 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
     status: { id: StatusEnum.active, name: 'active' },
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null as any,
+    provider: 'email',
   };
 
   beforeEach(async () => {
@@ -125,13 +127,14 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({
-          data: {
-            // Missing 'user' property
-            success: true,
-          },
-        }),
-        text: async () => '',
+        json: () =>
+          Promise.resolve({
+            data: {
+              // Missing 'user' property
+              success: true,
+            },
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -151,10 +154,10 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => {
+        json: () => {
           throw new Error('Unexpected token in JSON');
         },
-        text: async () => 'Invalid JSON response',
+        text: () => Promise.resolve('Invalid JSON response'),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -172,7 +175,7 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: false,
         status: 418,
-        text: async () => "I'm a teapot",
+        text: () => Promise.resolve("I'm a teapot"),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -190,16 +193,17 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({
-          data: {
-            user: {
-              id: 456,
-              username: 'patient_abc123',
-              role: 'default',
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: 456,
+                username: 'patient_abc123',
+                role: 'default',
+              },
             },
-          },
-        }),
-        text: async () => '',
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -209,11 +213,12 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       workspaceService.createWorkspace.mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({
-          // Missing 'workspace' property
-          success: true,
-        }),
-        text: async () => '',
+        json: () =>
+          Promise.resolve({
+            // Missing 'workspace' property
+            success: true,
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -243,7 +248,7 @@ describe('AnythingLLM User Provisioning - Edge Cases', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: false,
         status: 404,
-        text: async () => 'User not found',
+        text: () => Promise.resolve('User not found'),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },

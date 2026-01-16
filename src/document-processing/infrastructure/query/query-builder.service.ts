@@ -7,8 +7,6 @@ import {
   BooleanQueryDto,
   QueryOperator,
 } from '../../dto/document-query.dto';
-import { DocumentStatus } from '../../domain/enums/document-status.enum';
-import { DocumentType } from '../../domain/enums/document-type.enum';
 
 /**
  * QueryBuilderService
@@ -34,7 +32,11 @@ export class QueryBuilderService {
    */
   applyQueryFilters(
     queryBuilder: SelectQueryBuilder<DocumentEntity>,
-    query: BooleanQueryDto | FieldFilterDto | ExtractedFieldFilterDto | undefined,
+    query:
+      | BooleanQueryDto
+      | FieldFilterDto
+      | ExtractedFieldFilterDto
+      | undefined,
     paramPrefix: string = 'param',
   ): SelectQueryBuilder<DocumentEntity> {
     if (!query) {
@@ -48,11 +50,7 @@ export class QueryBuilderService {
 
     // Handle extracted field filter
     if (this.isExtractedFieldFilter(query)) {
-      return this.applyExtractedFieldFilter(
-        queryBuilder,
-        query,
-        paramPrefix,
-      );
+      return this.applyExtractedFieldFilter(queryBuilder, query, paramPrefix);
     }
 
     // Handle field filter
@@ -79,7 +77,6 @@ export class QueryBuilderService {
     }
 
     const searchTerm = `%${fullText.trim()}%`;
-    const paramName = 'fullText';
 
     return queryBuilder.andWhere(
       new Brackets((qb) => {
@@ -108,7 +105,11 @@ export class QueryBuilderService {
           query.and!.forEach((condition, index) => {
             const conditionParamPrefix = `${paramPrefix}_and_${index}`;
             if (index === 0) {
-              this.applySingleCondition(qb as any, condition, conditionParamPrefix);
+              this.applySingleCondition(
+                qb as any,
+                condition,
+                conditionParamPrefix,
+              );
             } else {
               qb.andWhere(
                 new Brackets((subQb) => {
@@ -131,7 +132,11 @@ export class QueryBuilderService {
           query.or!.forEach((condition, index) => {
             const conditionParamPrefix = `${paramPrefix}_or_${index}`;
             if (index === 0) {
-              this.applySingleCondition(qb as any, condition, conditionParamPrefix);
+              this.applySingleCondition(
+                qb as any,
+                condition,
+                conditionParamPrefix,
+              );
             } else {
               qb.orWhere(
                 new Brackets((subQb) => {
@@ -296,12 +301,9 @@ export class QueryBuilderService {
         break;
 
       case QueryOperator.NE:
-        queryBuilder.andWhere(
-          `${joinAlias}.fieldValue != :${valueParamName}`,
-          {
-            [valueParamName]: String(filter.value),
-          },
-        );
+        queryBuilder.andWhere(`${joinAlias}.fieldValue != :${valueParamName}`, {
+          [valueParamName]: String(filter.value),
+        });
         break;
 
       case QueryOperator.CONTAINS:
@@ -427,9 +429,7 @@ export class QueryBuilderService {
   /**
    * Type guards
    */
-  private isBooleanQuery(
-    query: any,
-  ): query is BooleanQueryDto {
+  private isBooleanQuery(query: any): query is BooleanQueryDto {
     return (
       query &&
       typeof query === 'object' &&
@@ -437,9 +437,7 @@ export class QueryBuilderService {
     );
   }
 
-  private isExtractedFieldFilter(
-    query: any,
-  ): query is ExtractedFieldFilterDto {
+  private isExtractedFieldFilter(query: any): query is ExtractedFieldFilterDto {
     return (
       query &&
       typeof query === 'object' &&

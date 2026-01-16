@@ -63,7 +63,7 @@ export class OcrPostProcessorService {
    */
   async postProcessMergedText(
     text: string,
-    metadata: MergeMetadata,
+    _metadata: MergeMetadata,
   ): Promise<PostProcessedResult> {
     if (!this.enabled) {
       return {
@@ -298,8 +298,8 @@ export class OcrPostProcessorService {
   /**
    * Apply language model corrections (placeholder - would use actual LM if enabled)
    */
-  private async applyLanguageModelCorrections(
-    text: string,
+  private applyLanguageModelCorrections(
+    _text: string,
   ): Promise<PostProcessingCorrection[]> {
     // Placeholder implementation
     // In a real implementation, this would use a language model to:
@@ -309,7 +309,7 @@ export class OcrPostProcessorService {
 
     // For now, return empty array
     // This would be implemented with a lightweight LM or dictionary lookup
-    return [];
+    return Promise.resolve([]);
   }
 
   /**

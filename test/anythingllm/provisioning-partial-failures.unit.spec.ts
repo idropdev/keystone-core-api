@@ -39,6 +39,8 @@ describe('AnythingLLM User Provisioning - Partial Failures', () => {
     status: { id: StatusEnum.active, name: 'active' },
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null as any,
+    provider: 'email',
   };
 
   beforeEach(async () => {
@@ -126,16 +128,17 @@ describe('AnythingLLM User Provisioning - Partial Failures', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
+          json: () =>
+            Promise.resolve({
+              data: {
+                user: {
+                  id: 456,
+                  username: 'patient_abc123',
+                  role: 'default',
+                },
               },
-            },
-          }),
-          text: async () => '',
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -184,16 +187,17 @@ describe('AnythingLLM User Provisioning - Partial Failures', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
+          json: () =>
+            Promise.resolve({
+              data: {
+                user: {
+                  id: 456,
+                  username: 'patient_abc123',
+                  role: 'default',
+                },
               },
-            },
-          }),
-          text: async () => '',
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -202,14 +206,15 @@ describe('AnythingLLM User Provisioning - Partial Failures', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            workspace: {
-              id: 789,
-              slug: 'patient-abc123',
-              name: 'Workspace for user 123',
-            },
-          }),
-          text: async () => '',
+          json: () =>
+            Promise.resolve({
+              workspace: {
+                id: 789,
+                slug: 'patient-abc123',
+                name: 'Workspace for user 123',
+              },
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -218,7 +223,7 @@ describe('AnythingLLM User Provisioning - Partial Failures', () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 500,
-          text: async () => 'Internal Server Error',
+          text: () => Promise.resolve('Internal Server Error'),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -228,14 +233,15 @@ describe('AnythingLLM User Provisioning - Partial Failures', () => {
       workspaceService.createWorkspace.mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({
-          workspace: {
-            id: 789,
-            slug: 'patient-abc123',
-            name: 'Workspace for user 123',
-          },
-        }),
-        text: async () => '',
+        json: () =>
+          Promise.resolve({
+            workspace: {
+              id: 789,
+              slug: 'patient-abc123',
+              name: 'Workspace for user 123',
+            },
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },

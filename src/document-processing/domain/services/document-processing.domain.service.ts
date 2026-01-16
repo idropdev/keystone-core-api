@@ -5,12 +5,9 @@ import {
   ForbiddenException,
   BadRequestException,
   Inject,
-  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
 import { DocumentRepositoryPort } from '../ports/document.repository.port';
 import { StorageServicePort } from '../ports/storage.service.port';
 import { OcrServicePort } from '../ports/ocr.service.port';
@@ -2273,7 +2270,7 @@ export class DocumentProcessingDomainService {
       if (sanitized && Array.isArray(sanitized.pages)) {
         sanitized.pages = sanitized.pages.map((page: any) => {
           if (page && typeof page === 'object') {
-            const { image, ...pageWithoutImage } = page;
+            const { image: _image, ...pageWithoutImage } = page;
             return pageWithoutImage;
           }
           return page;
@@ -2393,7 +2390,7 @@ export class DocumentProcessingDomainService {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
         try {
           result[key] = this.serializeObjectRecursive(obj[key], seen);
-        } catch (error) {
+        } catch (_error) {
           // If we can't serialize a property, skip it
           result[key] = '[Serialization Error]';
         }

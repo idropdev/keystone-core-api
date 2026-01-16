@@ -54,6 +54,7 @@ export class CloudLoggingClient implements OnModuleInit {
     }
 
     try {
+      await Promise.resolve();
       // TODO: Initialize Cloud Logging client when @google-cloud/logging is installed
       // const { Logging } = await import('@google-cloud/logging');
       // this.logging = new Logging({
@@ -89,6 +90,7 @@ export class CloudLoggingClient implements OnModuleInit {
     }
 
     try {
+      await Promise.resolve();
       // TODO: Implement Cloud Logging write when @google-cloud/logging is installed
       // const log = this.logging?.log(this.logName);
       // const entry = log?.entry(

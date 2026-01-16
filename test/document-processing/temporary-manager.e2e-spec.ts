@@ -1,11 +1,9 @@
-import * as path from 'path';
-import request, { Response } from 'supertest';
+import request from 'supertest';
 import { APP_URL } from '../utils/constants';
 import {
   createTestUser,
   getAdminToken,
   createTestManager,
-  createAccessGrant,
   getTestPdfPath,
   readPdfFile,
   TestUser,
@@ -35,7 +33,6 @@ describe('Temporary Manager Support Feature (E2E)', () => {
   let managerUser: TestUser;
   let unverifiedManager: TestManager;
   let secondaryManager: TestManager;
-  let secondaryManagerUser: TestUser;
   let temporaryManagerDocumentId: string;
   let managerDocumentId: string;
 
@@ -107,12 +104,6 @@ describe('Temporary Manager Support Feature (E2E)', () => {
 
     // Create secondary manager (for access grant tests)
     secondaryManager = await createTestManager(adminToken);
-    secondaryManagerUser = {
-      id: secondaryManager.userId,
-      email: '',
-      token: secondaryManager.token,
-      roleId: RoleEnum.manager,
-    };
 
     // Assign userWithManager to manager
     await request(APP_URL)
@@ -288,7 +279,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
     });
 
     describe('Test 3.3 - Temporary Manager Cannot Modify OCR Results', () => {
-      it('should prevent temporary manager from modifying OCR results', async () => {
+      it('should prevent temporary manager from modifying OCR results', () => {
         if (!temporaryManagerDocumentId) {
           console.warn(
             'Skipping OCR modification test - no temporary manager document',
@@ -457,7 +448,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
     });
 
     describe('Test 4.2 - Unauthorized Transfer Attempt', () => {
-      it('should reject transfer from non-temporary manager', async () => {
+      it('should reject non-manager login for temporary manager', async () => {
         if (!temporaryManagerDocumentId) {
           console.warn(
             'Skipping unauthorized transfer test - no temporary manager document',
@@ -566,7 +557,7 @@ describe('Temporary Manager Support Feature (E2E)', () => {
     describe('Test 5.1 - Multiple Rapid Uploads', () => {
       it('should handle multiple rapid uploads correctly', async () => {
         const pdfBuffer = readPdfFile(getTestPdfPath());
-        const uploads: Promise<Response>[] = [];
+        const uploads: Promise<any>[] = [];
 
         // Upload 3 documents with retry logic to handle rate limits
         // Use fewer retries and shorter timeouts to avoid test timeouts

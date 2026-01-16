@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnythingLLMAdminService } from './anythingllm-admin.service';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
 import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
 
 describe('AnythingLLMAdminService', () => {
   let service: AnythingLLMAdminService;
@@ -26,6 +27,12 @@ describe('AnythingLLMAdminService', () => {
         {
           provide: AnythingLLMRegistryClient,
           useValue: mockRegistryClient,
+        },
+        {
+          provide: AnythingLLMOrchestratorService,
+          useValue: {
+            executeOperation: jest.fn(),
+          },
         },
       ],
     }).compile();

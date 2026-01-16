@@ -7,6 +7,9 @@ import { OcrServicePort } from './domain/ports/ocr.service.port';
 import { AuditService } from '../audit/audit.service';
 import { DocumentType } from './domain/enums/document-type.enum';
 import { DocumentStatus } from './domain/enums/document-status.enum';
+import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.service';
+import { OcrMergeService } from './utils/ocr-merge.service';
+import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
 
 describe('DocumentProcessingDomainService', () => {
   let service: DocumentProcessingDomainService;
@@ -59,8 +62,32 @@ describe('DocumentProcessingDomainService', () => {
         { provide: 'DocumentRepositoryPort', useValue: mockRepository },
         { provide: 'StorageServicePort', useValue: mockStorage },
         { provide: 'OcrServicePort', useValue: mockOcr },
+        { provide: 'VisionOcrServicePort', useValue: mockOcr },
+        { provide: 'DocumentAiOcrServicePort', useValue: mockOcr },
         { provide: AuditService, useValue: mockAudit },
         { provide: ConfigService, useValue: mockConfig },
+        {
+          provide: Pdf2JsonService,
+          useValue: {
+            parseBuffer: jest.fn().mockResolvedValue({ chunks: [], meta: {} }),
+          },
+        },
+        {
+          provide: OcrMergeService,
+          useValue: { mergeOcrResults: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: OcrPostProcessorService,
+          useValue: { process: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: 'ManagerRepositoryPort',
+          useValue: {
+            findByUserId: jest
+              .fn()
+              .mockResolvedValue({ id: 999, verificationStatus: 'verified' }),
+          },
+        },
       ],
     }).compile();
 
@@ -72,6 +99,7 @@ describe('DocumentProcessingDomainService', () => {
   describe('uploadDocument', () => {
     it('should upload document and trigger processing', async () => {
       const userId = 'user-123';
+      const actor = { sub: userId, id: userId, type: 'user' } as any;
       const fileBuffer = Buffer.from('test file content');
       const fileName = 'test.pdf';
       const mimeType = 'application/pdf';
@@ -89,7 +117,7 @@ describe('DocumentProcessingDomainService', () => {
       );
 
       await service.uploadDocument(
-        userId,
+        actor,
         fileBuffer,
         fileName,
         mimeType,
@@ -123,18 +151,20 @@ describe('DocumentProcessingDomainService', () => {
 
     it('should never log PHI in audit events', async () => {
       const userId = 'user-123';
+      const actor = { sub: userId, id: userId, type: 'user' } as any;
       const fileBuffer = Buffer.from('SENSITIVE PATIENT DATA');
       const fileName = 'patient_john_doe_results.pdf';
 
       mockRepository.save.mockResolvedValue({
         id: 'doc-123',
         userId,
+        status: DocumentStatus.UPLOADED,
       } as any);
 
       mockStorage.storeRaw.mockResolvedValue('gs://bucket/raw/file.pdf');
 
       await service.uploadDocument(
-        userId,
+        actor,
         fileBuffer,
         fileName,
         'application/pdf',

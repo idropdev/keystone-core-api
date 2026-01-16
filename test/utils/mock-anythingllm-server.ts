@@ -11,7 +11,6 @@
 
 import * as http from 'http';
 import * as url from 'url';
-import * as jwt from 'jsonwebtoken';
 // Store mock responses keyed by method + path
 interface MockResponse {
   statusCode: number;

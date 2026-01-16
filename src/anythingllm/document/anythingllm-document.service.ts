@@ -6,7 +6,6 @@ import {
 import { AnythingLLMClientService } from '../services/anythingllm-client.service';
 import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
 import {
   DocumentUploadResponseSchema,
   UploadLinkRequestSchema,
@@ -265,8 +264,8 @@ export class AnythingLLMDocumentService {
    * Upload a URL for AnythingLLM to scrape
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async uploadLink(
-    request: UploadLinkRequestSchema,
+  uploadLink(
+    _request: UploadLinkRequestSchema,
   ): Promise<RegistryCallResult<DocumentUploadResponseSchema>> {
     throw new Error(
       'Non-admin document endpoints have been temporarily disabled',
@@ -281,9 +280,9 @@ export class AnythingLLMDocumentService {
    * Upload raw text (e.g., from OCR pipeline)
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async uploadRawText(
-    request: UploadRawTextRequestSchema,
-    folderName?: string,
+  uploadRawText(
+    _request: UploadRawTextRequestSchema,
+    _folderName?: string,
   ): Promise<RegistryCallResult<DocumentUploadResponseSchema>> {
     throw new Error(
       'Non-admin document endpoints have been temporarily disabled',
@@ -299,9 +298,7 @@ export class AnythingLLMDocumentService {
    * List all documents (instance-wide)
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async listDocuments(): Promise<
-    RegistryCallResult<ListDocumentsResponseSchema>
-  > {
+  listDocuments(): Promise<RegistryCallResult<ListDocumentsResponseSchema>> {
     throw new Error(
       'Non-admin document endpoints have been temporarily disabled',
     );
@@ -314,8 +311,8 @@ export class AnythingLLMDocumentService {
    * List documents in a specific folder
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async listDocumentsInFolder(
-    folderName: string,
+  listDocumentsInFolder(
+    _folderName: string,
   ): Promise<RegistryCallResult<ListDocumentsResponseSchema>> {
     throw new Error(
       'Non-admin document endpoints have been temporarily disabled',
@@ -330,8 +327,8 @@ export class AnythingLLMDocumentService {
    * Get single document by name
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async getDocument(
-    docName: string,
+  getDocument(
+    _docName: string,
   ): Promise<RegistryCallResult<GetDocumentResponseSchema>> {
     throw new Error(
       'Non-admin document endpoints have been temporarily disabled',
@@ -346,7 +343,7 @@ export class AnythingLLMDocumentService {
    * Get accepted file types
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async getAcceptedFileTypes(): Promise<
+  getAcceptedFileTypes(): Promise<
     RegistryCallResult<AcceptedFileTypesResponseSchema>
   > {
     throw new Error(
@@ -361,7 +358,7 @@ export class AnythingLLMDocumentService {
    * Get metadata schema for raw-text uploads
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async getMetadataSchema(): Promise<
+  getMetadataSchema(): Promise<
     RegistryCallResult<MetadataSchemaResponseSchema>
   > {
     throw new Error(
@@ -379,6 +376,7 @@ export class AnythingLLMDocumentService {
     folderName: string,
   ): Promise<RegistryCallResult<CreateFolderResponseSchema>> {
     // Create folder uses FormData with folderName
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const FormDataClass = globalThis.FormData || require('form-data');
     const formData = new FormDataClass();
     formData.append('folderName', folderName);
@@ -426,6 +424,7 @@ export class AnythingLLMDocumentService {
     folderName: string,
   ): Promise<RegistryCallResult<RemoveFolderResponseSchema>> {
     // Remove folder uses FormData with folderName
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const FormDataClass = globalThis.FormData || require('form-data');
     const formData = new FormDataClass();
     formData.append('folderName', folderName);
@@ -470,8 +469,8 @@ export class AnythingLLMDocumentService {
    * Move files between folders
    * TODO: Non-admin endpoints have been temporarily disabled
    */
-  async moveFiles(
-    request: MoveFilesRequestSchema,
+  moveFiles(
+    _request: MoveFilesRequestSchema,
   ): Promise<RegistryCallResult<MoveFilesResponseSchema>> {
     throw new Error(
       'Non-admin document endpoints have been temporarily disabled',

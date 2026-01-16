@@ -19,7 +19,7 @@ export default async function globalTeardown(): Promise<void> {
       mockAgent.close();
       // Reset to default dispatcher (allows real network connections)
       setGlobalDispatcher(undefined as any);
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors during cleanup
       // The agent might already be closed or destroyed
     }
@@ -27,11 +27,12 @@ export default async function globalTeardown(): Promise<void> {
 
   // Also stop the mock HTTP server if it's running
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { stopMockServer } = require('./utils/mock-anythingllm-server');
     await stopMockServer().catch(() => {
       // Ignore errors
     });
-  } catch (e) {
+  } catch (_e) {
     // Ignore if module not found or server not running
   }
 }

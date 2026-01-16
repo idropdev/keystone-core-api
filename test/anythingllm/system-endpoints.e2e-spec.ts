@@ -206,7 +206,7 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
       let serviceToken: string;
       try {
         serviceToken = await serviceIdentityService.getIdToken();
-      } catch (error) {
+      } catch (_error) {
         console.log('[SKIP] Service identity not available, skipping test');
         return;
       }
@@ -312,7 +312,7 @@ describe('AnythingLLM System Endpoints (E2E)', () => {
       let serviceToken: string;
       try {
         serviceToken = await serviceIdentityService.getIdToken();
-      } catch (error) {
+      } catch (_error) {
         console.log('[SKIP] Service identity not available, skipping test');
         return;
       }

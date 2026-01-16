@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AnythingLLMRegistryClient,
   RegistryCallResult,
@@ -9,7 +9,6 @@ import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingll
 import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import {
   CreateWorkspaceRequestSchema,
-  CreateWorkspaceResponseSchema,
   ListWorkspacesResponseSchema,
   WorkspaceResponseSchema,
   UpdateWorkspaceRequestSchema,
@@ -82,6 +81,7 @@ export class AnythingLLMWorkspaceService {
   async listWorkspaces(): Promise<
     RegistryCallResult<ListWorkspacesResponseSchema>
   > {
+    await Promise.resolve();
     throw new Error(
       'Non-admin workspace endpoints have been temporarily disabled',
     );
@@ -95,8 +95,9 @@ export class AnythingLLMWorkspaceService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async getWorkspace(
-    slug: string,
+    _slug: string,
   ): Promise<RegistryCallResult<WorkspaceResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin workspace endpoints have been temporarily disabled',
     );
@@ -111,9 +112,10 @@ export class AnythingLLMWorkspaceService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async updateWorkspace(
-    slug: string,
-    request: UpdateWorkspaceRequestSchema,
+    _slug: string,
+    _request: UpdateWorkspaceRequestSchema,
   ): Promise<RegistryCallResult<UpdateWorkspaceResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin workspace endpoints have been temporarily disabled',
     );
@@ -131,8 +133,9 @@ export class AnythingLLMWorkspaceService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async deleteWorkspace(
-    slug: string,
+    _slug: string,
   ): Promise<RegistryCallResult<DeleteWorkspaceResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin workspace endpoints have been temporarily disabled',
     );
@@ -147,9 +150,10 @@ export class AnythingLLMWorkspaceService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async updateEmbeddings(
-    slug: string,
-    request: UpdateWorkspaceEmbeddingsRequestSchema,
+    _slug: string,
+    _request: UpdateWorkspaceEmbeddingsRequestSchema,
   ): Promise<RegistryCallResult<UpdateWorkspaceEmbeddingsResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin workspace endpoints have been temporarily disabled',
     );
@@ -167,9 +171,10 @@ export class AnythingLLMWorkspaceService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async updatePin(
-    slug: string,
-    request: UpdateWorkspacePinRequestSchema,
+    _slug: string,
+    _request: UpdateWorkspacePinRequestSchema,
   ): Promise<RegistryCallResult<UpdateWorkspacePinResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin workspace endpoints have been temporarily disabled',
     );

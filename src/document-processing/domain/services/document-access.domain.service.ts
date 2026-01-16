@@ -281,13 +281,11 @@ export class DocumentAccessDomainService {
    * TODO: This should be a repository method
    * For now, this is a workaround that may not scale
    */
-  private async getDocumentsByOriginManager(
-    managerId: number,
-  ): Promise<Document[]> {
+  private getDocumentsByOriginManager(_managerId: number): Promise<Document[]> {
     // This is a simplified implementation
     // In production, we need findByOriginManagerId in DocumentRepositoryPort
     // For now, return empty array (will be fixed when repository method is added)
-    return [];
+    return Promise.resolve([]);
   }
 
   /**

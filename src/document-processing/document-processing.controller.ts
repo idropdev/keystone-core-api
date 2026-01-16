@@ -42,11 +42,7 @@ import { DocumentResponseDto } from './dto/document-response.dto';
 import { DocumentStatusResponseDto } from './dto/document-status-response.dto';
 import { DocumentListQueryDto } from './dto/document-list-query.dto';
 import { DocumentQueryDto } from './dto/document-query.dto';
-import {
-  DocumentQueryResponseDto,
-  DocumentQueryItemDto,
-} from './dto/document-query-response.dto';
-import { ExtractedFieldResponseDto } from './dto/extracted-field-response.dto';
+import { DocumentQueryResponseDto } from './dto/document-query-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 import { extractActorFromRequest } from './utils/actor-extractor.util';
 import { RoleEnum } from '../roles/roles.enum';

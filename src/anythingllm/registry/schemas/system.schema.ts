@@ -100,7 +100,10 @@ export class SystemInfoResponseSchema {
  * Matches AnythingLLM API: GET /v1/system/vector-count
  */
 export class VectorCountResponseSchema {
-  @ApiProperty({ example: 5450, description: 'Number of all vectors in connected vector database' })
+  @ApiProperty({
+    example: 5450,
+    description: 'Number of all vectors in connected vector database',
+  })
   @IsNumber()
   vectorCount: number;
 }
