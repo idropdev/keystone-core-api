@@ -31,6 +31,9 @@ export class AddProcessingMethodToDocuments1763063600497
       `DROP INDEX "public"."IDX_extracted_fields_field_key"`,
     );
     await queryRunner.query(
+      `ALTER TABLE "documents" ADD "processing_method" character varying(50)`,
+    );
+    await queryRunner.query(
       `COMMENT ON COLUMN "documents"."processing_method" IS NULL`,
     );
     await queryRunner.query(
@@ -97,7 +100,7 @@ export class AddProcessingMethodToDocuments1763063600497
       `DROP INDEX "public"."IDX_c7481daf5059307842edef74d7"`,
     );
     await queryRunner.query(
-      `COMMENT ON COLUMN "documents"."processing_method" IS 'Method used to process document: NONE, DIRECT_EXTRACTION, OCR_SYNC, OCR_BATCH'`,
+      `ALTER TABLE "documents" DROP COLUMN "processing_method"`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_extracted_fields_field_key" ON "extracted_fields" ("field_key") `,
