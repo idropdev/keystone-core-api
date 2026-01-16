@@ -1,10 +1,6 @@
 import 'reflect-metadata';
 import { DataSource, DataSourceOptions } from 'typeorm';
 
-console.log('DEBUG: DATABASE_HOST=', process.env.DATABASE_HOST);
-console.log('DEBUG: DATABASE_PORT=', process.env.DATABASE_PORT);
-console.log('DEBUG: DATABASE_URL=', process.env.DATABASE_URL);
-
 export const AppDataSource = new DataSource({
   type: process.env.DATABASE_TYPE,
   url: process.env.DATABASE_URL,
@@ -35,12 +31,12 @@ export const AppDataSource = new DataSource({
     ssl:
       process.env.DATABASE_SSL_ENABLED === 'true'
         ? {
-          rejectUnauthorized:
-            process.env.DATABASE_REJECT_UNAUTHORIZED === 'true',
-          ca: process.env.DATABASE_CA ?? undefined,
-          key: process.env.DATABASE_KEY ?? undefined,
-          cert: process.env.DATABASE_CERT ?? undefined,
-        }
+            rejectUnauthorized:
+              process.env.DATABASE_REJECT_UNAUTHORIZED === 'true',
+            ca: process.env.DATABASE_CA ?? undefined,
+            key: process.env.DATABASE_KEY ?? undefined,
+            cert: process.env.DATABASE_CERT ?? undefined,
+          }
         : undefined,
   },
 } as DataSourceOptions);
