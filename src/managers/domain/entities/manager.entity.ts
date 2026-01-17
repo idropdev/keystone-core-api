@@ -5,6 +5,7 @@
 export class Manager {
   id: number;
   userId: number; // Links to User entity (manager must have role 'manager')
+  organizationId?: number; // Links to ManagerOrganization
 
   // Identity (Required for uniqueness)
   displayName: string; // REQUIRED: "Quest Diagnostics – Downtown Lab"

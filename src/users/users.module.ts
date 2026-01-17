@@ -14,6 +14,8 @@ import databaseConfig from '../database/config/database.config';
 import { FilesModule } from '../files/files.module';
 import { AuditModule } from '../audit/audit.module';
 import { AnythingLLMProvisioningModule } from '../anythingllm/provisioning/anythingllm-provisioning.module';
+import { RelationalManagerPersistenceModule } from '../managers/infrastructure/persistence/relational/relational-persistence.module';
+import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
 
 // <database-block>
 const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
@@ -29,9 +31,17 @@ const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
     FilesModule,
     AuditModule,
     AnythingLLMProvisioningModule,
+    RelationalManagerPersistenceModule, // SYSTEM-100: For /me endpoints
   ],
   controllers: [UsersController],
-  providers: [UsersService, UserManagerAssignmentService],
+  providers: [
+    UsersService,
+    UserManagerAssignmentService,
+    {
+      provide: 'ManagerRepositoryPort',
+      useExisting: ManagerRepositoryPort,
+    },
+  ],
   exports: [
     UsersService,
     UserManagerAssignmentService,

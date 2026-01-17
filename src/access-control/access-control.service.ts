@@ -12,6 +12,7 @@ import { AccessGrant } from './domain/entities/access-grant.entity';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 import { infinityPagination } from '../utils/infinity-pagination';
 import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
+import { UserManagerAssignmentService } from '../users/domain/services/user-manager-assignment.service';
 
 /**
  * Access Control Service (Application Layer)
@@ -30,6 +31,7 @@ export class AccessControlService {
     private readonly documentAccessService: DocumentAccessDomainService,
     @Inject('ManagerRepositoryPort')
     private readonly managerRepository: ManagerRepositoryPort,
+    private readonly userManagerAssignmentService: UserManagerAssignmentService,
   ) {}
 
   /**
@@ -45,6 +47,18 @@ export class AccessControlService {
   ): Promise<AccessGrantResponseDto> {
     // Business logic handled by domain service
     const grant = await this.accessGrantDomainService.createGrant(dto, actor);
+
+    // SYSTEM-100: Auto-assign user to manager when granting access
+    // When a user (temporary manager) grants access to a manager,
+    // create a governance relationship between them
+    if (actor.type === 'user' && dto.subjectType === 'manager') {
+      // dto.subjectId is the manager's userId
+      await this.userManagerAssignmentService.ensureAssignment(
+        actor.id,
+        dto.subjectId,
+        { source: 'access_grant', documentId: dto.documentId },
+      );
+    }
 
     return this.toResponseDto(grant);
   }

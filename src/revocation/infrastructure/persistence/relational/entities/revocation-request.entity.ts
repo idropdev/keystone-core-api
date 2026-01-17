@@ -24,6 +24,7 @@ import {
  * - self_revocation: User/Manager requesting to revoke their own access
  * - user_revocation: Manager requesting to revoke a user's access
  * - manager_revocation: Manager requesting to revoke another manager's access
+ * - deletion_request: User requesting to delete document (SYSTEM-100)
  *
  * HIPAA Compliance:
  * - No PHI stored in this entity
@@ -35,7 +36,7 @@ import {
 @Index(['requestedByType', 'requestedById'])
 @Index(['status', 'createdAt'])
 @Check(
-  `"requestType" IN ('self_revocation', 'user_revocation', 'manager_revocation')`,
+  `"requestType" IN ('self_revocation', 'user_revocation', 'manager_revocation', 'deletion_request')`,
 )
 @Check(`"status" IN ('pending', 'approved', 'denied', 'cancelled')`)
 @Check(`"requestedByType" IN ('user', 'manager')`)
@@ -53,7 +54,11 @@ export class RevocationRequestEntity {
   requestedById: number;
 
   @Column({ type: 'varchar', length: 30, name: 'request_type' })
-  requestType: 'self_revocation' | 'user_revocation' | 'manager_revocation';
+  requestType:
+    | 'self_revocation'
+    | 'user_revocation'
+    | 'manager_revocation'
+    | 'deletion_request';
 
   @Column({ type: 'varchar', length: 20, default: 'pending' })
   status: 'pending' | 'approved' | 'denied' | 'cancelled';

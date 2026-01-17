@@ -604,11 +604,12 @@ describe('Document Processing Full Workflow (E2E)', () => {
 
       // Should return 200 with fields array (may be empty if no entities extracted)
       if (fieldsResponse.status === 200) {
-        expect(Array.isArray(fieldsResponse.body)).toBe(true);
+        const fields = fieldsResponse.body.fields;
+        expect(Array.isArray(fields)).toBe(true);
 
         // If fields are present, validate structure
-        if (fieldsResponse.body.length > 0) {
-          const firstField = fieldsResponse.body[0];
+        if (fields.length > 0) {
+          const firstField = fields[0];
           expect(firstField).toHaveProperty('fieldKey');
           expect(firstField).toHaveProperty('fieldValue');
           expect(firstField).toHaveProperty('fieldType');
@@ -617,9 +618,7 @@ describe('Document Processing Full Workflow (E2E)', () => {
           expect(firstField.confidence).toBeGreaterThanOrEqual(0);
           expect(firstField.confidence).toBeLessThanOrEqual(1);
 
-          console.log(
-            `[FIELD EXTRACTION] Retrieved ${fieldsResponse.body.length} fields`,
-          );
+          console.log(`[FIELD EXTRACTION] Retrieved ${fields.length} fields`);
           console.log(
             `[FIELD EXTRACTION] Sample field: ${firstField.fieldKey} = ${firstField.fieldValue?.substring(0, 50)}`,
           );
@@ -900,9 +899,9 @@ describe('Document Processing Full Workflow (E2E)', () => {
           .auth(managerUser.token, { type: 'bearer' });
 
         expect(fieldsResponse.status).toBe(200);
-        expect(Array.isArray(fieldsResponse.body)).toBe(true);
+        expect(Array.isArray(fieldsResponse.body.fields)).toBe(true);
         console.log(
-          `[FULL WORKFLOW] Retrieved ${fieldsResponse.body.length} extracted fields`,
+          `[FULL WORKFLOW] Retrieved ${fieldsResponse.body.fields.length} extracted fields`,
         );
       }
 

@@ -49,6 +49,8 @@ import { CreateUserManagerAssignmentDto } from './dto/create-user-manager-assign
 import { UserManagerAssignmentResponseDto } from './dto/user-manager-assignment-response.dto';
 import { UserManagerAssignment } from './domain/entities/user-manager-assignment.entity';
 import { plainToClass } from 'class-transformer';
+import { Inject } from '@nestjs/common';
+import { ManagerRepositoryPort } from '../managers/domain/repositories/manager.repository.port';
 
 @ApiBearerAuth()
 @Roles(RoleEnum.admin)
@@ -62,6 +64,8 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly userManagerAssignmentService: UserManagerAssignmentService,
+    @Inject('ManagerRepositoryPort')
+    private readonly managerRepository: ManagerRepositoryPort,
   ) {}
 
   @Post()
@@ -435,6 +439,95 @@ export class UsersController {
     return assignments.map((assignment) =>
       this.toAssignmentResponseDto(assignment),
     );
+  }
+
+  // ============================================
+  // SYSTEM-100: User "Me" Endpoints
+  // ============================================
+
+  @Get('me/assigned-managers')
+  @Roles(RoleEnum.user)
+  @ApiOperation({
+    summary: 'Get My Assigned Managers',
+    description:
+      'Get all managers assigned to the current user with optional organization filter.',
+  })
+  @ApiOkResponse({
+    type: [UserManagerAssignmentResponseDto],
+    description: 'List of assigned managers',
+  })
+  @ApiQuery({
+    name: 'organizationId',
+    required: false,
+    type: Number,
+    description: 'Filter by organization ID',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or expired access token' })
+  @HttpCode(HttpStatus.OK)
+  async getMyAssignedManagers(
+    @Request() req: Request & { user: { id: number } },
+    @Query('organizationId') organizationId?: string,
+  ): Promise<UserManagerAssignmentResponseDto[]> {
+    const assignments =
+      await this.userManagerAssignmentService.getAssignmentsByUser(req.user.id);
+
+    // If organizationId provided, filter by organization
+    if (organizationId) {
+      const orgId = parseInt(organizationId, 10);
+      const filteredAssignments: UserManagerAssignmentResponseDto[] = [];
+
+      for (const assignment of assignments) {
+        const manager = await this.managerRepository.findById(
+          assignment.managerId,
+        );
+        if (manager && manager.organizationId === orgId) {
+          filteredAssignments.push(this.toAssignmentResponseDto(assignment));
+        }
+      }
+
+      return filteredAssignments;
+    }
+
+    return assignments.map((a) => this.toAssignmentResponseDto(a));
+  }
+
+  @Get('me/organizations')
+  @Roles(RoleEnum.user)
+  @ApiOperation({
+    summary: 'Get My Organizations',
+    description:
+      'Get all organizations the current user has access to through their assigned managers.',
+  })
+  @ApiOkResponse({
+    description: 'List of organizations',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or expired access token' })
+  @HttpCode(HttpStatus.OK)
+  async getMyOrganizations(
+    @Request() req: Request & { user: { id: number } },
+  ): Promise<{ id: number; name: string }[]> {
+    const assignments =
+      await this.userManagerAssignmentService.getAssignmentsByUser(req.user.id);
+
+    const orgMap = new Map<number, string>();
+
+    for (const assignment of assignments) {
+      const manager = await this.managerRepository.findById(
+        assignment.managerId,
+      );
+      if (manager && manager.organizationId) {
+        // Get organization name through manager.organization relation
+        // For now, just return the org ID (name would need additional lookup)
+        if (!orgMap.has(manager.organizationId)) {
+          orgMap.set(
+            manager.organizationId,
+            `Organization ${manager.organizationId}`,
+          );
+        }
+      }
+    }
+
+    return Array.from(orgMap.entries()).map(([id, name]) => ({ id, name }));
   }
 
   /**

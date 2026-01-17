@@ -22,7 +22,11 @@ export class RevocationRequest {
   documentId: string; // UUID
   requestedByType: 'user' | 'manager'; // Who created the request
   requestedById: number; // User ID or Manager ID
-  requestType: 'self_revocation' | 'user_revocation' | 'manager_revocation';
+  requestType:
+    | 'self_revocation'
+    | 'user_revocation'
+    | 'manager_revocation'
+    | 'deletion_request'; // SYSTEM-100: Added deletion_request
   status: 'pending' | 'approved' | 'denied' | 'cancelled';
   cascadeToSecondaryManagers: boolean; // If true, revoke secondary manager grants when approved
   reviewNotes?: string; // Notes from origin manager (if approved/denied)
