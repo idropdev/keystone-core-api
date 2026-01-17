@@ -64,7 +64,7 @@ export class AnythingLLMWorkspaceProvisioningService {
 
     // Check if workspace exists in AnythingLLM (idempotency check)
     try {
-      const existingWorkspace =
+      const _existingWorkspace =
         await this.workspaceService.getWorkspace(workspaceSlug);
       this.logger.log(
         `Workspace ${workspaceSlug} already exists in AnythingLLM`,

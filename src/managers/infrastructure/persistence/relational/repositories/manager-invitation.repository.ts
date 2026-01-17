@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ManagerInvitationRepositoryPort } from '../../../../domain/repositories/manager-invitation.repository.port';
 import { ManagerInvitation } from '../../../../domain/entities/manager-invitation.entity';
 import { ManagerInvitationEntity } from '../entities/manager-invitation.entity';

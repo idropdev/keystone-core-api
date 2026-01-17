@@ -122,7 +122,7 @@ describe('AnythingLLMDocumentService (E2E Workflow)', () => {
               createdWorkspaceSlug,
               createdThreadSlug,
             );
-          } catch (error) {
+          } catch (_error) {
             // Thread may already be deleted, that's OK
             console.log('Thread cleanup: already deleted or not found');
           }
@@ -171,7 +171,7 @@ describe('AnythingLLMDocumentService (E2E Workflow)', () => {
       let serviceToken: string;
       try {
         serviceToken = await serviceIdentityService.getIdToken();
-      } catch (error) {
+      } catch (_error) {
         // Expected in test environments without GCP credentials configured
         console.log(
           '[SKIP] GCP service identity not available in test environment (expected), skipping AnythingLLM direct verification',
@@ -222,13 +222,14 @@ describe('AnythingLLMDocumentService (E2E Workflow)', () => {
       const result = await workspaceService.createWorkspace({
         name: workspaceName,
       });
+      const data = await result.json();
 
-      expect(result.data.success).toBe(true);
-      expect(result.data.workspace).toBeDefined();
-      expect(result.data.workspace?.name).toBe(workspaceName);
-      expect(result.data.workspace?.slug).toBeDefined();
+      expect(data.success).toBe(true);
+      expect(data.workspace).toBeDefined();
+      expect(data.workspace?.name).toBe(workspaceName);
+      expect(data.workspace?.slug).toBeDefined();
 
-      createdWorkspaceSlug = result.data.workspace?.slug || null;
+      createdWorkspaceSlug = data.workspace?.slug || null;
       expect(createdWorkspaceSlug).toBeTruthy();
     });
 
@@ -307,11 +308,12 @@ This document will be used to test the complete workflow.`;
         name: threadName,
         userId: 1,
       });
+      const data = await result.json();
 
-      expect(result.data.success).toBe(true);
-      expect(result.data.threadSlug).toBeDefined();
+      expect(data.success).toBe(true);
+      expect(data.threadSlug).toBeDefined();
 
-      createdThreadSlug = result.data.threadSlug || null;
+      createdThreadSlug = data.threadSlug || null;
       expect(createdThreadSlug).toBeTruthy();
     });
 

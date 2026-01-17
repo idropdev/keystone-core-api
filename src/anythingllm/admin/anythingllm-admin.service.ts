@@ -114,7 +114,6 @@ export class AnythingLLMAdminService {
         const requestId = response.headers.get('X-Request-Id') || 'unknown';
 
         // Parse error body
-        const body = await response.text();
         throw await UpstreamError.fromResponse(
           response,
           requestId,

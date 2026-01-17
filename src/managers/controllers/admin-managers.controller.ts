@@ -103,12 +103,12 @@ export class AdminManagersController {
   @ApiForbiddenResponse({
     description: 'Insufficient permissions. Admin role required.',
   })
-  async listManagers(
-    @Query('status') status?: 'verified' | 'pending' | 'suspended',
+  listManagers(
+    @Query('status') _status?: 'verified' | 'pending' | 'suspended',
   ) {
     // TODO: Implement manager listing with filtering
     // For now, return empty array
-    return { data: [], hasNextPage: false };
+    return Promise.resolve({ data: [], hasNextPage: false });
   }
 
   @Patch('managers/:id/verify')
@@ -201,7 +201,7 @@ export class AdminManagersController {
   @ApiBadRequestResponse({
     description: 'Cannot delete manager with origin documents',
   })
-  async deleteManager(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  deleteManager(@Request() req, @Param('id', ParseIntPipe) _id: number) {
     const actor = extractActorFromRequest(req);
     if (actor.type !== 'admin') {
       throw new Error('Admin role required');

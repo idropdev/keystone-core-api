@@ -4,7 +4,6 @@ import {
   Table,
   TableForeignKey,
   TableIndex,
-  TableCheck,
 } from 'typeorm';
 
 export class CreateAccessGrants1735000002000 implements MigrationInterface {

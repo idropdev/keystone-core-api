@@ -5,6 +5,7 @@ import { AllConfigType } from '../../config/config.type';
 import { AnythingLLMServiceIdentityService } from './anythingllm-service-identity.service';
 import { AnythingLLMAuthDelegationService } from '../../anythingllm-auth-delegation/service';
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
+import * as jwt from 'jsonwebtoken';
 
 /**
  * HTTP client service for making authenticated requests to AnythingLLM APIs
@@ -71,7 +72,6 @@ export class AnythingLLMClientService {
           token = tokenResult.token;
 
           // Verify token is HS256 (defensive check)
-          const jwt = require('jsonwebtoken');
           const decoded = jwt.decode(token, { complete: true }) as any;
           if (decoded?.header?.alg !== 'HS256') {
             throw new Error(

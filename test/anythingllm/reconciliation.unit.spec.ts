@@ -84,7 +84,7 @@ describe('AnythingLLM Reconciliation Service', () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 404,
-          text: async () => 'Not Found',
+          text: () => Promise.resolve('Not Found'),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -92,15 +92,16 @@ describe('AnythingLLM Reconciliation Service', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 789,
-                username: 'patient_def456',
+          json: () =>
+            Promise.resolve({
+              data: {
+                user: {
+                  id: 789,
+                  username: 'patient_def456',
+                },
               },
-            },
-          }),
-          text: async () => '',
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -151,23 +152,24 @@ describe('AnythingLLM Reconciliation Service', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({
-          users: [
-            {
-              id: 999,
-              username: 'patient_orphan',
-              externalId: '999',
-              externalProvider: 'keystone',
-            },
-            {
-              id: 888,
-              username: 'patient_valid',
-              externalId: '888',
-              externalProvider: 'keystone',
-            },
-          ],
-        }),
-        text: async () => '',
+        json: () =>
+          Promise.resolve({
+            users: [
+              {
+                id: 999,
+                username: 'patient_orphan',
+                externalId: '999',
+                externalProvider: 'keystone',
+              },
+              {
+                id: 888,
+                username: 'patient_valid',
+                externalId: '888',
+                externalProvider: 'keystone',
+              },
+            ],
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -226,7 +228,7 @@ describe('AnythingLLM Reconciliation Service', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: false,
         status: 404,
-        text: async () => 'Not Found',
+        text: () => Promise.resolve('Not Found'),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -293,8 +295,8 @@ describe('AnythingLLM Reconciliation Service', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
-        text: async () => '',
+        json: () => Promise.resolve({ success: true }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },

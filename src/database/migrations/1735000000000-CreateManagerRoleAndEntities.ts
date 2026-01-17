@@ -4,7 +4,6 @@ import {
   Table,
   TableForeignKey,
   TableIndex,
-  TableUnique,
 } from 'typeorm';
 
 export class CreateManagerRoleAndEntities1735000000000

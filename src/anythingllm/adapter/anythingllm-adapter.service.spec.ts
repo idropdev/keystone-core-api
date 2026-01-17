@@ -130,17 +130,18 @@ describe('AnythingLLMAdapterService', () => {
       mockMappingRepository.findByKeystoneUserId.mockResolvedValue(null);
       mockWorkspaceMapper.generateWorkspaceSlug.mockReturnValue(workspaceSlug);
       mockWorkspaceService.createWorkspace.mockResolvedValue({
-        data: {
-          success: true,
-          workspace: {
-            id: 1,
-            name: 'New Workspace',
-            slug: workspaceSlug,
-          },
-        },
-        requestId: 'test-id',
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            workspace: {
+              id: 1,
+              name: 'New Workspace',
+              slug: workspaceSlug,
+            },
+          }),
         status: 200,
-      });
+      } as Response);
 
       const result = await service.ensureWorkspaceForUser(userId);
 
@@ -208,13 +209,16 @@ describe('AnythingLLMAdapterService', () => {
       const threadName = 'Test Thread';
 
       mockThreadService.createThread.mockResolvedValue({
-        data: {
-          success: true,
-          threadSlug: 'test-thread-slug',
-        },
-        requestId: 'test-id',
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            thread: {
+              slug: 'test-thread-slug',
+              name: threadName,
+            },
+          }),
         status: 200,
-      });
+      } as Response);
 
       const result = await service.createThread(
         workspaceSlug,
@@ -279,6 +283,7 @@ describe('AnythingLLMAdapterService', () => {
           id: 'chat-123',
           type: 'textResponse',
           textResponse: 'Response',
+          close: false,
         },
         requestId: 'test-id',
         status: 200,

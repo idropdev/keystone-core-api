@@ -129,7 +129,7 @@ describe('AnythingLLMServiceIdentityService', () => {
       );
 
       await expect(service.getIdToken()).rejects.toThrow(
-        `Failed to mint GCP ID token: ${errorMessage}`,
+        `GCP ID token fetch failed: ${errorMessage}. Ensure GCP credentials are configured. Options: 1) Set GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json, 2) Set GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=<service-account-email>, 3) Run: gcloud auth application-default login --impersonate-service-account=<service-account-email>`,
       );
     });
 
@@ -137,7 +137,7 @@ describe('AnythingLLMServiceIdentityService', () => {
       mockIdTokenClient.idTokenProvider.fetchIdToken.mockResolvedValue(null);
 
       await expect(service.getIdToken()).rejects.toThrow(
-        'Failed to mint GCP ID token: Failed to fetch ID token',
+        'GCP ID token fetch returned null. Ensure GCP credentials are configured for service account impersonation. Options: 1) Set GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json, 2) Set GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=<service-account-email>, 3) Run: gcloud auth application-default login --impersonate-service-account=<service-account-email>',
       );
     });
 
@@ -161,7 +161,7 @@ describe('AnythingLLMServiceIdentityService', () => {
       jest.spyOn(Date, 'now').mockImplementation(() => currentTime);
 
       // First call
-      const token1 = await service.getIdToken();
+      await service.getIdToken();
       expect(
         mockIdTokenClient.idTokenProvider.fetchIdToken,
       ).toHaveBeenCalledTimes(1);
@@ -170,7 +170,7 @@ describe('AnythingLLMServiceIdentityService', () => {
       currentTime += 56 * 60 * 1000;
 
       // Second call (should fetch new token)
-      const token2 = await service.getIdToken();
+      await service.getIdToken();
       expect(
         mockIdTokenClient.idTokenProvider.fetchIdToken,
       ).toHaveBeenCalledTimes(2);

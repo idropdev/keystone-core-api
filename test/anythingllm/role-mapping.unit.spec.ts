@@ -154,10 +154,7 @@ describe('Role Mapping Unit Tests', () => {
 
       roleMappings.forEach(({ input, expected }) => {
         const result = mapRole(input);
-        expect(result).toBe(
-          expected,
-          `Failed for input: ${JSON.stringify(input)}, expected: ${expected}, got: ${result}`,
-        );
+        expect(result).toBe(expected);
       });
     });
   });

@@ -4,11 +4,8 @@ import {
   Get,
   Body,
   Param,
-  UseGuards,
   HttpCode,
   HttpStatus,
-  NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,

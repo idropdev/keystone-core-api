@@ -8,7 +8,8 @@ import { InfinityPaginationResponseDto } from '../../utils/dto/infinity-paginati
  */
 export class DocumentQueryItemDto extends DocumentResponseDto {
   @ApiProperty({
-    description: 'Ownership context indicating how the actor has access to this document',
+    description:
+      'Ownership context indicating how the actor has access to this document',
     enum: ['own', 'assigned_user', 'granted'],
     example: 'own',
   })

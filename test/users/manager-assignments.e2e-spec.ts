@@ -7,7 +7,7 @@ describe('Manager Assignment Endpoints (E2E)', () => {
   let adminToken: string;
   let managerUser: TestUser;
   let regularUser: TestUser;
-  let assignmentId: number;
+  let _assignmentId: number;
 
   beforeAll(async () => {
     adminToken = await getAdminToken();
@@ -29,7 +29,7 @@ describe('Manager Assignment Endpoints (E2E)', () => {
       expect(response.body).toHaveProperty('userId', regularUser.id);
       expect(response.body).toHaveProperty('managerId', managerUser.id);
 
-      assignmentId = response.body.id;
+      _assignmentId = response.body.id;
     });
 
     it('should reject non-admin from creating assignments', async () => {

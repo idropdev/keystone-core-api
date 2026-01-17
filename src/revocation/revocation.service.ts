@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { RevocationRequestDomainService } from './domain/services/revocation-request.domain.service';
 import { DocumentAccessDomainService } from '../document-processing/domain/services/document-access.domain.service';
-import { CreateRevocationRequestDto } from './dto/create-revocation-request.dto';
+// CreateRevocationRequestDto removed
 import { ListRevocationRequestsDto } from './dto/list-revocation-requests.dto';
 import { RevocationRequestResponseDto } from './dto/revocation-request-response.dto';
 import { RevocationRequest } from './domain/entities/revocation-request.entity';

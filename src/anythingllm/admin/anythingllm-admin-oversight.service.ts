@@ -63,8 +63,8 @@ export class AnythingLLMAdminOversightService {
    * Get workspace-level chats (all threads in workspace)
    */
   async getWorkspaceChats(
-    workspaceSlug: string,
-    options?: ChatQueryOptions,
+    _workspaceSlug: string,
+    _options?: ChatQueryOptions,
   ): Promise<any> {
     // Use admin workspace chats endpoint
     const request: WorkspaceChatsRequestSchema = {

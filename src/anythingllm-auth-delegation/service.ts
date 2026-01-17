@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
 import { AllConfigType } from '../config/config.type';
 import { JwtSignerPort } from './infrastructure/jwt/jwt-signer.port';
@@ -7,10 +8,7 @@ import {
   DelegatedTokenClaims,
   ActorClaim,
 } from './domain/delegated-token-claims.entity';
-import {
-  IssueDelegatedTokenDto,
-  RequesterContextDto,
-} from './dto/issue-delegated-token.dto';
+import { IssueDelegatedTokenDto } from './dto/issue-delegated-token.dto';
 import { DelegatedTokenResponseDto } from './dto/delegated-token-response.dto';
 
 /**
@@ -116,7 +114,6 @@ export class AnythingLLMAuthDelegationService {
 
     // Verify token algorithm after signing (defensive check)
     try {
-      const jwt = require('jsonwebtoken');
       const decoded = jwt.decode(token, { complete: true }) as any;
 
       if (decoded?.header?.alg !== 'HS256') {

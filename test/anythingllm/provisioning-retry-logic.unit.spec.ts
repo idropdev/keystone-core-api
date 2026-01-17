@@ -39,6 +39,8 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
     status: { id: StatusEnum.active, name: 'active' },
     createdAt: new Date(),
     updatedAt: new Date(),
+    provider: 'email',
+    deletedAt: null as any,
   };
 
   beforeEach(async () => {
@@ -127,23 +129,24 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({
-          data: {
-            user: {
-              id: 456,
-              username: 'patient_abc123',
-              role: 'default',
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: 456,
+                username: 'patient_abc123',
+                role: 'default',
+              },
             },
-          },
-        }),
-        text: async () => '',
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
       } as any);
 
       // Mock workspace creation to fail 2x, then succeed
-      workspaceService.createWorkspace.mockImplementation(async () => {
+      workspaceService.createWorkspace.mockImplementation(() => {
         attemptCount++;
         if (attemptCount <= 2) {
           // Simulate timeout error
@@ -155,14 +158,15 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            workspace: {
-              id: 789,
-              slug: 'patient-abc123',
-              name: 'Workspace for user 123',
-            },
-          }),
-          text: async () => '',
+          json: () =>
+            Promise.resolve({
+              workspace: {
+                id: 789,
+                slug: 'patient-abc123',
+                name: 'Workspace for user 123',
+              },
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -174,17 +178,18 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            success: true,
-            users: [
-              {
-                userId: 456,
-                username: 'patient_abc123',
-                role: 'default',
-              },
-            ],
-          }),
-          text: async () => '',
+          json: () =>
+            Promise.resolve({
+              success: true,
+              users: [
+                {
+                  userId: 456,
+                  username: 'patient_abc123',
+                  role: 'default',
+                },
+              ],
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -193,16 +198,17 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            users: [
-              {
-                userId: 456,
-                username: 'patient_abc123',
-                role: 'default',
-              },
-            ],
-          }),
-          text: async () => '',
+          json: () =>
+            Promise.resolve({
+              users: [
+                {
+                  userId: 456,
+                  username: 'patient_abc123',
+                  role: 'default',
+                },
+              ],
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -222,7 +228,7 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       // we'll verify that it attempts workspace creation and handles errors
       try {
         await service.provisionUser(mockUser);
-      } catch (error) {
+      } catch (_error) {
         // Expected to fail on first 2 attempts
         expect(workspaceService.createWorkspace).toHaveBeenCalled();
       }
@@ -242,7 +248,7 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: false,
         status: 503,
-        text: async () => 'Service Unavailable',
+        text: () => Promise.resolve('Service Unavailable'),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -265,16 +271,17 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({
-          data: {
-            user: {
-              id: 456,
-              username: 'patient_abc123',
-              role: 'default',
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: 456,
+                username: 'patient_abc123',
+                role: 'default',
+              },
             },
-          },
-        }),
-        text: async () => '',
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -297,16 +304,17 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            data: {
-              user: {
-                id: 456,
-                username: 'patient_abc123',
-                role: 'default',
+          json: () =>
+            Promise.resolve({
+              data: {
+                user: {
+                  id: 456,
+                  username: 'patient_abc123',
+                  role: 'default',
+                },
               },
-            },
-          }),
-          text: async () => '',
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -314,14 +322,15 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          json: async () => ({
-            workspace: {
-              id: 789,
-              slug: 'patient-abc123',
-              name: 'Workspace for user 123',
-            },
-          }),
-          text: async () => '',
+          json: () =>
+            Promise.resolve({
+              workspace: {
+                id: 789,
+                slug: 'patient-abc123',
+                name: 'Workspace for user 123',
+              },
+            }),
+          text: () => Promise.resolve(''),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -329,7 +338,7 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 503,
-          text: async () => 'Service Unavailable',
+          text: () => Promise.resolve('Service Unavailable'),
           headers: {
             get: jest.fn().mockReturnValue(null),
           },
@@ -338,14 +347,15 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       workspaceService.createWorkspace.mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({
-          workspace: {
-            id: 789,
-            slug: 'patient-abc123',
-            name: 'Workspace for user 123',
-          },
-        }),
-        text: async () => '',
+        json: () =>
+          Promise.resolve({
+            workspace: {
+              id: 789,
+              slug: 'patient-abc123',
+              name: 'Workspace for user 123',
+            },
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },
@@ -367,16 +377,17 @@ describe('AnythingLLM User Provisioning - Retry Logic', () => {
       orchestratorService.executeOperation.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({
-          data: {
-            user: {
-              id: 456,
-              username: 'patient_abc123',
-              role: 'default',
+        json: () =>
+          Promise.resolve({
+            data: {
+              user: {
+                id: 456,
+                username: 'patient_abc123',
+                role: 'default',
+              },
             },
-          },
-        }),
-        text: async () => '',
+          }),
+        text: () => Promise.resolve(''),
         headers: {
           get: jest.fn().mockReturnValue(null),
         },

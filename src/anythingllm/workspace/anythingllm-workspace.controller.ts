@@ -33,7 +33,6 @@ import {
   CreateThreadRequestSchema,
   CreateThreadResponseSchema,
   ThreadChatRequestSchema,
-  ThreadStreamChatChunkSchema,
 } from '../registry/schemas';
 import { randomUUID } from 'crypto';
 
@@ -68,7 +67,8 @@ export class AnythingLLMWorkspaceController {
   constructor(
     private readonly workspaceService: AnythingLLMWorkspaceService,
     private readonly threadService: AnythingLLMThreadService,
-    @Optional() private readonly provisioningService?: AnythingLLMUserProvisioningService,
+    @Optional()
+    private readonly provisioningService?: AnythingLLMUserProvisioningService,
   ) {}
 
   /**
@@ -401,7 +401,11 @@ export class AnythingLLMWorkspaceController {
 
       // Record thread creation in the database (for audit and tracking)
       // This is done asynchronously and doesn't block the response
-      if (this.provisioningService && request.user && upstreamData.thread?.slug) {
+      if (
+        this.provisioningService &&
+        request.user &&
+        upstreamData.thread?.slug
+      ) {
         // Fire and forget - don't await to avoid blocking the response
         this.provisioningService
           .recordUserThread({
@@ -532,7 +536,6 @@ export class AnythingLLMWorkspaceController {
 
       // Convert ReadableStream chunks to SSE format and write to response
       const reader = stream.getReader();
-      let chunkCount = 0;
 
       try {
         while (true) {
@@ -545,7 +548,6 @@ export class AnythingLLMWorkspaceController {
           // Format as SSE: "data: {json}\n\n"
           const sseData = `data: ${JSON.stringify(value)}\n\n`;
           response.write(sseData);
-          chunkCount++;
 
           // If stream is closed, break
           if (value.close) {

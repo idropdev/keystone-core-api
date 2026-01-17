@@ -5,7 +5,6 @@ import {
   MinLength,
   ValidateNested,
   IsOptional,
-  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 

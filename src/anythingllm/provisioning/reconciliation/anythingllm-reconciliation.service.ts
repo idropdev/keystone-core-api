@@ -3,7 +3,6 @@ import { AnythingLLMOrchestratorService } from '../../../anythingllm-orchestrato
 import { AnythingLLMOperation } from '../../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { RequesterContextDto } from '../../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import { AnythingLLMUserMappingRepository } from '../infrastructure/persistence/repositories/anythingllm-user-mapping.repository';
-import { AnythingLLMUserMappingEntity } from '../infrastructure/persistence/relational/entities/anythingllm-user-mapping.entity';
 
 /**
  * Reconciliation Report Interface

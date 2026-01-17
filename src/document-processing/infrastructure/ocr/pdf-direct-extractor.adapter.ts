@@ -28,9 +28,9 @@ export class PdfDirectExtractorAdapter implements OcrServicePort {
 
   async processDocument(
     gcsUriOrBuffer: string | Buffer,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _mimeType: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _pageCount?: number,
   ): Promise<OcrResult> {
     try {

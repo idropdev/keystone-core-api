@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnythingLLMThreadService } from './anythingllm-thread.service';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
 import { AnythingLLMClientService } from '../services/anythingllm-client.service';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
-import { UpstreamError } from '../registry/upstream-error';
+
+import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
 
 describe('AnythingLLMThreadService', () => {
   let service: AnythingLLMThreadService;
@@ -37,6 +37,10 @@ describe('AnythingLLMThreadService', () => {
           provide: AnythingLLMClientService,
           useValue: mockClientService,
         },
+        {
+          provide: AnythingLLMOrchestratorService,
+          useValue: { executeOperation: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -48,77 +52,59 @@ describe('AnythingLLMThreadService', () => {
   });
 
   describe('createThread', () => {
-    it('should call registry client with params and body', async () => {
+    it('should call client service with correct path and body', async () => {
       const workspaceSlug = 'test-workspace';
       const request = { name: 'Test Thread', userId: 1 };
 
       await service.createThread(workspaceSlug, request);
 
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.CREATE_THREAD,
-        { params: { slug: workspaceSlug }, body: request },
-      );
+      expect(
+        (service as any).clientService.callAnythingLLM,
+      ).toHaveBeenCalledWith(`/v1/workspace/${workspaceSlug}/thread/new`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: { 'Content-Type': 'application/json' },
+      });
     });
   });
 
   describe('updateThread', () => {
-    it('should call registry client with params and body', async () => {
-      const workspaceSlug = 'test-workspace';
-      const threadSlug = 'test-thread';
-      const request = { name: 'Updated Thread' };
-
-      await service.updateThread(workspaceSlug, threadSlug, request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.UPDATE_THREAD,
-        { params: { slug: workspaceSlug, threadSlug }, body: request },
+    it('should throw error (temporarily disabled)', async () => {
+      await expect(
+        service.updateThread('ws', 'thread', { name: 'update' }),
+      ).rejects.toThrow(
+        'Non-admin thread endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('deleteThread', () => {
-    it('should call registry client with params', async () => {
-      const workspaceSlug = 'test-workspace';
-      const threadSlug = 'test-thread';
-
-      await service.deleteThread(workspaceSlug, threadSlug);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.DELETE_THREAD,
-        { params: { slug: workspaceSlug, threadSlug } },
+    it('should throw error (temporarily disabled)', async () => {
+      await expect(service.deleteThread('ws', 'thread')).rejects.toThrow(
+        'Non-admin thread endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('getThreadHistory', () => {
-    it('should call registry client with params', async () => {
-      const workspaceSlug = 'test-workspace';
-      const threadSlug = 'test-thread';
-
-      await service.getThreadHistory(workspaceSlug, threadSlug);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.GET_THREAD_CHATS,
-        { params: { slug: workspaceSlug, threadSlug } },
+    it('should throw error (temporarily disabled)', async () => {
+      await expect(service.getThreadHistory('ws', 'thread')).rejects.toThrow(
+        'Non-admin thread endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('sendMessage', () => {
-    it('should call registry client with params and body', async () => {
-      const workspaceSlug = 'test-workspace';
-      const threadSlug = 'test-thread';
+    it('should throw error (temporarily disabled)', async () => {
       const request = {
         message: 'Test message',
         mode: 'query' as const,
         userId: 1,
       };
-
-      await service.sendMessage(workspaceSlug, threadSlug, request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.THREAD_CHAT,
-        { params: { slug: workspaceSlug, threadSlug }, body: request },
+      await expect(
+        service.sendMessage('ws', 'thread', request),
+      ).rejects.toThrow(
+        'Non-admin thread endpoints have been temporarily disabled',
       );
     });
   });

@@ -93,11 +93,20 @@ export class OcrMergeService {
   async mergeOcrResults(
     visionResult: OcrResult,
     documentAiResult: OcrResult,
-    options?: {
+    _options?: {
       enablePostProcessing?: boolean;
       minAgreement?: number;
     },
   ): Promise<OcrResult> {
+    return Promise.resolve(
+      this.mergeOcrResultsSync(visionResult, documentAiResult),
+    );
+  }
+
+  private mergeOcrResultsSync(
+    visionResult: OcrResult,
+    documentAiResult: OcrResult,
+  ): OcrResult {
     this.logger.log('Starting OCR merge process');
 
     // Debug: Log response structures
@@ -842,7 +851,7 @@ export class OcrMergeService {
   /**
    * Validate character in context
    */
-  private validateChar(char: string, word: string, position: number): number {
+  private validateChar(char: string, _word: string, _position: number): number {
     let score = 0.5;
 
     // Prefer alphanumeric
@@ -918,7 +927,7 @@ export class OcrMergeService {
    */
   private calculateOverallConfidence(
     mergedLines: Array<{ text: string; confidence: number }>,
-    perLineConfidence: MergeMetadata['perLineConfidence'],
+    _perLineConfidence: MergeMetadata['perLineConfidence'],
   ): number {
     if (mergedLines.length === 0) return 0;
 
@@ -1015,8 +1024,8 @@ export class OcrMergeService {
       wholeLineChosen?: boolean;
       engineContributions?: { vision?: number; documentAi?: number };
     }>,
-    visionText: string,
-    documentAiText: string,
+    _visionText: string,
+    _documentAiText: string,
   ): string {
     // For now, join lines with newlines but preserve the text content as-is
     // This preserves spacing within lines (from the merge process)
@@ -1031,7 +1040,7 @@ export class OcrMergeService {
     visionEntities?: OcrResult['entities'],
     documentAiEntities?: OcrResult['entities'],
   ): OcrResult['entities'] {
-    const merged: OcrResult['entities'] = [];
+    const _merged: OcrResult['entities'] = [];
 
     // Add all entities, preferring higher confidence
     const entityMap = new Map<string, any>();

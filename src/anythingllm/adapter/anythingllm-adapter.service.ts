@@ -8,18 +8,12 @@ import { AnythingLLMUserMappingRepository } from '../provisioning/infrastructure
 import {
   CreateWorkspaceRequestSchema,
   CreateWorkspaceResponseSchema,
-  WorkspaceResponseSchema,
-  DocumentUploadResponseSchema,
   UploadRawTextRequestSchema,
   CreateThreadRequestSchema,
-  CreateThreadResponseSchema,
   ThreadChatRequestSchema,
-  ThreadChatResponseSchema,
-  ThreadChatsResponseSchema,
   OpenAIChatMessageSchema,
   OpenAIChatCompletionsResponseSchema,
 } from '../registry/schemas';
-import { UpstreamError } from '../registry/upstream-error';
 
 /**
  * Workspace information
@@ -158,7 +152,7 @@ export class AnythingLLMAdapterService {
             id: workspace.data.id,
             name: workspace.data.name,
           };
-        } catch (error) {
+        } catch (_error) {
           this.logger.warn(
             `Workspace ${mapping.workspaceSlug} not found, will create new one`,
           );
@@ -221,7 +215,7 @@ export class AnythingLLMAdapterService {
         id: workspace.data.id,
         name: workspace.data.name,
       };
-    } catch (error) {
+    } catch (_error) {
       this.logger.warn(
         `Workspace ${mapping.workspaceSlug} not found for user ${userId}`,
       );
@@ -495,7 +489,7 @@ export class AnythingLLMAdapterService {
     actingUserId: number,
     message: string,
     mode: 'query' | 'chat',
-    attachedDocPaths?: string[],
+    _attachedDocPaths?: string[],
   ): Promise<ReadableStream<ChatResponse>> {
     // Note: Streaming with strict scoping is more complex
     // For now, we'll use normal streaming if documents are attached
@@ -528,7 +522,7 @@ export class AnythingLLMAdapterService {
       },
     });
 
-    stream.pipeTo(transformStream.writable);
+    void stream.pipeTo(transformStream.writable);
 
     return transformStream.readable;
   }

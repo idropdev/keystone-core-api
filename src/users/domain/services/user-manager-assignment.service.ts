@@ -3,7 +3,6 @@ import {
   Logger,
   BadRequestException,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { UserManagerAssignmentRepository } from '../../infrastructure/persistence/user-manager-assignment.repository';
 import { UserRepository } from '../../infrastructure/persistence/user.repository';

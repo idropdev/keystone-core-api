@@ -279,7 +279,6 @@ export class AnythingLLMUserProvisioningService {
           // Continue with user creation
         } else {
           // Other error - convert to UpstreamError
-          const body = await response.text();
           throw await UpstreamError.fromResponse(
             response,
             response.headers.get('X-Request-Id') || 'unknown',
@@ -356,7 +355,6 @@ export class AnythingLLMUserProvisioningService {
 
       if (!response.ok) {
         // Convert HTTP error to UpstreamError for consistent error handling
-        const body = await response.text();
         throw await UpstreamError.fromResponse(
           response,
           response.headers.get('X-Request-Id') || 'unknown',
@@ -1104,9 +1102,7 @@ export class AnythingLLMUserProvisioningService {
    * @returns Array of thread records
    * @internal
    */
-  async getUserThreads(
-    keystoneUserId: string | number,
-  ): Promise<
+  async getUserThreads(keystoneUserId: string | number): Promise<
     Array<{
       threadSlug: string;
       threadName: string | null;

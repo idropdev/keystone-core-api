@@ -71,7 +71,7 @@ try {
 
     // Fetch override complete - MockAgent is now active
   }
-} catch (e) {
+} catch (_e) {
   // Ignore errors if fetch override fails
   // The MockAgent might still work if Jest hasn't overridden fetch yet
 }

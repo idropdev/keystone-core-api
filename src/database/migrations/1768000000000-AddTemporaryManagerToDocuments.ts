@@ -4,7 +4,6 @@ import {
   TableColumn,
   TableForeignKey,
   TableIndex,
-  TableCheck,
 } from 'typeorm';
 
 export class AddTemporaryManagerToDocuments1768000000000

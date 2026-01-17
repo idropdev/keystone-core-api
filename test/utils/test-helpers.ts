@@ -3,7 +3,6 @@ import * as path from 'path';
 import request from 'supertest';
 import { APP_URL, ADMIN_EMAIL, ADMIN_PASSWORD } from './constants';
 import { RoleEnum } from '../../src/roles/roles.enum';
-import { StatusEnum } from '../../src/statuses/statuses.enum';
 
 export interface TestUser {
   id: number;
@@ -46,9 +45,9 @@ function sleep(ms: number): Promise<void> {
 async function retryOnRateLimit<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
-  delayMs = 1000,
+  _delayMs = 1000,
   operation = 'operation',
-  isAuthEndpoint = false,
+  _isAuthEndpoint = false,
 ): Promise<T> {
   // Rate limit TTL from server config (60000ms = 60 seconds)
   // Auth endpoints: 5 requests per 60s, Global: 10 requests per 60s
@@ -70,7 +69,7 @@ async function retryOnRateLimit<T>(
         // Rate limited - wait for the full TTL window to reset
         // This ensures the rate limit bucket has fully reset before retrying
         const waitTime = RATE_LIMIT_TTL_MS + RATE_LIMIT_BUFFER_MS; // Full window + buffer
-        const waitSeconds = Math.round(waitTime / 1000);
+        const _waitSeconds = Math.round(waitTime / 1000); // Prefixed as it's not used
         await sleep(waitTime);
         continue;
       }
@@ -132,7 +131,7 @@ export async function createTestUser(
   const password = 'secret';
   // Register user with retry on rate limit
   // Auth endpoints are limited to 5 requests per 60 seconds (IP-based)
-  const registerResponse = await retryOnRateLimit(
+  const _registerResponse = await retryOnRateLimit(
     async () => {
       const response = await request(APP_URL)
         .post('/api/v1/auth/email/register')
@@ -390,7 +389,7 @@ export async function uploadTestDocument(
     try {
       pdfBuffer = readPdfFile(testPdfPath);
       finalFileName = fileName || 'lab-result.pdf';
-    } catch (error) {
+    } catch (_error) {
       // Fallback to generated minimal PDF if test file doesn't exist
       pdfBuffer = Buffer.from(
         '%PDF-1.4\n' +

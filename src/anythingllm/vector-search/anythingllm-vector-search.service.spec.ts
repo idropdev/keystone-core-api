@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnythingLLMVectorSearchService } from './anythingllm-vector-search.service';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
 
 describe('AnythingLLMVectorSearchService', () => {
   let service: AnythingLLMVectorSearchService;
@@ -39,7 +38,7 @@ describe('AnythingLLMVectorSearchService', () => {
   });
 
   describe('search', () => {
-    it('should call registry client with params and body', async () => {
+    it('should throw error (temporarily disabled)', async () => {
       const workspaceSlug = 'test-workspace';
       const request = {
         query: 'test query',
@@ -47,43 +46,34 @@ describe('AnythingLLMVectorSearchService', () => {
         scoreThreshold: 0.7,
       };
 
-      await service.search(workspaceSlug, request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.VECTOR_SEARCH,
-        { params: { slug: workspaceSlug }, body: request },
+      await expect(service.search(workspaceSlug, request)).rejects.toThrow(
+        'Non-admin vector-search endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('chatCompletions', () => {
-    it('should call registry client with request body', async () => {
+    it('should throw error (temporarily disabled)', async () => {
       const request = {
         model: 'gpt-3.5-turbo',
         messages: [{ role: 'user', content: 'Hello' }],
       };
 
-      await service.chatCompletions(request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.OPENAI_CHAT_COMPLETIONS,
-        { body: request },
+      await expect(service.chatCompletions(request)).rejects.toThrow(
+        'Non-admin vector-search endpoints have been temporarily disabled',
       );
     });
   });
 
   describe('embeddings', () => {
-    it('should call registry client with request body', async () => {
+    it('should throw error (temporarily disabled)', async () => {
       const request = {
         model: 'text-embedding-ada-002',
         input: 'test text',
       };
 
-      await service.embeddings(request);
-
-      expect(mockRegistryClient.call).toHaveBeenCalledWith(
-        AnythingLLMAdminEndpointIds.OPENAI_EMBEDDINGS,
-        { body: request },
+      await expect(service.embeddings(request)).rejects.toThrow(
+        'Non-admin vector-search endpoints have been temporarily disabled',
       );
     });
   });

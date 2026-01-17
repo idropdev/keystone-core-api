@@ -19,8 +19,8 @@ export class OptionalJwtGuard extends AuthGuard('jwt') implements CanActivate {
   handleRequest<TUser = any>(
     err: any,
     user: any,
-    info: any,
-    context: ExecutionContext,
+    _info: any,
+    _context: ExecutionContext,
   ): TUser {
     // If JWT is missing or invalid, return undefined (allow request to proceed)
     // The controller will check for request.user and use service identity if missing

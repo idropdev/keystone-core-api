@@ -4,10 +4,8 @@ import {
   RegistryCallResult,
 } from '../registry/anythingllm-registry-client';
 import { AnythingLLMClientService } from '../services/anythingllm-client.service';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
 import {
   CreateThreadRequestSchema,
-  CreateThreadResponseSchema,
   UpdateThreadRequestSchema,
   UpdateThreadResponseSchema,
   DeleteThreadResponseSchema,
@@ -89,10 +87,11 @@ export class AnythingLLMThreadService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async updateThread(
-    workspaceSlug: string,
-    threadSlug: string,
-    request: UpdateThreadRequestSchema,
+    _workspaceSlug: string,
+    _threadSlug: string,
+    _request: UpdateThreadRequestSchema,
   ): Promise<RegistryCallResult<UpdateThreadResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin thread endpoints have been temporarily disabled',
     );
@@ -110,9 +109,10 @@ export class AnythingLLMThreadService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async deleteThread(
-    workspaceSlug: string,
-    threadSlug: string,
+    _workspaceSlug: string,
+    _threadSlug: string,
   ): Promise<RegistryCallResult<DeleteThreadResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin thread endpoints have been temporarily disabled',
     );
@@ -127,9 +127,10 @@ export class AnythingLLMThreadService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async getThreadHistory(
-    workspaceSlug: string,
-    threadSlug: string,
+    _workspaceSlug: string,
+    _threadSlug: string,
   ): Promise<RegistryCallResult<ThreadChatsResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin thread endpoints have been temporarily disabled',
     );
@@ -144,10 +145,11 @@ export class AnythingLLMThreadService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async sendMessage(
-    workspaceSlug: string,
-    threadSlug: string,
-    request: ThreadChatRequestSchema,
+    _workspaceSlug: string,
+    _threadSlug: string,
+    _request: ThreadChatRequestSchema,
   ): Promise<RegistryCallResult<ThreadChatResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin thread endpoints have been temporarily disabled',
     );
@@ -230,11 +232,8 @@ export class AnythingLLMThreadService {
       // Create a transform stream to parse SSE events
       const decoder = new TextDecoder();
       let buffer = '';
-      let chunkCount = 0;
-
       const transformStream = new TransformStream({
         transform(chunk, controller) {
-          chunkCount++;
           buffer += decoder.decode(chunk, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
@@ -272,7 +271,7 @@ export class AnythingLLMThreadService {
         },
       });
 
-      response.body.pipeTo(transformStream.writable);
+      void response.body.pipeTo(transformStream.writable);
 
       return transformStream.readable;
     } catch (error) {

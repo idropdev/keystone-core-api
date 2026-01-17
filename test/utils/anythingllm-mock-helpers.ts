@@ -1,16 +1,14 @@
 import nock from 'nock';
 import { MockAgent } from 'undici';
 import * as jwt from 'jsonwebtoken';
-import * as fs from 'fs';
-import * as path from 'path';
+
 import { ANYTHINGLLM_BASE_URL } from './constants';
 import {
   startMockServer,
-  stopMockServer,
   setMockResponse,
   isMockCalled,
   clearMocks,
-  getServerPort,
+  // getServerPort,
   getMockResponse,
 } from './mock-anythingllm-server';
 
@@ -105,7 +103,7 @@ export function verifyAuthorizationHeader(
  * @returns nock scope
  */
 // Get the undici MockAgent from global scope (set in setup-e2e.ts)
-function getMockAgent(): MockAgent {
+function _getMockAgent(): MockAgent {
   const mockAgent = (globalThis as any).__undiciMockAgent;
   if (!mockAgent) {
     throw new Error(
@@ -264,14 +262,14 @@ export function setupMalformedResponseMock(
   const interceptor = nock(baseUrl)[method](endpoint);
 
   if (validateToken) {
-    return interceptor.reply(function (uri, requestBody) {
+    return interceptor.reply(function (_uri, _requestBody) {
       try {
         // Validate Authorization header contains HS256 token
-        const headers = this.req.headers as Record<
+        const _headers = this.req.headers as Record<
           string,
           string | string[] | undefined
         >;
-        verifyAuthorizationHeader(headers);
+        verifyAuthorizationHeader(_headers);
       } catch (error) {
         return [
           401,
@@ -336,7 +334,7 @@ export function cleanupNock(): void {
       // We're using a mock HTTP server now, so we don't need to clear interceptors
       // But if we did, we'd use: mockAgent.get('http://localhost:3001').clearInterceptors()
       // DO NOT call mockAgent.close() here - it destroys the client while it's still the global dispatcher
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors
     }
   }
@@ -393,7 +391,7 @@ export function setupNock(): void {
       // Also allow mock server
       mockAgent.enableNetConnect('localhost:3002');
       mockAgent.enableNetConnect('127.0.0.1:3002');
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors during reset
     }
   }

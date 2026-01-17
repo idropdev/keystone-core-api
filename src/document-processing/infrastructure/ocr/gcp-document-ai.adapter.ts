@@ -103,7 +103,7 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
           );
           try {
             return await this.processSync(gcsUri, mimeType);
-          } catch (syncError: any) {
+          } catch (_syncError: any) {
             // If sync also fails, throw original batch error with context
             this.logger.error(
               `Both batch and sync processing failed. Batch error: ${this.sanitizeError(batchError).substring(0, 100)}`,

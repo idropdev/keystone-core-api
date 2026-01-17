@@ -1,11 +1,9 @@
-import * as path from 'path';
 import request from 'supertest';
 import { APP_URL } from '../utils/constants';
 import {
   createTestUser,
   getAdminToken,
   createTestManager,
-  uploadTestDocument,
   createAccessGrant,
   getTestPdfPath,
   readPdfFile,

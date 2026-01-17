@@ -3,7 +3,6 @@ import {
   AnythingLLMRegistryClient,
   RegistryCallResult,
 } from '../registry/anythingllm-registry-client';
-import { AnythingLLMAdminEndpointIds } from '../registry/anythingllm-endpoints.registry';
 import {
   VectorSearchRequestSchema,
   VectorSearchResponseSchema,
@@ -32,9 +31,10 @@ export class AnythingLLMVectorSearchService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async search(
-    workspaceSlug: string,
-    request: VectorSearchRequestSchema,
+    _workspaceSlug: string,
+    _request: VectorSearchRequestSchema,
   ): Promise<RegistryCallResult<VectorSearchResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin vector-search endpoints have been temporarily disabled',
     );
@@ -52,8 +52,9 @@ export class AnythingLLMVectorSearchService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async chatCompletions(
-    request: OpenAIChatCompletionsRequestSchema,
+    _request: OpenAIChatCompletionsRequestSchema,
   ): Promise<RegistryCallResult<OpenAIChatCompletionsResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin vector-search endpoints have been temporarily disabled',
     );
@@ -68,8 +69,9 @@ export class AnythingLLMVectorSearchService {
    * TODO: Non-admin endpoints have been temporarily disabled
    */
   async embeddings(
-    request: OpenAIEmbeddingsRequestSchema,
+    _request: OpenAIEmbeddingsRequestSchema,
   ): Promise<RegistryCallResult<OpenAIEmbeddingsResponseSchema>> {
+    await Promise.resolve();
     throw new Error(
       'Non-admin vector-search endpoints have been temporarily disabled',
     );

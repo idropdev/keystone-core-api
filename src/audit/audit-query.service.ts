@@ -45,6 +45,8 @@ export class AuditQueryService {
       );
     }
 
+    await Promise.resolve();
+
     // TODO: Implement actual query logic
     // For now, return empty results with a note that database storage is required
     // Once PostgreSQL storage is implemented, query from database
@@ -89,6 +91,8 @@ export class AuditQueryService {
         'Users cannot query audit events. Only admins and origin managers can access audit logs.',
       );
     }
+
+    await Promise.resolve();
 
     // TODO: Implement actual query logic
     // Query from PostgreSQL by ID

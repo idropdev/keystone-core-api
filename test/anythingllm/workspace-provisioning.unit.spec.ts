@@ -110,14 +110,15 @@ describe('Workspace Provisioning Unit Tests', () => {
       // Mock workspace creation response
       mockWorkspaceService.createWorkspace.mockResolvedValue({
         ok: true,
-        json: async () => ({
-          workspace: {
-            id: workspaceId,
-            name: `Workspace for user ${keystoneUserId}`,
-            slug: workspaceSlug,
-          },
-          message: 'Workspace created',
-        }),
+        json: () =>
+          Promise.resolve({
+            workspace: {
+              id: workspaceId,
+              name: `Workspace for user ${keystoneUserId}`,
+              slug: workspaceSlug,
+            },
+            message: 'Workspace created',
+          }),
       } as any);
 
       const result = await (provisioningService as any).createWorkspaceForUser(
@@ -174,7 +175,7 @@ describe('Workspace Provisioning Unit Tests', () => {
       mockWorkspaceService.createWorkspace.mockResolvedValue({
         ok: false,
         status: 500,
-        text: async () => 'Internal Server Error',
+        text: () => Promise.resolve('Internal Server Error'),
       } as any);
 
       await expect(
@@ -196,14 +197,15 @@ describe('Workspace Provisioning Unit Tests', () => {
       const adminUserId = 999;
       mockWorkspaceService.createWorkspace.mockResolvedValue({
         ok: true,
-        json: async () => ({
-          workspace: {
-            id: workspaceId,
-            name: `Workspace for user ${keystoneUserId}`,
-            slug: workspaceSlug,
-          },
-          message: 'Workspace created',
-        }),
+        json: () =>
+          Promise.resolve({
+            workspace: {
+              id: workspaceId,
+              name: `Workspace for user ${keystoneUserId}`,
+              slug: workspaceSlug,
+            },
+            message: 'Workspace created',
+          }),
       } as any);
 
       await (provisioningService as any).createWorkspaceForUser(
@@ -234,16 +236,17 @@ describe('Workspace Provisioning Unit Tests', () => {
     it('should assign user to workspace using delegated tokens', async () => {
       mockOrchestratorService.executeOperation.mockResolvedValue({
         ok: true,
-        json: async () => ({
-          success: true,
-          users: [
-            {
-              userId: anythingllmUserId,
-              username: 'test-user',
-              role: 'default',
-            },
-          ],
-        }),
+        json: () =>
+          Promise.resolve({
+            success: true,
+            users: [
+              {
+                userId: anythingllmUserId,
+                username: 'test-user',
+                role: 'default',
+              },
+            ],
+          }),
       } as any);
 
       await (provisioningService as any).assignUserToWorkspace(
@@ -281,7 +284,7 @@ describe('Workspace Provisioning Unit Tests', () => {
       mockOrchestratorService.executeOperation.mockResolvedValue({
         ok: false,
         status: 404,
-        text: async () => 'Workspace not found',
+        text: () => Promise.resolve('Workspace not found'),
       } as any);
 
       await expect(
@@ -304,10 +307,11 @@ describe('Workspace Provisioning Unit Tests', () => {
       const adminUserId = 999;
       mockOrchestratorService.executeOperation.mockResolvedValue({
         ok: true,
-        json: async () => ({
-          success: true,
-          users: [],
-        }),
+        json: () =>
+          Promise.resolve({
+            success: true,
+            users: [],
+          }),
       } as any);
 
       await (provisioningService as any).assignUserToWorkspace(
@@ -335,20 +339,21 @@ describe('Workspace Provisioning Unit Tests', () => {
     it('should verify user is assigned to workspace', async () => {
       mockOrchestratorService.executeOperation.mockResolvedValue({
         ok: true,
-        json: async () => ({
-          users: [
-            {
-              userId: anythingllmUserId,
-              username: 'test-user',
-              role: 'default',
-            },
-            {
-              userId: 200,
-              username: 'other-user',
-              role: 'default',
-            },
-          ],
-        }),
+        json: () =>
+          Promise.resolve({
+            users: [
+              {
+                userId: anythingllmUserId,
+                username: 'test-user',
+                role: 'default',
+              },
+              {
+                userId: 200,
+                username: 'other-user',
+                role: 'default',
+              },
+            ],
+          }),
       } as any);
 
       await (provisioningService as any).verifyWorkspaceAssignment(
@@ -383,7 +388,7 @@ describe('Workspace Provisioning Unit Tests', () => {
       mockOrchestratorService.executeOperation.mockResolvedValue({
         ok: false,
         status: 404,
-        text: async () => 'Not found',
+        text: () => Promise.resolve('Not found'),
       } as any);
 
       // Should not throw - graceful degradation
@@ -398,15 +403,16 @@ describe('Workspace Provisioning Unit Tests', () => {
     it('should handle user not found in workspace list', async () => {
       mockOrchestratorService.executeOperation.mockResolvedValue({
         ok: true,
-        json: async () => ({
-          users: [
-            {
-              userId: 200,
-              username: 'other-user',
-              role: 'default',
-            },
-          ],
-        }),
+        json: () =>
+          Promise.resolve({
+            users: [
+              {
+                userId: 200,
+                username: 'other-user',
+                role: 'default',
+              },
+            ],
+          }),
       } as any);
 
       // Should not throw - just logs warning

@@ -4,11 +4,10 @@ import {
   ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import * as jwt from 'jsonwebtoken';
 import { AnythingLLMPolicyService } from '../anythingllm-policy/service';
 import { AnythingLLMAuthDelegationService } from '../anythingllm-auth-delegation/service';
 import { AnythingLLMClientService } from '../anythingllm/services/anythingllm-client.service';
-import { AnythingLLMOperation } from '../anythingllm-policy/domain/anythingllm-operation.enum';
-import { ResourceContext } from '../anythingllm-policy/domain/resource-context.entity';
 import {
   CallAnythingLLMDto,
   RequesterContextDto,
@@ -85,7 +84,6 @@ export class AnythingLLMOrchestratorService {
       // Defensive check: verify token is HS256 (not RS256)
       // This ensures we never accidentally use service identity tokens
       try {
-        const jwt = require('jsonwebtoken');
         const decoded = jwt.decode(delegatedToken, { complete: true }) as any;
 
         if (decoded?.header?.alg !== 'HS256') {

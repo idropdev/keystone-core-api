@@ -326,7 +326,7 @@ function groupWordsIntoLines(
 /**
  * Extract word text from Vision AI word object
  */
-function extractWordText(word: any, fullText: string): string {
+function extractWordText(word: any, _fullText: string): string {
   if (!word.symbols || word.symbols.length === 0) {
     return '';
   }
