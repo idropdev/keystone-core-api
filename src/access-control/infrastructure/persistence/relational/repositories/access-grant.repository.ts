@@ -95,6 +95,30 @@ export class AccessGrantRelationalRepository implements AccessGrantRepository {
     });
   }
 
+  /**
+   * SYSTEM-100: Batch revoke all grants for a document
+   * Single UPDATE query for efficient batch operation
+   */
+  async revokeAllByDocumentId(
+    documentId: string,
+    revokedByType: 'user' | 'manager',
+    revokedById: number,
+  ): Promise<number> {
+    const result = await this.repository.update(
+      {
+        documentId,
+        revokedAt: IsNull(),
+      },
+      {
+        revokedAt: new Date(),
+        revokedByType,
+        revokedById,
+      },
+    );
+
+    return result.affected || 0;
+  }
+
   private toDomain(entity: AccessGrantEntity): AccessGrant {
     return {
       id: entity.id,

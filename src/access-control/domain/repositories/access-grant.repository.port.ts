@@ -44,4 +44,19 @@ export abstract class AccessGrantRepository {
     revokedByType: 'user' | 'manager',
     revokedById: number,
   ): Promise<void>;
+
+  /**
+   * SYSTEM-100: Revoke ALL grants for a document (batch operation)
+   * Used when a document is deleted - revokes all AccessGrants in single operation
+   *
+   * @param documentId - Document UUID
+   * @param revokedByType - Type of actor revoking
+   * @param revokedById - ID of actor revoking
+   * @returns Number of grants revoked
+   */
+  abstract revokeAllByDocumentId(
+    documentId: string,
+    revokedByType: 'user' | 'manager',
+    revokedById: number,
+  ): Promise<number>;
 }

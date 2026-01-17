@@ -338,6 +338,21 @@ export class DocumentProcessingService {
       managerId,
       actor,
     );
+
+    // SYSTEM-100: Auto-assign user to manager when they assign originManagerId
+    // This creates a governance relationship between user and manager
+    if (actor.type === 'user') {
+      // Get the manager's userId from managerId (Manager entity)
+      const manager = await this.managerRepository.findById(managerId);
+      if (manager) {
+        await this.userManagerAssignmentService.ensureAssignment(
+          actor.id,
+          manager.userId,
+          { source: 'document_upload', documentId },
+        );
+      }
+    }
+
     return this.toResponseDto(document);
   }
 

@@ -187,6 +187,87 @@ export class UserManagerAssignmentService {
   }
 
   /**
+   * Ensure a user-manager assignment exists (idempotent)
+   *
+   * Used for auto-assignment:
+   * - When user uploads document with originManagerId
+   * - When user (as temporary manager) grants access to a manager
+   *
+   * Creates assignment if it doesn't exist, does nothing if it exists.
+   *
+   * @param userId - User ID to assign
+   * @param managerId - Manager User ID to assign to
+   * @param context - Optional context for audit log
+   * @returns true if assignment was created, false if already existed
+   */
+  async ensureAssignment(
+    userId: number,
+    managerId: number,
+    context?: {
+      source: 'document_upload' | 'access_grant';
+      documentId?: string;
+    },
+  ): Promise<boolean> {
+    this.logger.debug(
+      `[ENSURE ASSIGNMENT] Checking assignment: userId=${userId}, managerId=${managerId}, source=${context?.source}`,
+    );
+
+    // 1. Check if assignment already exists
+    const existingAssignment = await this.assignmentRepository.findActive(
+      userId,
+      managerId,
+    );
+
+    if (existingAssignment) {
+      this.logger.debug(
+        `[ENSURE ASSIGNMENT] Assignment already exists: userId=${userId}, managerId=${managerId}`,
+      );
+      return false; // Already exists, no action needed
+    }
+
+    // 2. Validate user is not same as manager
+    if (userId === managerId) {
+      this.logger.debug(
+        `[ENSURE ASSIGNMENT] Skipping self-assignment: userId=${userId}`,
+      );
+      return false;
+    }
+
+    // 3. Create assignment (auto-assignment, no explicit assigner)
+    this.logger.log(
+      `[ENSURE ASSIGNMENT] Auto-creating assignment: userId=${userId}, managerId=${managerId}, source=${context?.source}`,
+    );
+
+    await this.assignmentRepository.create({
+      userId,
+      managerId,
+      assignedAt: new Date(),
+      assignedById: undefined, // Auto-assigned, no explicit admin
+    });
+
+    // 4. Audit log
+    this.auditService.logAuthEvent({
+      userId: String(userId),
+      provider: 'internal',
+      event: AuthEventType.MANAGER_ASSIGNMENT_CREATED,
+      success: true,
+      metadata: {
+        userId,
+        managerId,
+        autoAssigned: true,
+        source: context?.source,
+        documentId: context?.documentId,
+      },
+    });
+
+    this.logger.log(
+      `[ENSURE ASSIGNMENT] Auto-assignment created: userId=${userId}, managerId=${managerId}`,
+    );
+
+    return true; // Created new assignment
+  }
+
+  /**
    * Check if a manager is assigned to a user
    *
    * @param managerId - Manager ID

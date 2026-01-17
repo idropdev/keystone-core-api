@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { EntityRelationalHelper } from '../../../../../utils/relational-entity-helper';
 import { UserEntity } from '../../../../../users/infrastructure/persistence/relational/entities/user.entity';
+import { ManagerOrganizationEntity } from './manager-organization.entity';
 
 @Entity({
   name: 'managers',
@@ -26,6 +27,15 @@ export class ManagerEntity extends EntityRelationalHelper {
   @Column({ name: 'user_id' })
   @Index()
   userId: number;
+
+  // Organization relationship
+  @ManyToOne(() => ManagerOrganizationEntity, { nullable: true })
+  @JoinColumn({ name: 'organization_id' })
+  organization?: ManagerOrganizationEntity;
+
+  @Column({ name: 'organization_id', nullable: true })
+  @Index()
+  organizationId?: number;
 
   // Identity (Required for uniqueness)
   @Column({ name: 'display_name', type: 'varchar', length: 255 })
