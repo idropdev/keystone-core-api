@@ -5,6 +5,7 @@ import { AnythingLLMModule } from '../anythingllm.module';
 import { AnythingLLMOrchestratorModule } from '../../anythingllm-orchestrator/module';
 import { AuthModule } from '../../auth/auth.module';
 import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-client';
+import { RelationalAnythingLLMProvisioningPersistenceModule } from '../provisioning/infrastructure/persistence/relational/relational-persistence.module';
 
 /**
  * AnythingLLM Document Module
@@ -17,6 +18,7 @@ import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-clie
     forwardRef(() => AnythingLLMModule),
     AnythingLLMOrchestratorModule,
     AuthModule, // For JWT strategy
+    RelationalAnythingLLMProvisioningPersistenceModule,
   ],
   controllers: [AnythingLLMDocumentController],
   providers: [AnythingLLMDocumentService, AnythingLLMRegistryClient],

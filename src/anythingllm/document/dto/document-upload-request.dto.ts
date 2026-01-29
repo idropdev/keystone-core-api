@@ -9,6 +9,16 @@ export class DocumentUploadRequestDto {
   @ApiPropertyOptional({
     type: 'string',
     description:
+      'Optional Keystone document UUID to map to the returned AnythingLLM document path(s). Used for document-scoped chat.',
+    example: '2e6e9b1b-6c2c-4b4c-9e2b-9f1d5f3d9b1a',
+  })
+  @IsOptional()
+  @IsString()
+  keystoneDocumentId?: string;
+
+  @ApiPropertyOptional({
+    type: 'string',
+    description:
       'Comma-separated workspace slugs to embed document into post-upload',
     example: 'workspace1,workspace2',
   })

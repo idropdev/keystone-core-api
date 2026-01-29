@@ -67,6 +67,15 @@ export class AnythingLLMPolicyService {
           isUser,
         );
 
+      case AnythingLLMOperation.CHAT_WITH_DOCS:
+        return this.authorizeChatWithDocs(
+          requesterContext,
+          resourceContext,
+          isAdmin,
+          isManager,
+          isUser,
+        );
+
       case AnythingLLMOperation.THREAD_CREATE:
         return this.authorizeThreadCreate(
           requesterContext,
@@ -180,6 +189,77 @@ export class AnythingLLMPolicyService {
           reason: `Unknown operation: ${operation}`,
         };
     }
+  }
+
+  /**
+   * Authorize CHAT_WITH_DOCS operation
+   * User-only feature (SYSTEM-103): Managers/Admins denied.
+   *
+   * The endpoint is still workspace-scoped upstream, so workspaceSlug is required
+   * to support policy decisions and audit correlation.
+   */
+  private async authorizeChatWithDocs(
+    requesterContext: RequesterContextDto,
+    resourceContext: ResourceContext | undefined,
+    isAdmin: boolean,
+    isManager: boolean,
+    isUser: boolean,
+  ): Promise<AuthorizeOperationResponseDto> {
+    await Promise.resolve();
+
+    if (isAdmin || isManager) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'Only users can stream document-scoped chat',
+      };
+    }
+
+    if (!isUser) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'Invalid role',
+      };
+    }
+
+    if (!resourceContext?.workspaceSlug) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'workspaceSlug required',
+      };
+    }
+
+    const requesterUserId = parseInt(requesterContext.userId, 10);
+    if (isNaN(requesterUserId)) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'Invalid user ID',
+      };
+    }
+
+    // Ensure the user can access the workspace they are attempting to chat in.
+    // This prevents users from streaming chat into other users' workspaces.
+    const hasWorkspaceAccess = await this.checkWorkspaceAccess(
+      requesterUserId,
+      resourceContext.workspaceSlug,
+      false,
+    );
+
+    if (!hasWorkspaceAccess) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'User does not have access to this workspace',
+      };
+    }
+
+    return {
+      allowed: true,
+      scope: ['anythingllm:chat:stream'],
+    };
   }
 
   /**

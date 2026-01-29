@@ -331,6 +331,7 @@ export class AnythingLLMDocumentController {
           ? request.body
           : body;
       const addToWorkspaces = formData?.addToWorkspaces;
+      const keystoneDocumentId = formData?.keystoneDocumentId;
       const documentFields = formData?.documentFields;
       const visionFields = formData?.visionFields;
       const userEditField = formData?.userEditField;
@@ -413,6 +414,26 @@ export class AnythingLLMDocumentController {
       // Parse successful response
       upstreamData =
         (await upstreamResponse.json()) as DocumentUploadResponseSchema;
+
+      // Record document->AnythingLLM path mapping (SYSTEM-103) if keystoneDocumentId provided
+      // Best-effort: mapping failures must not fail the upload.
+      if (
+        keystoneDocumentId &&
+        typeof keystoneDocumentId === 'string' &&
+        upstreamData.documents &&
+        upstreamData.documents.length > 0
+      ) {
+        const workspaceSlugs = addToWorkspaces
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        await this.documentService.recordDocumentPathMappings({
+          keystoneDocumentId,
+          workspaceSlugs,
+          uploadedDocuments: upstreamData.documents,
+        });
+      }
 
       // Sanitize response (remove infrastructure-revealing fields)
       const sanitized = this.sanitizeDocumentUploadResponse(upstreamData);

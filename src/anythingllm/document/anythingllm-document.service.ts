@@ -21,6 +21,8 @@ import {
 } from '../registry/schemas';
 import { UpstreamError } from '../registry/upstream-error';
 import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
+import { DocumentAnythingLLMPathRepository } from '../provisioning/infrastructure/persistence/repositories/document-anythingllm-path.repository';
+import { DocumentSchema } from '../registry/schemas';
 
 /**
  * AnythingLLM Document Service
@@ -38,7 +40,53 @@ export class AnythingLLMDocumentService {
     private readonly registryClient: AnythingLLMRegistryClient,
     private readonly clientService: AnythingLLMClientService,
     private readonly orchestratorService: AnythingLLMOrchestratorService,
+    private readonly documentAnythingLLMPathRepository: DocumentAnythingLLMPathRepository,
   ) {}
+
+  /**
+   * Record document path mappings for document-scoped chat (SYSTEM-103).
+   *
+   * IMPORTANT:
+   * - Never logs document paths or file names (HIPAA).
+   * - This is best-effort: failures should not block document upload.
+   */
+  async recordDocumentPathMappings(params: {
+    keystoneDocumentId: string;
+    workspaceSlugs: string[];
+    uploadedDocuments: DocumentSchema[];
+  }): Promise<void> {
+    const { keystoneDocumentId, workspaceSlugs, uploadedDocuments } = params;
+
+    if (!keystoneDocumentId || workspaceSlugs.length === 0) {
+      return;
+    }
+
+    // AnythingLLM can return multiple documents; we map the first one for now.
+    // If multiple are returned, upstream should provide stable locations for each.
+    const firstDoc = uploadedDocuments[0];
+    if (!firstDoc?.location) {
+      return;
+    }
+
+    await Promise.all(
+      workspaceSlugs.map(async (workspaceSlug) => {
+        try {
+          await this.documentAnythingLLMPathRepository.upsertMapping({
+            documentId: keystoneDocumentId,
+            workspaceSlug,
+            anythingllmDocPath: firstDoc.location,
+          });
+        } catch (error) {
+          // Best-effort: log without leaking PHI
+          this.logger.warn(
+            `Failed to record document path mapping for keystoneDocumentId=${keystoneDocumentId} workspaceSlug=${workspaceSlug}: ${
+              error instanceof Error ? error.message : 'Unknown error'
+            }`,
+          );
+        }
+      }),
+    );
+  }
 
   /**
    * Upload document to AnythingLLM with multipart form data
