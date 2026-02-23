@@ -18,4 +18,3 @@ import { AnythingLLMChatService } from './anythingllm-chat.service';
   exports: [AnythingLLMChatService],
 })
 export class AnythingLLMChatModule {}
-

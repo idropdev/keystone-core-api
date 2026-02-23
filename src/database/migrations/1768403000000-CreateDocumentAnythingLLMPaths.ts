@@ -37,4 +37,3 @@ export class CreateDocumentAnythingLLMPaths1768403000000
     await queryRunner.query(`DROP TABLE "document_anythingllm_paths"`);
   }
 }
-

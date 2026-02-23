@@ -35,4 +35,3 @@ export class DocumentScopedChatDto {
   @IsString()
   workspaceSlug?: string;
 }
-

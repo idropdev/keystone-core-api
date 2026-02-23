@@ -40,7 +40,7 @@ describe('AnythingLLMChatController', () => {
     } as any;
   }
 
-  it('denies managers with 403 and does not call chat service', async () => {
+  it('should deny managers with 403 and not call chat service', async () => {
     const response = createMockResponse();
 
     await controller.streamChat(
@@ -61,4 +61,3 @@ describe('AnythingLLMChatController', () => {
     expect(response._writes.join('')).toContain('"close":true');
   });
 });
-

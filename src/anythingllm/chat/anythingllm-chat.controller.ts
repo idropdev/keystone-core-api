@@ -11,7 +11,12 @@ import {
   UseGuards,
   Body,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Response, Request as ExpressRequest } from 'express';
 import { randomUUID } from 'crypto';
@@ -74,7 +79,9 @@ export class AnythingLLMChatController {
         actor: request.user
           ? { type: 'user', id: request.user.id }
           : { type: 'unknown', id: null },
-        documentCount: Array.isArray(dto.documentIds) ? dto.documentIds.length : 0,
+        documentCount: Array.isArray(dto.documentIds)
+          ? dto.documentIds.length
+          : 0,
         documentIds: Array.isArray(dto.documentIds) ? dto.documentIds : [],
         workspaceSlug: dto.workspaceSlug ?? null,
         threadSlug: dto.threadSlug ?? null,
@@ -171,7 +178,7 @@ export class AnythingLLMChatController {
       // Normalize error without leaking PHI
       const statusCode =
         error && typeof error === 'object' && 'getStatus' in error
-          ? (error as any).getStatus?.() ?? 500
+          ? ((error as any).getStatus?.() ?? 500)
           : 500;
 
       this.logChatAuditEvent({
@@ -211,4 +218,3 @@ export class AnythingLLMChatController {
     }
   }
 }
-

@@ -48,7 +48,7 @@ describe('AnythingLLMChatService', () => {
     provider: 'system',
   };
 
-  it('uses full-scope when documentIds is empty', async () => {
+  it('should use full-scope when documentIds is empty', async () => {
     const mockStream = new ReadableStream({
       start(controller) {
         controller.enqueue(
@@ -91,7 +91,7 @@ describe('AnythingLLMChatService', () => {
     reader.releaseLock();
   });
 
-  it('validates access + resolves paths for defined scope', async () => {
+  it('should validate access and resolve paths for defined scope', async () => {
     const docId = '2e6e9b1b-6c2c-4b4c-9e2b-9f1d5f3d9b1a';
     accessGrantService.hasAccess.mockResolvedValue(true);
     pathRepo.findByDocumentIdsAndWorkspaceSlug.mockResolvedValue([
@@ -141,7 +141,7 @@ describe('AnythingLLMChatService', () => {
     );
   });
 
-  it('throws 403 when user lacks access to any requested document', async () => {
+  it('should throw 403 when user lacks access to any requested document', async () => {
     const docId = '2e6e9b1b-6c2c-4b4c-9e2b-9f1d5f3d9b1a';
     accessGrantService.hasAccess.mockResolvedValue(false);
 
@@ -155,7 +155,7 @@ describe('AnythingLLMChatService', () => {
     expect(orchestrator.executeOperation).not.toHaveBeenCalled();
   });
 
-  it('throws 400 when mapping is missing', async () => {
+  it('should throw 400 when mapping is missing', async () => {
     const docId = '2e6e9b1b-6c2c-4b4c-9e2b-9f1d5f3d9b1a';
     accessGrantService.hasAccess.mockResolvedValue(true);
     pathRepo.findByDocumentIdsAndWorkspaceSlug.mockResolvedValue([]);
@@ -170,4 +170,3 @@ describe('AnythingLLMChatService', () => {
     expect(orchestrator.executeOperation).not.toHaveBeenCalled();
   });
 });
-

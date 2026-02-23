@@ -52,4 +52,3 @@ export class DocumentAnythingLLMPathEntity extends EntityRelationalHelper {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
-
