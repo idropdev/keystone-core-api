@@ -13,6 +13,18 @@ import { DocumentAnythingLLMPathRepository } from '../provisioning/infrastructur
 import { ThreadStreamChatChunkSchema } from '../registry/schemas';
 import { DocumentScopedChatDto } from './dto/document-scoped-chat.dto';
 
+/**
+ * Extract AnythingLLM document UUID from a stored docpath.
+ * Docpath format: "custom-documents/filename-UUID.json"
+ * e.g. "custom-documents/cat.txt-d14e9d15-b654-46b7-84dc-0414d1e7d131.json"
+ */
+function extractAnythingLLMDocId(docPath: string): string | null {
+  const match = docPath.match(
+    /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/i,
+  );
+  return match ? match[1] : null;
+}
+
 @Injectable()
 export class AnythingLLMChatService {
   private readonly logger = new Logger(AnythingLLMChatService.name);
@@ -44,8 +56,38 @@ export class AnythingLLMChatService {
       documentIds.includes('*');
 
     let documentPaths: string[];
+    let allowedDocUuids: string[] | undefined;
 
     if (isFullScope) {
+      // SYSTEM-103: RBAC-aware full scope
+      // Resolve all documents the user can access, then extract AnythingLLM UUIDs
+      // so AnythingLLM can filter vector search results at the Zilliz level.
+      const accessibleDocIds =
+        await this.accessGrantService.getAccessibleDocumentIds(
+          'user',
+          requesterUserId,
+        );
+
+      if (accessibleDocIds.length === 0) {
+        throw new ForbiddenException('User has no accessible documents');
+      }
+
+      const mappings =
+        await this.documentAnythingLLMPathRepository.findByDocumentIdsAndWorkspaceSlug(
+          accessibleDocIds,
+          workspaceSlug,
+        );
+
+      allowedDocUuids = mappings
+        .map((m) => extractAnythingLLMDocId(m.anythingllmDocPath))
+        .filter((id): id is string => id !== null);
+
+      if (allowedDocUuids.length === 0) {
+        throw new BadRequestException(
+          'No accessible documents found in this workspace',
+        );
+      }
+
       documentPaths = ['*'];
     } else {
       // Validate format early for clean errors (but allow upstream changes if needed)
@@ -106,6 +148,7 @@ export class AnythingLLMChatService {
       body: {
         message: dto.message,
         documentPaths,
+        allowedDocIds: allowedDocUuids,
         threadSlug: dto.threadSlug,
       },
     });
