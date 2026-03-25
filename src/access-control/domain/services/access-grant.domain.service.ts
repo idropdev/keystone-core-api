@@ -290,4 +290,42 @@ export class AccessGrantDomainService {
   async getGrantById(grantId: number): Promise<NullableType<AccessGrant>> {
     return this.accessGrantRepository.findById(grantId);
   }
+
+  /**
+   * Get all document IDs accessible by a given actor.
+   *
+   * Combines:
+   * 1. Implicit access: documents where user is temporaryManager
+   * 2. Explicit access: active AccessGrants for the actor
+   *
+   * Used by SYSTEM-103 to enforce RBAC on full-scope chat requests.
+   *
+   * @param actorType - 'user' | 'manager'
+   * @param actorId - User/Manager ID
+   * @returns Array of unique document UUIDs
+   */
+  async getAccessibleDocumentIds(
+    actorType: ActorType,
+    actorId: number,
+  ): Promise<string[]> {
+    const docIds = new Set<string>();
+
+    // 1. Implicit access: docs where user is temporaryManager
+    if (actorType === 'user') {
+      const ownedDocs =
+        await this.documentRepository.findByTemporaryManagerId(actorId);
+      ownedDocs.forEach((doc) => docIds.add(doc.id));
+    }
+
+    // 2. Explicit access: active AccessGrants
+    if (actorType === 'user' || actorType === 'manager') {
+      const grants = await this.accessGrantRepository.findBySubject(
+        actorType as 'user' | 'manager',
+        actorId,
+      );
+      grants.forEach((grant) => docIds.add(grant.documentId));
+    }
+
+    return Array.from(docIds);
+  }
 }
