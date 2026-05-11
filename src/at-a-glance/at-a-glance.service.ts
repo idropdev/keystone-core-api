@@ -11,6 +11,7 @@ import { CategoryDataDto, BloodTypeDataDto } from './dto/category-data.dto';
 import {
   AT_A_GLANCE_CATEGORIES,
   mapToCategory,
+  UNCATEGORIZED,
 } from './utils/field-category-map';
 
 interface QueryRow {
@@ -35,6 +36,7 @@ export class AtAGlanceService {
       .innerJoin('ef.document', 'd')
       .where('d.user_id = :userId', { userId })
       .andWhere('d.status = :status', { status: DocumentStatus.PROCESSED })
+      .andWhere('d.deleted_at IS NULL')
       .select('ef.field_type', 'field_type')
       .addSelect('ef.field_value', 'field_value')
       .addSelect('ef.document_id', 'document_id')
@@ -67,7 +69,16 @@ export class AtAGlanceService {
       }
     }
 
-    const allTimestamps = rows.map((r) => r.created_at).filter(Boolean);
+    // Only rows whose field_type maps to a known category contribute to the
+    // surfaced summary. Uncategorized rows are silently ignored — they don't
+    // pad the documents_analyzed count or shift last_updated.
+    const categorizedRows = rows.filter(
+      (r) => mapToCategory(r.field_type) !== UNCATEGORIZED,
+    );
+
+    const allTimestamps = categorizedRows
+      .map((r) => r.created_at)
+      .filter(Boolean);
     const lastUpdated =
       allTimestamps.length > 0
         ? new Date(
@@ -75,7 +86,7 @@ export class AtAGlanceService {
           ).toISOString()
         : null;
 
-    const distinctDocs = new Set(rows.map((r) => r.document_id));
+    const distinctDocs = new Set(categorizedRows.map((r) => r.document_id));
 
     return {
       categories,
@@ -92,7 +103,10 @@ export class AtAGlanceService {
       if (seenValues.has(row.field_value)) continue;
       seenValues.add(row.field_value);
       if (samples.length < SAMPLES_PER_CATEGORY) {
-        samples.push({ value: row.field_value });
+        samples.push({
+          value: row.field_value,
+          document_id: row.document_id,
+        });
       }
     }
     return {

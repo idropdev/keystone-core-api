@@ -86,9 +86,8 @@ describe('AtAGlanceService.getSummaryForUser', () => {
     expect(result.categories.medications.count).toBe(6);
     expect(result.categories.medications.samples).toHaveLength(3);
     // Most-recent (Drug5) appears first
-    expect(JSON.stringify(result.categories.medications.samples)).toContain(
-      'Drug5',
-    );
+    expect(result.categories.medications.samples[0].value).toBe('Drug5');
+    expect(result.categories.medications.samples[0].document_id).toBe('doc-5');
     expect(JSON.stringify(result.categories.medications.samples)).not.toContain(
       'Drug0',
     );
@@ -138,6 +137,30 @@ describe('AtAGlanceService.getSummaryForUser', () => {
     const whereCalls = [...qb.where.mock.calls, ...qb.andWhere.mock.calls];
     const flat = whereCalls.map((args) => JSON.stringify(args)).join('\n');
     expect(flat).toMatch(/42|:userId/);
+  });
+
+  it('should add a deleted_at IS NULL filter to the query', async () => {
+    await setup([]);
+    await service.getSummaryForUser(1);
+    const qb = (repo.createQueryBuilder as jest.Mock).mock.results[0].value;
+    const whereCalls = [...qb.where.mock.calls, ...qb.andWhere.mock.calls];
+    const flat = whereCalls.map((args) => JSON.stringify(args)).join('\n');
+    expect(flat).toMatch(/deleted_at IS NULL/);
+  });
+
+  it('should exclude documents with only uncategorized fields from documents_analyzed and last_updated', async () => {
+    await setup([
+      // doc-1 has a known medication
+      makeRow('medication', 'Lisinopril', 'doc-1', '2026-05-01T10:00:00Z'),
+      // doc-2 has only uncategorized fields and should NOT pad the count
+      makeRow('weird_thing', 'foo', 'doc-2', '2026-05-10T12:00:00Z'),
+    ]);
+    const result = await service.getSummaryForUser(1);
+    expect(result.documents_analyzed).toBe(1);
+    // last_updated should be the medication's timestamp, not the uncategorized one
+    expect(result.last_updated).toBe(
+      new Date('2026-05-01T10:00:00Z').toISOString(),
+    );
   });
 });
 
