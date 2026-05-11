@@ -4,7 +4,12 @@
 
 **Goal:** Ship a new `GET /api/v1/at-a-glance/summary` endpoint that aggregates extracted-document-field data into per-category counts and samples for the HealthAtlas mobile app's at-a-glance dashboard.
 
-**Architecture:** A new `AtAGlanceModule` containing a controller (JWT-guarded, throttled 30/min), a service that queries the existing `extracted_fields` table via TypeORM, a static field-type → category map, and Swagger-decorated response DTOs. No database migrations. Service is testable in isolation via a mocked repository; full path verified via an e2e spec against a real Postgres instance.
+**Architecture:** A new `AtAGlanceModule` containing a controller (JWT-guarded at the method level per keystone style, throttled 30/min), a service that queries the existing `extracted_fields` table via TypeORM, a static field-type → category map, and Swagger-decorated response DTOs. No database migrations. Service is testable in isolation via a mocked repository; full path verified via an e2e spec against a real Postgres instance.
+
+**Convention corrections discovered during Task 1** (these override the templates below where they conflict):
+- `DocumentEntity.status` uses enum `DocumentStatus` (`src/document-processing/domain/enums/document-status.enum.ts`). Terminal-success value is `PROCESSED`, NOT `COMPLETED`. Use `DocumentStatus.PROCESSED` in queries.
+- `userId` is `number` throughout the keystone codebase (not `string`). The service's `getSummaryForUser` takes `userId: number`. Controller reads `request.user.id` as a number.
+- `@UseGuards(AuthGuard('jwt'))` and `@ApiBearerAuth()` are method-level decorators in keystone, NOT class-level. Apply them on the single `getSummary` handler.
 
 **Tech Stack:** NestJS 10+, TypeORM, `@nestjs/throttler`, `@nestjs/swagger`, Jest. PostgreSQL 17 via existing `docker-e2e.yml` workflow.
 
@@ -422,7 +427,7 @@ describe('AtAGlanceService.getSummaryForUser', () => {
 
   it('returns empty summary when user has no extracted fields', async () => {
     await setup([]);
-    const result = await service.getSummaryForUser('user-1');
+    const result = await service.getSummaryForUser(1);
     expect(result.documents_analyzed).toBe(0);
     expect(result.last_updated).toBeNull();
     expect(result.categories.medications.count).toBe(0);
@@ -438,7 +443,7 @@ describe('AtAGlanceService.getSummaryForUser', () => {
       makeRow('medication', 'Lisinopril', 'doc-2', '2026-05-02T10:00:00Z'), // dupe value
       makeRow('allergy', 'Penicillin', 'doc-3', '2026-05-03T10:00:00Z'),
     ]);
-    const result = await service.getSummaryForUser('user-1');
+    const result = await service.getSummaryForUser(1);
     expect(result.categories.medications.count).toBe(2); // distinct values
     expect(result.categories.allergies.count).toBe(1);
     expect(result.documents_analyzed).toBe(3); // distinct document_ids
@@ -458,7 +463,7 @@ describe('AtAGlanceService.getSummaryForUser', () => {
     }
     // Provide rows in reverse chronological order (matches service query ORDER BY)
     await setup(rows.reverse());
-    const result = await service.getSummaryForUser('user-1');
+    const result = await service.getSummaryForUser(1);
     expect(result.categories.medications.count).toBe(6);
     expect(result.categories.medications.samples).toHaveLength(3);
     // Most-recent (Drug5) appears first
@@ -475,7 +480,7 @@ describe('AtAGlanceService.getSummaryForUser', () => {
       makeRow('blood_type', 'A+', 'doc-1', '2026-05-01T10:00:00Z'),
       makeRow('blood_type', 'O+', 'doc-2', '2026-05-02T10:00:00Z'), // newer wins
     ]);
-    const result = await service.getSummaryForUser('user-1');
+    const result = await service.getSummaryForUser(1);
     expect(result.categories.blood_type.value).toBe('O+');
     expect(result.categories.blood_type.source_document_id).toBe('doc-2');
   });
@@ -485,7 +490,7 @@ describe('AtAGlanceService.getSummaryForUser', () => {
       makeRow('weird_thing', 'whatever', 'doc-1', '2026-05-01T10:00:00Z'),
       makeRow('medication', 'Lisinopril', 'doc-1', '2026-05-01T10:00:00Z'),
     ]);
-    const result = await service.getSummaryForUser('user-1');
+    const result = await service.getSummaryForUser(1);
     // medication still counted
     expect(result.categories.medications.count).toBe(1);
     // weird_thing not in any known category
@@ -500,18 +505,18 @@ describe('AtAGlanceService.getSummaryForUser', () => {
       makeRow('medication', 'B', 'doc-2', '2026-05-05T15:30:00Z'),
       makeRow('medication', 'C', 'doc-3', '2026-05-03T08:00:00Z'),
     ]);
-    const result = await service.getSummaryForUser('user-1');
+    const result = await service.getSummaryForUser(1);
     expect(result.last_updated).toBe(new Date('2026-05-05T15:30:00Z').toISOString());
   });
 
   it('passes userId to the repository query (isolation)', async () => {
     await setup([]);
-    await service.getSummaryForUser('user-42');
+    await service.getSummaryForUser(42);
     const qb = (repo.createQueryBuilder as jest.Mock).mock.results[0].value;
     // At least one .where or .andWhere call should include the userId binding
     const whereCalls = [...qb.where.mock.calls, ...qb.andWhere.mock.calls];
     const flat = whereCalls.map((args) => JSON.stringify(args)).join('\n');
-    expect(flat).toMatch(/user-42|:userId/);
+    expect(flat).toMatch(/42|:userId/);
   });
 });
 
@@ -544,6 +549,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExtractedFieldEntity } from '../document-processing/infrastructure/persistence/relational/entities/extracted-field.entity';
+import { DocumentStatus } from '../document-processing/domain/enums/document-status.enum';
 import {
   AtAGlanceSummaryDto,
   AtAGlanceCategoriesDto,
@@ -575,12 +581,12 @@ export class AtAGlanceService {
     private readonly extractedFieldRepository: Repository<ExtractedFieldEntity>,
   ) {}
 
-  async getSummaryForUser(userId: string): Promise<AtAGlanceSummaryDto> {
+  async getSummaryForUser(userId: number): Promise<AtAGlanceSummaryDto> {
     const rows = await this.extractedFieldRepository
       .createQueryBuilder('ef')
       .innerJoin('ef.document', 'd')
       .where('d.user_id = :userId', { userId })
-      .andWhere("d.status = 'COMPLETED'")
+      .andWhere('d.status = :status', { status: DocumentStatus.PROCESSED })
       .select('ef.field_type', 'field_type')
       .addSelect('ef.field_value', 'field_value')
       .addSelect('ef.document_id', 'document_id')
@@ -720,9 +726,9 @@ describe('AtAGlanceController', () => {
     };
     service.getSummaryForUser.mockResolvedValue(summary);
     const result = await controller.getSummary({
-      user: { id: 'user-99' },
+      user: { id: 99 },
     } as any);
-    expect(service.getSummaryForUser).toHaveBeenCalledWith('user-99');
+    expect(service.getSummaryForUser).toHaveBeenCalledWith(99);
     expect(result).toBe(summary);
   });
 });
@@ -760,13 +766,13 @@ import { AtAGlanceSummaryDto } from './dto/at-a-glance-summary.dto';
 
 @ApiTags('At-a-Glance')
 @Controller({ path: 'at-a-glance', version: '1' })
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
 export class AtAGlanceController {
   constructor(private readonly atAGlanceService: AtAGlanceService) {}
 
   @Get('summary')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Aggregated at-a-glance dashboard summary',
