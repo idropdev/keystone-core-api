@@ -95,8 +95,12 @@
   Fetches document, resolves manager identity from `actor.id`, checks
   `document.originManagerId === manager.id` (for manager actors) or
   `document.temporaryManagerId === actor.id` (for user actors). Throws
-  `ForbiddenException` with audit log if neither condition holds. Also enforces
-  manager verification status (`verificationStatus !== 'verified'` → 403).
+  `ForbiddenException` with audit log if neither condition holds.
+  - Manager path: requires `actor.role === manager` AND
+    `document.originManagerId === manager.id` AND
+    `manager.verificationStatus === 'verified'` (else 403).
+  - Origin manager / temporary manager path: no verification check;
+    ownership alone gates access.
 - **Note:** This is the only route whose ownership check bypasses
   `DocumentAccessDomainService` entirely and runs in the domain processing service.
   The logic is consistent with the access model and more restrictive (no grant path

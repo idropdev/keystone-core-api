@@ -40,6 +40,38 @@ describe('validateFileMime', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('should accept a TIFF buffer with matching Content-Type', async () => {
+    // Minimal little-endian TIFF: II header + IFD offset + one IFD entry (ImageWidth).
+    // file-type v16 needs a valid IFD structure to confirm the format; the bare
+    // 8-byte magic alone triggers EndOfStreamError internally.
+    const buffer = Buffer.from(
+      '49492a00080000000100' + // II + 0x2A + offset=8, numEntries=1
+        '0001030001000000640000000000000000', // ImageWidth SHORT tag + null nextIFD
+      'hex',
+    );
+    const result = await validateFileMime(buffer, 'image/tiff', ALLOWED);
+    expect(result.ok).toBe(true);
+    expect(result.detectedMime).toBe('image/tiff');
+  });
+
+  it('should accept a GIF buffer with matching Content-Type', async () => {
+    // GIF89a signature
+    const buffer = Buffer.from('GIF89a', 'ascii');
+    const result = await validateFileMime(buffer, 'image/gif', ALLOWED);
+    expect(result.ok).toBe(true);
+    expect(result.detectedMime).toBe('image/gif');
+  });
+
+  it('should reject gracefully when fromBuffer throws on malformed input', async () => {
+    // Pass a buffer with bytes that file-type can't sensibly process — but is
+    // non-empty so the length guard doesn't fire first. The exact behavior here
+    // depends on file-type internals; either it returns undefined (and we hit the
+    // !detected branch) or throws (and we hit the try/catch). Both produce ok:false.
+    const buffer = Buffer.from([0x00]); // single null byte
+    const result = await validateFileMime(buffer, 'application/pdf', ALLOWED);
+    expect(result.ok).toBe(false);
+  });
+
   it('should reject when declared Content-Type does not match detected', async () => {
     // PNG bytes, but declared as PDF
     const result = await validateFileMime(

@@ -1,5 +1,11 @@
 import { fromBuffer } from 'file-type';
 
+// Note: `file-type` v16.5.4 is pinned because v17+ is ESM-only and would
+// require a TypeScript build retargeting. A separate v21 may be installed
+// transitively via @nestjs/common — we deliberately use the top-level v16
+// here and ignore the transitive copy. Do NOT consolidate versions without
+// first verifying the ESM compatibility story.
+
 export interface MimeValidationResult {
   ok: boolean;
   detectedMime: string | null;
@@ -14,7 +20,8 @@ export interface MimeValidationResult {
  * defends against clients sending a spoofed `Content-Type` header (the
  * multipart-declared MIME, which arrives as `file.mimetype` via Multer).
  *
- * @param buffer - The full file buffer or at least the first ~4KB
+ * @param buffer - The file buffer. Only the first ~64 bytes are typically read,
+ *                 but pass the full buffer when memory permits.
  * @param declaredMime - The MIME declared in the multipart Content-Type
  * @param allowed - List of MIME strings we're willing to accept at all
  */
@@ -31,7 +38,16 @@ export async function validateFileMime(
     };
   }
 
-  const detected = await fromBuffer(buffer);
+  let detected;
+  try {
+    detected = await fromBuffer(buffer);
+  } catch (err) {
+    return {
+      ok: false,
+      detectedMime: null,
+      reason: `MIME detection failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
   if (!detected) {
     return {
       ok: false,
