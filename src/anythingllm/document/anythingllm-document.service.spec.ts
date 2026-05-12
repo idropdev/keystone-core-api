@@ -455,7 +455,7 @@ This document will be used to test the complete workflow.`;
       }
     });
 
-    it('should fail to get history of deleted thread', async () => {
+    it('should return a non-OK response for history of deleted thread', async () => {
       if (
         SKIP_ANYTHINGLLM_TESTS ||
         !threadService ||
@@ -466,22 +466,15 @@ This document will be used to test the complete workflow.`;
         return;
       }
 
-      // Thread should already be deleted from previous test
-      await expect(
-        threadService.getThreadHistory(createdWorkspaceSlug, createdThreadSlug),
-      ).rejects.toThrow();
+      // Thread should already be deleted from previous test.
+      // getThreadHistory now returns a Response (never throws); expect ok: false.
+      const historyResponse = await threadService.getThreadHistory(
+        createdWorkspaceSlug,
+        createdThreadSlug,
+      );
 
-      try {
-        await threadService.getThreadHistory(
-          createdWorkspaceSlug,
-          createdThreadSlug,
-        );
-        fail('Expected error to be thrown');
-      } catch (error) {
-        expect(error).toBeInstanceOf(UpstreamError);
-        const upstreamError = error as UpstreamError;
-        expect(upstreamError.status).toBeGreaterThanOrEqual(400);
-      }
+      expect(historyResponse.ok).toBe(false);
+      expect(historyResponse.status).toBeGreaterThanOrEqual(400);
     });
 
     it('should fail to update non-existent thread', async () => {

@@ -460,7 +460,7 @@ export class AnythingLLMWorkspaceController {
 
   @Get(':slug/threads')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), UserThrottlerGuard)
   @ApiBearerAuth()
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({
@@ -501,7 +501,7 @@ export class AnythingLLMWorkspaceController {
 
   @Delete(':slug/thread/:threadSlug')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), UserThrottlerGuard)
   @ApiBearerAuth()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
@@ -556,7 +556,7 @@ export class AnythingLLMWorkspaceController {
 
   @Get(':slug/thread/:threadSlug/chats')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), UserThrottlerGuard)
   @ApiBearerAuth()
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Get thread chat history' })
