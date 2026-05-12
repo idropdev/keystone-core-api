@@ -5,7 +5,7 @@ import { ExtractedFieldEntity } from '../document-processing/infrastructure/pers
 import { AtAGlanceService } from './at-a-glance.service';
 
 type Row = {
-  field_type: string;
+  field_key: string;
   field_value: string;
   document_id: string;
   created_at: Date;
@@ -165,13 +165,13 @@ describe('AtAGlanceService.getSummaryForUser', () => {
 });
 
 function makeRow(
-  field_type: string,
+  field_key: string,
   field_value: string,
   document_id: string,
   isoDate: string,
 ): Row {
   return {
-    field_type,
+    field_key,
     field_value,
     document_id,
     created_at: new Date(isoDate),

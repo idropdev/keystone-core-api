@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Request,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -36,6 +37,10 @@ export class AtAGlanceController {
   @ApiOkResponse({ type: AtAGlanceSummaryDto })
   @ApiUnauthorizedResponse({ description: 'JWT missing or invalid' })
   async getSummary(@Request() request: any): Promise<AtAGlanceSummaryDto> {
-    return this.atAGlanceService.getSummaryForUser(request.user.id);
+    const userId = Number(request.user?.id);
+    if (!Number.isFinite(userId)) {
+      throw new UnauthorizedException();
+    }
+    return this.atAGlanceService.getSummaryForUser(userId);
   }
 }

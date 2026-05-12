@@ -29,4 +29,25 @@ describe('AtAGlanceController', () => {
     expect(service.getSummaryForUser).toHaveBeenCalledWith(99);
     expect(result).toBe(summary);
   });
+
+  it('should coerce a string user id from the JWT sub claim to a number', async () => {
+    const summary = {
+      categories: {} as AtAGlanceSummaryDto['categories'],
+      last_updated: null,
+      documents_analyzed: 0,
+    };
+    service.getSummaryForUser.mockResolvedValue(summary);
+    // Simulate the JWT strategy resolving payload.sub (string) into request.user.id
+    await controller.getSummary({ user: { id: '99' } } as any);
+    expect(service.getSummaryForUser).toHaveBeenCalledWith(99);
+  });
+
+  it('should throw UnauthorizedException when user id is missing or not a number', async () => {
+    await expect(
+      controller.getSummary({ user: { id: undefined } } as any),
+    ).rejects.toThrow('Unauthorized');
+    await expect(
+      controller.getSummary({ user: { id: 'not-a-number' } } as any),
+    ).rejects.toThrow('Unauthorized');
+  });
 });

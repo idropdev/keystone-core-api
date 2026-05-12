@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExtractedFieldEntity } from '../document-processing/infrastructure/persistence/relational/entities/extracted-field.entity';
@@ -15,7 +15,7 @@ import {
 } from './utils/field-category-map';
 
 interface QueryRow {
-  field_type: string;
+  field_key: string;
   field_value: string;
   document_id: string;
   created_at: Date;
@@ -25,6 +25,8 @@ const SAMPLES_PER_CATEGORY = 3;
 
 @Injectable()
 export class AtAGlanceService {
+  private readonly logger = new Logger(AtAGlanceService.name);
+
   constructor(
     @InjectRepository(ExtractedFieldEntity)
     private readonly extractedFieldRepository: Repository<ExtractedFieldEntity>,
@@ -37,7 +39,7 @@ export class AtAGlanceService {
       .where('d.user_id = :userId', { userId })
       .andWhere('d.status = :status', { status: DocumentStatus.PROCESSED })
       .andWhere('d.deleted_at IS NULL')
-      .select('ef.field_type', 'field_type')
+      .select('ef.field_key', 'field_key')
       .addSelect('ef.field_value', 'field_value')
       .addSelect('ef.document_id', 'document_id')
       .addSelect('ef.created_at', 'created_at')
@@ -50,7 +52,12 @@ export class AtAGlanceService {
   private buildSummary(rows: QueryRow[]): AtAGlanceSummaryDto {
     const buckets = new Map<string, QueryRow[]>();
     for (const row of rows) {
-      const category = mapToCategory(row.field_type);
+      const category = mapToCategory(row.field_key);
+      if (category === UNCATEGORIZED) {
+        this.logger.debug(
+          `at-a-glance: uncategorized field_key=${row.field_key}`,
+        );
+      }
       const list = buckets.get(category) ?? [];
       list.push(row);
       buckets.set(category, list);
@@ -69,11 +76,11 @@ export class AtAGlanceService {
       }
     }
 
-    // Only rows whose field_type maps to a known category contribute to the
+    // Only rows whose field_key maps to a known category contribute to the
     // surfaced summary. Uncategorized rows are silently ignored — they don't
     // pad the documents_analyzed count or shift last_updated.
     const categorizedRows = rows.filter(
-      (r) => mapToCategory(r.field_type) !== UNCATEGORIZED,
+      (r) => mapToCategory(r.field_key) !== UNCATEGORIZED,
     );
 
     const allTimestamps = categorizedRows
