@@ -1037,6 +1037,21 @@ export class AnythingLLMUserProvisioningService {
   }
 
   /**
+   * Soft-delete a thread row from the local `anythingllm_user_threads` mirror.
+   * Safe to call even if the row is missing. Used after upstream AnythingLLM
+   * thread deletion succeeds, to keep the local mirror in sync.
+   */
+  async softDeleteThread(threadSlug: string): Promise<void> {
+    if (!this.threadRepository) {
+      this.logger.warn(
+        'Thread repository not available - local mirror soft-delete skipped',
+      );
+      return;
+    }
+    await this.threadRepository.softDelete(threadSlug);
+  }
+
+  /**
    * Record a thread created by a user (internal use only)
    *
    * Stores thread information in the database for tracking and audit purposes.

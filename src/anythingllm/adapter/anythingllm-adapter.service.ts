@@ -11,6 +11,7 @@ import {
   UploadRawTextRequestSchema,
   CreateThreadRequestSchema,
   ThreadChatRequestSchema,
+  ThreadChatsResponseSchema,
   OpenAIChatMessageSchema,
   OpenAIChatCompletionsResponseSchema,
 } from '../registry/schemas';
@@ -534,13 +535,14 @@ export class AnythingLLMAdapterService {
     workspaceSlug: string,
     threadSlug: string,
   ): Promise<ChatHistory> {
-    const result = await this.threadService.getThreadHistory(
+    const response = await this.threadService.getThreadHistory(
       workspaceSlug,
       threadSlug,
     );
 
+    const result = (await response.json()) as ThreadChatsResponseSchema;
     return {
-      history: result.data.history.map((msg) => ({
+      history: result.history.map((msg) => ({
         role: msg.role,
         content: msg.content,
         sentAt: msg.sentAt,

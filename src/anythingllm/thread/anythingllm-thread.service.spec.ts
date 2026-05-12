@@ -4,17 +4,31 @@ import { AnythingLLMRegistryClient } from '../registry/anythingllm-registry-clie
 import { AnythingLLMClientService } from '../services/anythingllm-client.service';
 
 import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/service';
+import { AnythingLLMUserProvisioningService } from '../provisioning/anythingllm-user-provisioning.service';
+import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 
 describe('AnythingLLMThreadService', () => {
   let service: AnythingLLMThreadService;
   let mockRegistryClient: jest.Mocked<AnythingLLMRegistryClient>;
   let mockClientService: jest.Mocked<AnythingLLMClientService>;
+  let mockOrchestratorService: jest.Mocked<AnythingLLMOrchestratorService>;
+  let mockUserProvisioningService: jest.Mocked<
+    Pick<AnythingLLMUserProvisioningService, 'softDeleteThread'>
+  >;
 
   const mockResult = {
     data: { success: true, threadSlug: 'test-thread' },
     requestId: 'test-request-id',
     status: 200,
   };
+
+  const makeFakeOkResponse = (body: unknown = { success: true }): Response =>
+    ({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue(body),
+      text: jest.fn().mockResolvedValue(JSON.stringify(body)),
+    }) as any as Response;
 
   beforeEach(async () => {
     mockRegistryClient = {
@@ -25,6 +39,14 @@ describe('AnythingLLMThreadService', () => {
     mockClientService = {
       callAnythingLLM: jest.fn(),
     } as any;
+
+    mockOrchestratorService = {
+      executeOperation: jest.fn(),
+    } as any;
+
+    mockUserProvisioningService = {
+      softDeleteThread: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,7 +61,11 @@ describe('AnythingLLMThreadService', () => {
         },
         {
           provide: AnythingLLMOrchestratorService,
-          useValue: { executeOperation: jest.fn() },
+          useValue: mockOrchestratorService,
+        },
+        {
+          provide: AnythingLLMUserProvisioningService,
+          useValue: mockUserProvisioningService,
         },
       ],
     }).compile();
@@ -79,18 +105,110 @@ describe('AnythingLLMThreadService', () => {
   });
 
   describe('deleteThread', () => {
-    it('should throw error (temporarily disabled)', async () => {
-      await expect(service.deleteThread('ws', 'thread')).rejects.toThrow(
-        'Non-admin thread endpoints have been temporarily disabled',
+    it('should call clientService directly when no requesterContext', async () => {
+      const fakeResponse = makeFakeOkResponse();
+      mockClientService.callAnythingLLM.mockResolvedValue(fakeResponse);
+
+      const result = await service.deleteThread('my-workspace', 'my-thread');
+
+      expect(mockClientService.callAnythingLLM).toHaveBeenCalledWith(
+        '/v1/workspace/my-workspace/thread/my-thread',
+        { method: 'DELETE' },
       );
+      expect(result).toBe(fakeResponse);
+    });
+
+    it('should call orchestratorService when requesterContext is provided', async () => {
+      const fakeResponse = makeFakeOkResponse();
+      mockOrchestratorService.executeOperation.mockResolvedValue(fakeResponse);
+
+      const requesterContext = { userId: '42', roles: ['user'] } as any;
+      const result = await service.deleteThread(
+        'my-workspace',
+        'my-thread',
+        requesterContext,
+      );
+
+      expect(mockOrchestratorService.executeOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: AnythingLLMOperation.THREAD_DELETE,
+          endpoint: '/v1/workspace/my-workspace/thread/my-thread',
+          method: 'DELETE',
+          requesterContext,
+          resourceContext: {
+            workspaceSlug: 'my-workspace',
+            threadSlug: 'my-thread',
+          },
+        }),
+      );
+      expect(result).toBe(fakeResponse);
+    });
+
+    it('should soft-delete local mirror on upstream success', async () => {
+      const fakeResponse = makeFakeOkResponse();
+      mockClientService.callAnythingLLM.mockResolvedValue(fakeResponse);
+
+      await service.deleteThread('my-workspace', 'my-thread');
+
+      expect(mockUserProvisioningService.softDeleteThread).toHaveBeenCalledWith(
+        'my-thread',
+      );
+    });
+
+    it('should return upstream response even when local soft-delete throws', async () => {
+      const fakeResponse = makeFakeOkResponse();
+      mockClientService.callAnythingLLM.mockResolvedValue(fakeResponse);
+      mockUserProvisioningService.softDeleteThread = jest
+        .fn()
+        .mockRejectedValue(new Error('DB error'));
+
+      const result = await service.deleteThread('my-workspace', 'my-thread');
+
+      expect(result).toBe(fakeResponse);
     });
   });
 
   describe('getThreadHistory', () => {
-    it('should throw error (temporarily disabled)', async () => {
-      await expect(service.getThreadHistory('ws', 'thread')).rejects.toThrow(
-        'Non-admin thread endpoints have been temporarily disabled',
+    it('should call clientService directly when no requesterContext', async () => {
+      const fakeResponse = makeFakeOkResponse({ chats: [] });
+      mockClientService.callAnythingLLM.mockResolvedValue(fakeResponse);
+
+      const result = await service.getThreadHistory(
+        'my-workspace',
+        'my-thread',
       );
+
+      expect(mockClientService.callAnythingLLM).toHaveBeenCalledWith(
+        '/v1/workspace/my-workspace/thread/my-thread/chats',
+        { method: 'GET' },
+      );
+      expect(result).toBe(fakeResponse);
+    });
+
+    it('should call orchestratorService when requesterContext is provided', async () => {
+      const fakeResponse = makeFakeOkResponse({ chats: [] });
+      mockOrchestratorService.executeOperation.mockResolvedValue(fakeResponse);
+
+      const requesterContext = { userId: '42', roles: ['user'] } as any;
+      const result = await service.getThreadHistory(
+        'my-workspace',
+        'my-thread',
+        requesterContext,
+      );
+
+      expect(mockOrchestratorService.executeOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: AnythingLLMOperation.THREAD_HISTORY,
+          endpoint: '/v1/workspace/my-workspace/thread/my-thread/chats',
+          method: 'GET',
+          requesterContext,
+          resourceContext: {
+            workspaceSlug: 'my-workspace',
+            threadSlug: 'my-thread',
+          },
+        }),
+      );
+      expect(result).toBe(fakeResponse);
     });
   });
 

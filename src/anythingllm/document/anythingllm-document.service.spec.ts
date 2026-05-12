@@ -360,17 +360,18 @@ This document will be used to test the complete workflow.`;
         return;
       }
 
-      const result = await threadService.getThreadHistory(
+      const historyResponse = await threadService.getThreadHistory(
         createdWorkspaceSlug,
         createdThreadSlug,
       );
 
-      expect(result.data.history).toBeDefined();
-      expect(Array.isArray(result.data.history)).toBe(true);
-      expect(result.data.history.length).toBeGreaterThan(0);
+      const result = await historyResponse.json();
+      expect(result.history).toBeDefined();
+      expect(Array.isArray(result.history)).toBe(true);
+      expect(result.history.length).toBeGreaterThan(0);
 
       // Verify the history contains our message
-      const hasOurMessage = result.data.history.some(
+      const hasOurMessage = result.history.some(
         (chat: any) =>
           chat.message?.toLowerCase().includes('what is this document') ||
           chat.prompt?.toLowerCase().includes('what is this document'),
@@ -417,12 +418,13 @@ This document will be used to test the complete workflow.`;
       }
 
       // Delete the thread
-      const deleteResult = await threadService.deleteThread(
+      const deleteResponse = await threadService.deleteThread(
         createdWorkspaceSlug,
         createdThreadSlug,
       );
 
-      expect(deleteResult.data.success).toBe(true);
+      const deleteResult = await deleteResponse.json();
+      expect(deleteResult.success).toBe(true);
 
       // Try to send a message to the deleted thread - should fail
       await expect(

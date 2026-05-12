@@ -52,11 +52,11 @@ export class AnythingLLMAdminOversightService {
     workspaceSlug: string,
     threadSlug: string,
   ): Promise<ThreadChatsResponseSchema> {
-    const result = await this.threadService.getThreadHistory(
+    const response = await this.threadService.getThreadHistory(
       workspaceSlug,
       threadSlug,
     );
-    return result.data;
+    return (await response.json()) as ThreadChatsResponseSchema;
   }
 
   /**

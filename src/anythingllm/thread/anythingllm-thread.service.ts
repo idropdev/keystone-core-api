@@ -8,8 +8,6 @@ import {
   CreateThreadRequestSchema,
   UpdateThreadRequestSchema,
   UpdateThreadResponseSchema,
-  DeleteThreadResponseSchema,
-  ThreadChatsResponseSchema,
   ThreadChatRequestSchema,
   ThreadChatResponseSchema,
   ThreadStreamChatChunkSchema,
@@ -19,6 +17,7 @@ import { AnythingLLMOrchestratorService } from '../../anythingllm-orchestrator/s
 import { AnythingLLMOperation } from '../../anythingllm-policy/domain/anythingllm-operation.enum';
 import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-anythingllm.dto';
 import { ResourceContext } from '../../anythingllm-policy/domain/resource-context.entity';
+import { AnythingLLMUserProvisioningService } from '../provisioning/anythingllm-user-provisioning.service';
 
 /**
  * AnythingLLM Thread Service
@@ -36,6 +35,7 @@ export class AnythingLLMThreadService {
     private readonly registryClient: AnythingLLMRegistryClient,
     private readonly clientService: AnythingLLMClientService,
     private readonly orchestratorService: AnythingLLMOrchestratorService,
+    private readonly userProvisioningService: AnythingLLMUserProvisioningService,
   ) {}
 
   /**
@@ -105,39 +105,78 @@ export class AnythingLLMThreadService {
   }
 
   /**
-   * Delete a thread
-   * TODO: Non-admin endpoints have been temporarily disabled
+   * Delete a thread.
+   * Supports delegated token (user JWT) or service identity authentication.
+   * Also soft-deletes the local `anythingllm_user_threads` mirror row on success.
+   *
+   * @param workspaceSlug - Workspace slug
+   * @param threadSlug - Thread slug
+   * @param requesterContext - User context if JWT present (optional)
+   * @returns Upstream response from AnythingLLM
    */
   async deleteThread(
-    _workspaceSlug: string,
-    _threadSlug: string,
-  ): Promise<RegistryCallResult<DeleteThreadResponseSchema>> {
-    await Promise.resolve();
-    throw new Error(
-      'Non-admin thread endpoints have been temporarily disabled',
-    );
-    // return this.registryClient.call<DeleteThreadResponseSchema>(
-    //   AnythingLLMAdminEndpointIds.DELETE_THREAD,
-    //   { params: { slug: workspaceSlug, threadSlug } },
-    // );
+    workspaceSlug: string,
+    threadSlug: string,
+    requesterContext?: RequesterContextDto,
+  ): Promise<Response> {
+    const path = `/v1/workspace/${encodeURIComponent(workspaceSlug)}/thread/${encodeURIComponent(threadSlug)}`;
+
+    let upstreamResponse: Response;
+    if (requesterContext) {
+      const resourceContext: ResourceContext = { workspaceSlug, threadSlug };
+      upstreamResponse = await this.orchestratorService.executeOperation({
+        operation: AnythingLLMOperation.THREAD_DELETE,
+        requesterContext,
+        resourceContext,
+        endpoint: path,
+        method: 'DELETE',
+      });
+    } else {
+      upstreamResponse = await this.clientService.callAnythingLLM(path, {
+        method: 'DELETE',
+      });
+    }
+
+    if (upstreamResponse.ok) {
+      try {
+        await this.userProvisioningService.softDeleteThread(threadSlug);
+      } catch (e) {
+        this.logger.warn(
+          `Upstream delete succeeded but local mirror soft-delete failed for thread ${threadSlug}: ${e}`,
+        );
+      }
+    }
+
+    return upstreamResponse;
   }
 
   /**
-   * Get thread chat history
-   * TODO: Non-admin endpoints have been temporarily disabled
+   * Get thread chat history.
+   * Supports delegated token (user JWT) or service identity authentication.
+   *
+   * @param workspaceSlug - Workspace slug
+   * @param threadSlug - Thread slug
+   * @param requesterContext - User context if JWT present (optional)
+   * @returns Upstream response from AnythingLLM
    */
   async getThreadHistory(
-    _workspaceSlug: string,
-    _threadSlug: string,
-  ): Promise<RegistryCallResult<ThreadChatsResponseSchema>> {
-    await Promise.resolve();
-    throw new Error(
-      'Non-admin thread endpoints have been temporarily disabled',
-    );
-    // return this.registryClient.call<ThreadChatsResponseSchema>(
-    //   AnythingLLMAdminEndpointIds.GET_THREAD_CHATS,
-    //   { params: { slug: workspaceSlug, threadSlug } },
-    // );
+    workspaceSlug: string,
+    threadSlug: string,
+    requesterContext?: RequesterContextDto,
+  ): Promise<Response> {
+    const path = `/v1/workspace/${encodeURIComponent(workspaceSlug)}/thread/${encodeURIComponent(threadSlug)}/chats`;
+
+    if (requesterContext) {
+      const resourceContext: ResourceContext = { workspaceSlug, threadSlug };
+      return this.orchestratorService.executeOperation({
+        operation: AnythingLLMOperation.THREAD_HISTORY,
+        requesterContext,
+        resourceContext,
+        endpoint: path,
+        method: 'GET',
+      });
+    }
+    return this.clientService.callAnythingLLM(path, { method: 'GET' });
   }
 
   /**

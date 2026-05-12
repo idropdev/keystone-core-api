@@ -85,6 +85,15 @@ export class AnythingLLMPolicyService {
           isUser,
         );
 
+      case AnythingLLMOperation.THREAD_DELETE:
+        return this.authorizeThreadDelete(
+          requesterContext,
+          resourceContext,
+          isAdmin,
+          isManager,
+          isUser,
+        );
+
       case AnythingLLMOperation.THREAD_HISTORY:
         return this.authorizeThreadHistory(
           requesterContext,
@@ -325,6 +334,65 @@ export class AnythingLLMPolicyService {
     return {
       allowed: true,
       scope: ['anythingllm:thread:read', 'anythingllm:thread:list'],
+    };
+  }
+
+  /**
+   * Authorize THREAD_DELETE operation
+   * User: own threads only
+   * Manager: own threads + assigned users' threads
+   * Admin: all threads
+   */
+  private async authorizeThreadDelete(
+    requesterContext: RequesterContextDto,
+    resourceContext: ResourceContext | undefined,
+    isAdmin: boolean,
+    isManager: boolean,
+    _isUser: boolean,
+  ): Promise<AuthorizeOperationResponseDto> {
+    if (isAdmin) {
+      return {
+        allowed: true,
+        scope: ['anythingllm:thread:delete'],
+      };
+    }
+
+    if (!resourceContext?.workspaceSlug || !resourceContext?.threadSlug) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'workspaceSlug and threadSlug required',
+      };
+    }
+
+    const requesterUserId = parseInt(requesterContext.userId, 10);
+    if (isNaN(requesterUserId)) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'Invalid user ID',
+      };
+    }
+
+    // Check thread access
+    const hasAccess = await this.checkThreadAccess(
+      requesterUserId,
+      resourceContext.workspaceSlug,
+      resourceContext.threadSlug,
+      isManager,
+    );
+
+    if (!hasAccess) {
+      return {
+        allowed: false,
+        scope: [],
+        reason: 'User does not have access to this thread',
+      };
+    }
+
+    return {
+      allowed: true,
+      scope: ['anythingllm:thread:delete'],
     };
   }
 
