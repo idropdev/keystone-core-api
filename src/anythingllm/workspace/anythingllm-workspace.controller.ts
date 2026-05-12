@@ -22,6 +22,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { UserThrottlerGuard } from './guards/user-throttler.guard';
 import { Response, Request as ExpressRequest } from 'express';
 import { AnythingLLMWorkspaceService } from './anythingllm-workspace.service';
 import { AnythingLLMThreadService } from '../thread/anythingllm-thread.service';
@@ -612,6 +613,9 @@ export class AnythingLLMWorkspaceController {
   }
 
   @Post(':slug/thread/:threadSlug/stream-chat')
+  @UseGuards(AuthGuard('jwt'), UserThrottlerGuard)
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Stream chat with a workspace thread',
