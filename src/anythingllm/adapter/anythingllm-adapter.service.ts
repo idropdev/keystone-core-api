@@ -1,4 +1,11 @@
-import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Optional,
+  Inject,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { AnythingLLMWorkspaceService } from '../workspace/anythingllm-workspace.service';
 import { AnythingLLMDocumentService } from '../document/anythingllm-document.service';
 import { AnythingLLMThreadService } from '../thread/anythingllm-thread.service';
@@ -539,6 +546,17 @@ export class AnythingLLMAdapterService {
       workspaceSlug,
       threadSlug,
     );
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => 'unknown');
+      this.logger.error(
+        `Upstream getThreadHistory failed (${response.status}): ${errorBody}`,
+      );
+      throw new HttpException(
+        'Failed to fetch thread history',
+        response.status === 404 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY,
+      );
+    }
 
     const result = (await response.json()) as ThreadChatsResponseSchema;
     return {

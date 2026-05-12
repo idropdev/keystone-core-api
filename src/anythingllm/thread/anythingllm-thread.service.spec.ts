@@ -166,6 +166,25 @@ describe('AnythingLLMThreadService', () => {
 
       expect(result).toBe(fakeResponse);
     });
+
+    it('should NOT soft-delete the local mirror when upstream delete fails', async () => {
+      const upstreamFailureResponse = {
+        ok: false,
+        status: 502,
+        text: jest.fn().mockResolvedValue('upstream error'),
+        json: jest.fn().mockResolvedValue({}),
+      } as any as Response;
+      mockClientService.callAnythingLLM.mockResolvedValue(
+        upstreamFailureResponse,
+      );
+
+      const result = await service.deleteThread('ws-1', 'thread-1');
+
+      expect(result).toBe(upstreamFailureResponse);
+      expect(
+        mockUserProvisioningService.softDeleteThread,
+      ).not.toHaveBeenCalled();
+    });
   });
 
   describe('getThreadHistory', () => {

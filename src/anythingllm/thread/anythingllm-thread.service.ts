@@ -140,9 +140,10 @@ export class AnythingLLMThreadService {
     if (upstreamResponse.ok) {
       try {
         await this.userProvisioningService.softDeleteThread(threadSlug);
-      } catch (e) {
-        this.logger.warn(
-          `Upstream delete succeeded but local mirror soft-delete failed for thread ${threadSlug}: ${e}`,
+      } catch (error) {
+        this.logger.error(
+          `Local mirror soft-delete failed after successful upstream thread delete - mirror is now stale until reconciliation. threadSlug=${threadSlug} workspaceSlug=${workspaceSlug} error=${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
         );
       }
     }
