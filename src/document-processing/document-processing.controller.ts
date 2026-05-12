@@ -45,6 +45,7 @@ import { DocumentQueryDto } from './dto/document-query.dto';
 import { DocumentQueryResponseDto } from './dto/document-query-response.dto';
 import { InfinityPaginationResponseDto } from '../utils/dto/infinity-pagination-response.dto';
 import { extractActorFromRequest } from './utils/actor-extractor.util';
+import { validateFileMime } from './utils/mime-validator';
 import { RoleEnum } from '../roles/roles.enum';
 import { ExtractedFieldsWithOcrResponseDto } from './dto/extracted-fields-with-ocr-response.dto';
 import { AssignManagerDto } from './dto/assign-manager.dto';
@@ -168,6 +169,30 @@ export class DocumentProcessingController {
         `[UPLOAD DOCUMENT] ❌ FORBIDDEN (403): Admin user ${req.user.id} attempted to upload document`,
       );
       throw new ForbiddenException('Admins do not have document-level access');
+    }
+
+    // Magic-byte MIME validation — defends against spoofed Content-Type headers.
+    // Multer's fileFilter already rejected disallowed MIMEs based on the header,
+    // but headers are client-controlled. This re-validates the actual bytes.
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/tiff',
+      'image/gif',
+    ];
+    const mimeCheck = await validateFileMime(
+      file.buffer,
+      file.mimetype,
+      allowedMimeTypes,
+    );
+    if (!mimeCheck.ok) {
+      logger.warn(
+        `[UPLOAD DOCUMENT] ❌ MIME mismatch: userId=${req.user?.id}, declared=${file.mimetype}, detected=${mimeCheck.detectedMime ?? 'unknown'}, reason=${mimeCheck.reason}`,
+      );
+      throw new BadRequestException(
+        `File contents do not match declared type. ${mimeCheck.reason}`,
+      );
     }
 
     const actor = extractActorFromRequest(req);
