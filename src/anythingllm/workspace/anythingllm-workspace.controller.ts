@@ -1,6 +1,8 @@
 import {
   Controller,
   Post,
+  Get,
+  Delete,
   UseGuards,
   Body,
   Request,
@@ -12,6 +14,7 @@ import {
   Res,
   Optional,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -452,6 +455,160 @@ export class AnythingLLMWorkspaceController {
 
       throw httpError;
     }
+  }
+
+  @Get(':slug/threads')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'List threads in a workspace for the authenticated user',
+    description:
+      "Returns thread metadata for the authenticated user's threads in the specified workspace, sourced from keystone's local mirror table (upstream AnythingLLM has no list-threads endpoint).",
+  })
+  @ApiResponse({ status: 200, description: 'Threads listed successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden — workspace does not belong to the user',
+  })
+  async listThreads(
+    @Request() request: ExpressRequestWithUser,
+    @Param('slug') workspaceSlug: string,
+  ): Promise<unknown> {
+    if (!request.user) {
+      throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+    }
+    const userId = request.user.id;
+
+    if (!this.provisioningService) {
+      throw new HttpException(
+        'Provisioning service not available',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    const mapping =
+      await this.provisioningService.getWorkspaceMappingForUser(userId);
+    if (!mapping || mapping.workspaceSlug !== workspaceSlug) {
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+    }
+
+    return this.threadService.listThreads(workspaceSlug, userId);
+  }
+
+  @Delete(':slug/thread/:threadSlug')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Delete a thread (proxies upstream + soft-deletes local mirror)',
+  })
+  @ApiResponse({ status: 204, description: 'Thread deleted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Thread not found' })
+  async deleteThread(
+    @Request() request: ExpressRequestWithUser,
+    @Param('slug') workspaceSlug: string,
+    @Param('threadSlug') threadSlug: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const startTime = Date.now();
+    const requestId = randomUUID();
+    response.setHeader('X-Request-Id', requestId);
+
+    const requesterContext = request.user
+      ? this.mapUserToRequesterContext(request.user)
+      : undefined;
+
+    const upstreamResponse = await this.threadService.deleteThread(
+      workspaceSlug,
+      threadSlug,
+      requesterContext,
+    );
+    const durationMs = Date.now() - startTime;
+    this.logEndpointCall(
+      `/v1/workspace/${workspaceSlug}/thread/${threadSlug}`,
+      AnythingLLMOperation.THREAD_DELETE,
+      request,
+      upstreamResponse.status,
+      durationMs,
+      requestId,
+    );
+
+    if (!upstreamResponse.ok) {
+      if (upstreamResponse.status === 401) {
+        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      }
+      if (upstreamResponse.status === 403) {
+        throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+      }
+      if (upstreamResponse.status === 404) {
+        throw new HttpException('Thread not found', HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException('Delete failed', HttpStatus.BAD_GATEWAY);
+    }
+  }
+
+  @Get(':slug/thread/:threadSlug/chats')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Get thread chat history' })
+  @ApiResponse({ status: 200, description: 'Chat history returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Thread not found' })
+  async getThreadChats(
+    @Request() request: ExpressRequestWithUser,
+    @Param('slug') workspaceSlug: string,
+    @Param('threadSlug') threadSlug: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<unknown> {
+    const startTime = Date.now();
+    const requestId = randomUUID();
+    response.setHeader('X-Request-Id', requestId);
+
+    const requesterContext = request.user
+      ? this.mapUserToRequesterContext(request.user)
+      : undefined;
+
+    const upstreamResponse = await this.threadService.getThreadHistory(
+      workspaceSlug,
+      threadSlug,
+      requesterContext,
+    );
+    const durationMs = Date.now() - startTime;
+    this.logEndpointCall(
+      `/v1/workspace/${workspaceSlug}/thread/${threadSlug}/chats`,
+      AnythingLLMOperation.THREAD_HISTORY,
+      request,
+      upstreamResponse.status,
+      durationMs,
+      requestId,
+    );
+
+    if (!upstreamResponse.ok) {
+      if (upstreamResponse.status === 401) {
+        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      }
+      if (upstreamResponse.status === 403) {
+        throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+      }
+      if (upstreamResponse.status === 404) {
+        throw new HttpException('Thread not found', HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException(
+        'Failed to fetch chat history',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    return upstreamResponse.json();
   }
 
   @Post(':slug/thread/:threadSlug/stream-chat')
