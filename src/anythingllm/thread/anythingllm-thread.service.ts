@@ -19,6 +19,15 @@ import { RequesterContextDto } from '../../anythingllm-orchestrator/dto/call-any
 import { ResourceContext } from '../../anythingllm-policy/domain/resource-context.entity';
 import { AnythingLLMUserProvisioningService } from '../provisioning/anythingllm-user-provisioning.service';
 
+export interface ThreadListItem {
+  slug: string;
+  name: string | null;
+  workspaceSlug: string;
+  messageCount: number;
+  lastMessageAt: string | null;
+  createdAt: string;
+}
+
 /**
  * AnythingLLM Thread Service
  *
@@ -80,6 +89,37 @@ export class AnythingLLMThreadService {
         },
       });
     }
+  }
+
+  /**
+   * List threads for the given keystone user, filtered by workspace slug.
+   *
+   * Reads from the local `anythingllm_user_threads` mirror via the provisioning
+   * service. AnythingLLM's upstream API has no list-threads endpoint, so this
+   * is entirely keystone-side.
+   *
+   * @param workspaceSlug - Workspace slug to filter to
+   * @param keystoneUserId - Keystone user ID (string or number)
+   * @returns Array of thread metadata, most-recent activity not guaranteed (order matches repository)
+   */
+  async listThreads(
+    workspaceSlug: string,
+    keystoneUserId: string | number,
+  ): Promise<ThreadListItem[]> {
+    const threads =
+      await this.userProvisioningService.getUserThreads(keystoneUserId);
+    return threads
+      .filter((thread) => thread.workspaceSlug === workspaceSlug)
+      .map((thread) => ({
+        slug: thread.threadSlug,
+        name: thread.threadName,
+        workspaceSlug: thread.workspaceSlug,
+        messageCount: thread.messageCount,
+        lastMessageAt: thread.lastMessageAt
+          ? thread.lastMessageAt.toISOString()
+          : null,
+        createdAt: thread.createdAt.toISOString(),
+      }));
   }
 
   /**
