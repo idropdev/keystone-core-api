@@ -13,6 +13,7 @@ import { AuditModule } from '../audit/audit.module';
 import { ServiceApiKeyGuard } from './guards/service-api-key.guard';
 import { FormUrlEncodedInterceptor } from './interceptors/form-urlencoded.interceptor';
 import { TokenIntrospectionCacheService } from './services/token-introspection-cache.service';
+import { AnythingLLMProvisioningModule } from '../anythingllm/provisioning/anythingllm-provisioning.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TokenIntrospectionCacheService } from './services/token-introspection-c
     MailModule,
     JwtModule.register({}),
     AuditModule,
+    forwardRef(() => AnythingLLMProvisioningModule),
   ],
   controllers: [AuthController],
   providers: [

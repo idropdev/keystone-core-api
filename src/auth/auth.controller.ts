@@ -234,7 +234,9 @@ export class AuthController {
     description: 'Invalid or expired access token',
   })
   @HttpCode(HttpStatus.OK)
-  public me(@Request() request): Promise<NullableType<User>> {
+  public me(
+    @Request() request,
+  ): Promise<(User & { chatWorkspaceSlug: string | null }) | null> {
     return this.service.me(request.user);
   }
 

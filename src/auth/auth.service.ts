@@ -1,9 +1,11 @@
 import {
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
   UnprocessableEntityException,
+  forwardRef,
 } from '@nestjs/common';
 import ms from 'ms';
 import crypto from 'crypto';
@@ -34,6 +36,7 @@ import {
   TokenIntrospectResponseDto,
 } from './dto/token-introspect.dto';
 import { TokenIntrospectionCacheService } from './services/token-introspection-cache.service';
+import { AnythingLLMUserProvisioningService } from '../anythingllm/provisioning/anythingllm-user-provisioning.service';
 
 @Injectable()
 export class AuthService {
@@ -45,6 +48,8 @@ export class AuthService {
     private configService: ConfigService<AllConfigType>,
     private auditService: AuditService,
     private introspectionCache: TokenIntrospectionCacheService,
+    @Inject(forwardRef(() => AnythingLLMUserProvisioningService))
+    private readonly anythingllmProvisioningService: AnythingLLMUserProvisioningService,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
@@ -471,8 +476,20 @@ export class AuthService {
     await this.usersService.update(user.id, user);
   }
 
-  async me(userJwtPayload: JwtPayloadType): Promise<NullableType<User>> {
-    return this.usersService.findById(userJwtPayload.id);
+  async me(
+    userJwtPayload: JwtPayloadType,
+  ): Promise<(User & { chatWorkspaceSlug: string | null }) | null> {
+    const user = await this.usersService.findById(userJwtPayload.id);
+    if (!user) return null;
+
+    const mapping =
+      await this.anythingllmProvisioningService.getWorkspaceMappingForUser(
+        userJwtPayload.id,
+      );
+
+    return Object.assign(user, {
+      chatWorkspaceSlug: mapping ? mapping.workspaceSlug : null,
+    });
   }
 
   async update(
