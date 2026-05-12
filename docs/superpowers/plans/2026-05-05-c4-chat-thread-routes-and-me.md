@@ -10,6 +10,13 @@
 
 **Reference spec:** `docs/superpowers/specs/2026-05-05-workstream-c-backend-gaps-design.md` §4.C4.
 
+**Task 1 findings that override plan templates below:**
+- `THREAD_HISTORY` already exists in `AnythingLLMOperation` (we use that name). `THREAD_LIST` also already exists. Only `THREAD_DELETE` is missing — Task 2 adds it.
+- `AnythingLLMUserThreadRepository` is NOT directly exported. Inject `AnythingLLMUserProvisioningService` instead (already available, already used by the workspace controller at line 71). Either add a new method to that service for the list-by-workspace use case, OR expose the repository in a dedicated module. Prefer adding a method to the provisioning service to avoid module surgery.
+- `mapUserToRequesterContext` and `logEndpointCall` are PRIVATE methods on `AnythingLLMWorkspaceController` (lines 39, 77). The C4 routes go into THIS controller (not a new thread-controller), so they can use these private methods directly.
+- `/auth/me` returns the `User` entity directly via class-transformer with `groups: ['me']` — no DTO file. Task 5 introduces a wrapper shape.
+- Circular-dep risk: `AnythingLLMWorkspaceModule` already imports `AuthModule` with `forwardRef`. Task 5 (auth importing AnythingLLM) needs `forwardRef` on both sides.
+
 **Key code shapes already verified:**
 - `AnythingLLMThreadService.deleteThread` (line 111) and `getThreadHistory` (line 129) **exist but throw `'Non-admin thread endpoints have been temporarily disabled'`** with the real bodies commented out. C4 re-enables both.
 - `AnythingLLMThreadService.createThread` (line 50) is the working reference — follow its pattern for the orchestrator wiring.
@@ -284,7 +291,7 @@ async getThreadHistory(
   if (requesterContext) {
     const resourceContext: ResourceContext = { workspaceSlug, threadSlug };
     return this.orchestratorService.executeOperation({
-      operation: AnythingLLMOperation.THREAD_GET_CHATS,
+      operation: AnythingLLMOperation.THREAD_HISTORY,
       requesterContext,
       resourceContext,
       endpoint: path,
@@ -295,7 +302,7 @@ async getThreadHistory(
 }
 ```
 
-If `AnythingLLMOperation.THREAD_GET_CHATS` does not exist, add it.
+If `AnythingLLMOperation.THREAD_HISTORY` does not exist, add it.
 
 ### Step 3: Update the existing spec file
 
@@ -644,7 +651,7 @@ async getThreadChats(
   const durationMs = Date.now() - startTime;
   this.logEndpointCall(
     `/v1/workspace/${workspaceSlug}/thread/${threadSlug}/chats`,
-    AnythingLLMOperation.THREAD_GET_CHATS,
+    AnythingLLMOperation.THREAD_HISTORY,
     request,
     upstreamResponse.status,
     durationMs,
