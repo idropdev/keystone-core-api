@@ -26,6 +26,7 @@ import { MailModule } from './mail/mail.module';
 import { HomeModule } from './home/home.module';
 import { ManagersModule } from './managers/managers.module';
 import { AccessControlModule } from './access-control/access-control.module';
+import { AtAGlanceModule } from './at-a-glance/at-a-glance.module';
 import { RevocationModule } from './revocation/revocation.module';
 import { AnythingLLMAdminModule } from './anythingllm/admin/anythingllm-admin.module';
 import { AnythingLLMWorkspaceModule } from './anythingllm/workspace/anythingllm-workspace.module';
@@ -129,6 +130,7 @@ const infrastructureDatabaseModule = (databaseConfig() as DatabaseConfig)
     DocumentProcessingModule,
     ManagersModule,
     AccessControlModule,
+    AtAGlanceModule,
     RevocationModule,
     AnythingLLMAdminModule,
     AnythingLLMWorkspaceModule,
