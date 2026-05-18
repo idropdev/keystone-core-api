@@ -717,87 +717,23 @@ export class DocumentProcessingDomainService {
                   throw new Error('Both OCR engines failed');
                 }
               } else {
-                // Merge disabled - but still run both OCRs in parallel for comparison
                 this.logger.log(
-                  `[PDF-PARSE FALLBACK] Merge disabled - running both OCRs in parallel (no merge)`,
+                  `[OCR] Merge disabled — running Document AI only (skipping Vision AI)`,
                 );
-
-                // Run both OCRs in parallel even when merge is disabled
-                const [visionResult, documentAiResult] =
-                  await Promise.allSettled([
-                    this.visionOcrService.processDocument(
-                      gcsUri,
-                      mimeType,
-                      document.pageCount,
-                    ),
-                    this.documentAiOcrService.processDocument(
-                      gcsUri,
-                      mimeType,
-                      document.pageCount,
-                    ),
-                  ]);
-
-                const visionOcrResult =
-                  visionResult.status === 'fulfilled'
-                    ? visionResult.value
-                    : null;
                 const documentAiOcrResult =
-                  documentAiResult.status === 'fulfilled'
-                    ? documentAiResult.value
-                    : null;
-
-                if (visionResult.status === 'rejected') {
-                  this.logger.warn(
-                    `[PARALLEL OCR] Vision AI failed: ${this.sanitizeError(visionResult.reason)}`,
+                  await this.documentAiOcrService.processDocument(
+                    gcsUri,
+                    mimeType,
+                    document.pageCount,
                   );
+                if (!documentAiOcrResult) {
+                  throw new Error('Document AI returned no result');
                 }
-
-                if (documentAiResult.status === 'rejected') {
-                  this.logger.warn(
-                    `[PARALLEL OCR] Document AI failed: ${this.sanitizeError(documentAiResult.reason)}`,
-                  );
-                }
-
-                // Use best available result (prefer Document AI if both available, otherwise use whichever succeeded)
-                if (documentAiOcrResult) {
-                  ocrResult = documentAiOcrResult;
-                  // Store both results for comparison endpoints
-                  if (
-                    ocrResult.fullResponse &&
-                    typeof ocrResult.fullResponse === 'object'
-                  ) {
-                    ocrResult.fullResponse.rawDocumentAiResult =
-                      documentAiOcrResult;
-                    if (visionOcrResult) {
-                      ocrResult.fullResponse.rawVisionResult = visionOcrResult;
-                    }
-                  }
-                  processingMethod =
-                    document.pageCount && document.pageCount <= 15
-                      ? ProcessingMethod.OCR_SYNC
-                      : ProcessingMethod.OCR_BATCH;
-                } else if (visionOcrResult) {
-                  ocrResult = visionOcrResult;
-                  // Store Vision AI result for comparison endpoints
-                  // Ensure fullResponse is an object
-                  if (
-                    !ocrResult.fullResponse ||
-                    typeof ocrResult.fullResponse !== 'object'
-                  ) {
-                    ocrResult.fullResponse = {};
-                  }
-                  ocrResult.fullResponse.rawVisionResult = visionOcrResult;
-                  // Also store Document AI failure info if it failed
-                  if (documentAiResult.status === 'rejected') {
-                    ocrResult.fullResponse.rawDocumentAiResult = {
-                      error: true,
-                      message: this.sanitizeError(documentAiResult.reason),
-                    };
-                  }
-                  processingMethod = ProcessingMethod.OCR_VISION_SYNC;
-                } else {
-                  throw new Error('Both OCR engines failed');
-                }
+                ocrResult = documentAiOcrResult;
+                processingMethod =
+                  document.pageCount && document.pageCount <= 15
+                    ? ProcessingMethod.OCR_SYNC
+                    : ProcessingMethod.OCR_BATCH;
               }
 
               // Fall back to OCR - this is expected for corrupted/malformed PDFs
@@ -927,94 +863,23 @@ export class DocumentProcessingDomainService {
                 throw new Error('Both OCR engines failed');
               }
             } else {
-              // Merge disabled - but still run both OCRs in parallel for comparison
               this.logger.log(
-                `[PDF PROCESSING] Merge disabled - running both OCRs in parallel (no merge)`,
+                `[OCR] Merge disabled — running Document AI only (skipping Vision AI)`,
               );
-
-              // Run both OCRs in parallel even when merge is disabled
-              const [visionResult, documentAiResult] = await Promise.allSettled(
-                [
-                  this.visionOcrService.processDocument(
-                    gcsUri,
-                    mimeType,
-                    document.pageCount,
-                  ),
-                  this.documentAiOcrService.processDocument(
-                    gcsUri,
-                    mimeType,
-                    document.pageCount,
-                  ),
-                ],
-              );
-
-              const visionOcrResult =
-                visionResult.status === 'fulfilled' ? visionResult.value : null;
               const documentAiOcrResult =
-                documentAiResult.status === 'fulfilled'
-                  ? documentAiResult.value
-                  : null;
-
-              if (visionResult.status === 'rejected') {
-                this.logger.warn(
-                  `[PARALLEL OCR] Vision AI failed: ${this.sanitizeError(visionResult.reason)}`,
+                await this.documentAiOcrService.processDocument(
+                  gcsUri,
+                  mimeType,
+                  document.pageCount,
                 );
+              if (!documentAiOcrResult) {
+                throw new Error('Document AI returned no result');
               }
-
-              if (documentAiResult.status === 'rejected') {
-                this.logger.warn(
-                  `[PARALLEL OCR] Document AI failed: ${this.sanitizeError(documentAiResult.reason)}`,
-                );
-              }
-
-              // Use best available result (prefer Document AI if both available, otherwise use whichever succeeded)
-              if (documentAiOcrResult) {
-                ocrResult = documentAiOcrResult;
-                // Store both results for comparison endpoints
-                // Ensure fullResponse is an object
-                if (
-                  !ocrResult.fullResponse ||
-                  typeof ocrResult.fullResponse !== 'object'
-                ) {
-                  ocrResult.fullResponse = {};
-                }
-                ocrResult.fullResponse.rawDocumentAiResult =
-                  documentAiOcrResult;
-                if (visionOcrResult) {
-                  ocrResult.fullResponse.rawVisionResult = visionOcrResult;
-                } else if (visionResult.status === 'rejected') {
-                  // Store Vision AI failure info
-                  ocrResult.fullResponse.rawVisionResult = {
-                    error: true,
-                    message: this.sanitizeError(visionResult.reason),
-                  };
-                }
-                processingMethod =
-                  document.pageCount && document.pageCount <= 15
-                    ? ProcessingMethod.OCR_SYNC
-                    : ProcessingMethod.OCR_BATCH;
-              } else if (visionOcrResult) {
-                ocrResult = visionOcrResult;
-                // Store Vision AI result for comparison endpoints
-                // Ensure fullResponse is an object
-                if (
-                  !ocrResult.fullResponse ||
-                  typeof ocrResult.fullResponse !== 'object'
-                ) {
-                  ocrResult.fullResponse = {};
-                }
-                ocrResult.fullResponse.rawVisionResult = visionOcrResult;
-                // Store Document AI failure info if it failed
-                if (documentAiResult.status === 'rejected') {
-                  ocrResult.fullResponse.rawDocumentAiResult = {
-                    error: true,
-                    message: this.sanitizeError(documentAiResult.reason),
-                  };
-                }
-                processingMethod = ProcessingMethod.OCR_VISION_SYNC;
-              } else {
-                throw new Error('Both OCR engines failed');
-              }
+              ocrResult = documentAiOcrResult;
+              processingMethod =
+                document.pageCount && document.pageCount <= 15
+                  ? ProcessingMethod.OCR_SYNC
+                  : ProcessingMethod.OCR_BATCH;
             }
 
             this.logger.log(
@@ -1161,100 +1026,26 @@ export class DocumentProcessingDomainService {
             throw new Error('Both OCR engines failed');
           }
         } else {
-          // Merge disabled - but still run both OCRs in parallel for comparison
           this.logger.log(
-            `[PDF PROCESSING] Merge disabled - running both OCRs in parallel (no merge)`,
+            `[OCR] Merge disabled — running Document AI only (skipping Vision AI)`,
           );
-
-          // Run both OCRs in parallel even when merge is disabled
-          const [visionResult, documentAiResult] = await Promise.allSettled([
-            this.visionOcrService.processDocument(
-              gcsUri,
-              mimeType,
-              document.pageCount,
-            ),
-            this.documentAiOcrService.processDocument(
-              gcsUri,
-              mimeType,
-              document.pageCount,
-            ),
-          ]);
-
-          const visionOcrResult =
-            visionResult.status === 'fulfilled' ? visionResult.value : null;
           const documentAiOcrResult =
-            documentAiResult.status === 'fulfilled'
-              ? documentAiResult.value
-              : null;
-
-          // Handle results
-          if (visionResult.status === 'rejected') {
-            this.logger.warn(
-              `[PARALLEL OCR] Vision AI failed: ${this.sanitizeError(visionResult.reason)}`,
+            await this.documentAiOcrService.processDocument(
+              gcsUri,
+              mimeType,
+              document.pageCount,
             );
+          if (!documentAiOcrResult) {
+            throw new Error('Document AI returned no result');
           }
-
-          if (documentAiResult.status === 'rejected') {
-            this.logger.warn(
-              `[PARALLEL OCR] Document AI failed: ${this.sanitizeError(documentAiResult.reason)}`,
-            );
-          }
-
-          // Use best available result (prefer Document AI if both available, otherwise use whichever succeeded)
-          if (documentAiOcrResult) {
-            ocrResult = documentAiOcrResult;
-            // Store both results for comparison endpoints
-            // Ensure fullResponse is an object
-            if (
-              !ocrResult.fullResponse ||
-              typeof ocrResult.fullResponse !== 'object'
-            ) {
-              ocrResult.fullResponse = {};
-            }
-            // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawDocumentAiResult =
-              this.serializeOcrResult(documentAiOcrResult);
-            if (visionOcrResult) {
-              ocrResult.fullResponse.rawVisionResult =
-                this.serializeOcrResult(visionOcrResult);
-            } else if (visionResult.status === 'rejected') {
-              // Store Vision AI failure info
-              ocrResult.fullResponse.rawVisionResult = {
-                error: true,
-                message: this.sanitizeError(visionResult.reason),
-              };
-            }
-            processingMethod =
-              document.pageCount && document.pageCount <= 15
-                ? ProcessingMethod.OCR_SYNC
-                : ProcessingMethod.OCR_BATCH;
-          } else if (visionOcrResult) {
-            ocrResult = visionOcrResult;
-            // Store Vision AI result for comparison endpoints
-            // Ensure fullResponse is an object
-            if (
-              !ocrResult.fullResponse ||
-              typeof ocrResult.fullResponse !== 'object'
-            ) {
-              ocrResult.fullResponse = {};
-            }
-            // IMPORTANT: Serialize to avoid circular references
-            ocrResult.fullResponse.rawVisionResult =
-              this.serializeOcrResult(visionOcrResult);
-            // Store Document AI failure info if it failed
-            if (documentAiResult.status === 'rejected') {
-              ocrResult.fullResponse.rawDocumentAiResult = {
-                error: true,
-                message: this.sanitizeError(documentAiResult.reason),
-              };
-            }
-            processingMethod = ProcessingMethod.OCR_VISION_SYNC;
-          } else {
-            throw new Error('Both OCR engines failed');
-          }
+          ocrResult = documentAiOcrResult;
+          processingMethod =
+            document.pageCount && document.pageCount <= 15
+              ? ProcessingMethod.OCR_SYNC
+              : ProcessingMethod.OCR_BATCH;
 
           this.logger.log(
-            `[PDF PROCESSING] Parallel OCR completed (no merge). Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
+            `[PDF PROCESSING] Document AI OCR completed (merge disabled). Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
           );
         }
       }

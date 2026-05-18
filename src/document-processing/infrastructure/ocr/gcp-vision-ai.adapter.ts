@@ -33,7 +33,7 @@ export class GcpVisionAiAdapter implements OcrServicePort {
   private readonly projectId: string;
   private readonly outputBucket: string;
   private readonly outputPrefix: string;
-  private readonly maxWaitTime: number = 600000; // 10 minutes
+  private readonly maxWaitTime: number = 60000; // 1 minute (reduced from 10min; long hangs masked real failures)
 
   constructor(private readonly configService: ConfigService<AllConfigType>) {
     // Initialize clients with proper credential handling (same pattern as Document AI)
