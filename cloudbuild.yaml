@@ -1,0 +1,31 @@
+# Cloud Build config for the Keystone Core API container image.
+# Builds amd64 (Cloud Run runtime) using the existing Dockerfile and pushes
+# to Artifact Registry.
+#
+# Trigger manually with:
+#   gcloud builds submit --config=cloudbuild.yaml --project=healthatlas-dev-vp
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build'
+    # BuildKit not strictly required (no multi-arch FROMs in this Dockerfile),
+    # but enabling it for parity with the AnythingLLM build and free caching wins.
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/keystone/keystone:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/keystone/keystone:$BUILD_ID'
+      - '.'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/keystone/keystone:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/keystone/keystone:$BUILD_ID'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1800s'

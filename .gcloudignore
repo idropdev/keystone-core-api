@@ -1,0 +1,36 @@
+# Keep Cloud Build source uploads small.
+#
+# Patterns starting with / are anchored at the repo root. Without the leading /,
+# the pattern matches anywhere in the tree (so `files/` would match `src/files/`
+# too, which is wrong — Keystone has a `src/files/` module we need to include).
+.git/
+.github/
+.idea/
+.vscode/
+node_modules/
+
+# Anchored at root only — don't accidentally match same-named dirs under src/.
+/dist/
+/coverage/
+/.nyc_output/
+/.data/
+/files/
+/.secrets/
+
+# Env files (anywhere — we never want these uploaded)
+.env
+.env.*
+
+# Test artifacts
+test-report.*
+*.test-report.*
+
+# Local-only docs / scratch
+*.diagnostic.sh
+*-diagnostic.sh
+*_DIAGNOSTIC.*
+*_VERIFICATION.*
+
+# Personal notes that bloat the upload
+*.md
+!README.md
