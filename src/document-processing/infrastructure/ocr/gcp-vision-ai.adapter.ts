@@ -4,7 +4,6 @@ import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { Storage } from '@google-cloud/storage';
 import { OcrServicePort, OcrResult } from '../../domain/ports/ocr.service.port';
 import { AllConfigType } from '../../../config/config.type';
-import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
 
 /**
  * GCP Vision AI Adapter
@@ -216,9 +215,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         `[VISION AI SYNC] Text extracted - Pages: ${pageCount}, Full text length: ${fullText.length}, Extracted length: ${extractedText.length}`,
       );
 
-      // Extract entities using fallback regex (Vision AI doesn't provide structured entities)
-      this.logger.debug(`[VISION AI SYNC] Extracting entities from text`);
-      const entities = extractEntitiesFromText(fullText);
+      // Entities are no longer extracted here. GeminiEntityExtractorService runs
+      // on the OCR text downstream in extractAndSaveFields.
+      const entities: any[] = [];
 
       // Calculate confidence (Vision AI doesn't provide overall confidence, use default)
       const confidence = 0.85; // Default confidence for Vision AI
@@ -528,9 +527,9 @@ export class GcpVisionAiAdapter implements OcrServicePort {
         `[VISION AI BATCH] Text extracted - Pages: ${pageCount}, Full text length: ${fullText.length}, Extracted length: ${extractedText.length}`,
       );
 
-      // Extract entities using fallback regex
-      this.logger.debug(`[VISION AI BATCH] Extracting entities from text`);
-      const entities = extractEntitiesFromText(fullText);
+      // Entities are no longer extracted here. GeminiEntityExtractorService runs
+      // on the OCR text downstream in extractAndSaveFields.
+      const entities: any[] = [];
 
       const confidence = 0.85; // Default confidence
 
