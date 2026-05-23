@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { GeminiEntityExtractorService } from './gemini-entity-extractor.service';
+import { GeminiExtractionResponse } from './gemini-entity-extractor.types';
 
 // Mock the Vertex AI SDK before importing anything that uses it.
 const generateContentMock = jest.fn();
@@ -17,10 +18,30 @@ jest.mock('@google-cloud/vertexai', () => ({
   },
 }));
 
-function geminiResponse(json: object) {
+const EMPTY_RESPONSE: GeminiExtractionResponse = {
+  medications: [],
+  allergies: [],
+  conditions: [],
+  doctors: [],
+  pharmacies: [],
+  insurance_providers: [],
+  policy_numbers: [],
+  emergency_contacts: [],
+  blood_type: null,
+};
+
+function geminiResponse(partial: Partial<GeminiExtractionResponse> = {}) {
   return {
     response: {
-      candidates: [{ content: { parts: [{ text: JSON.stringify(json) }] } }],
+      candidates: [
+        {
+          content: {
+            parts: [
+              { text: JSON.stringify({ ...EMPTY_RESPONSE, ...partial }) },
+            ],
+          },
+        },
+      ],
     },
   };
 }
@@ -68,13 +89,7 @@ describe('GeminiEntityExtractorService', () => {
     generateContentMock.mockResolvedValueOnce(
       geminiResponse({
         medications: ['Lisinopril 10mg'],
-        allergies: [],
         conditions: ['Hypertension'],
-        doctors: [],
-        pharmacies: [],
-        insurance_providers: [],
-        policy_numbers: [],
-        emergency_contacts: [],
         blood_type: 'O+',
       }),
     );
@@ -92,19 +107,7 @@ describe('GeminiEntityExtractorService', () => {
   it('should retry once on transient failure then return mapped entities', async () => {
     generateContentMock
       .mockRejectedValueOnce(new Error('transient network error'))
-      .mockResolvedValueOnce(
-        geminiResponse({
-          medications: ['Metformin'],
-          allergies: [],
-          conditions: [],
-          doctors: [],
-          pharmacies: [],
-          insurance_providers: [],
-          policy_numbers: [],
-          emergency_contacts: [],
-          blood_type: null,
-        }),
-      );
+      .mockResolvedValueOnce(geminiResponse({ medications: ['Metformin'] }));
 
     const result = await service.extractEntities('A long medical document.');
 
@@ -137,5 +140,25 @@ describe('GeminiEntityExtractorService', () => {
     const result = await service.extractEntities('A long medical document.');
 
     expect(result).toEqual([]);
+  });
+
+  it('should return an empty array when the first response has no text payload', async () => {
+    generateContentMock.mockResolvedValueOnce({
+      response: { candidates: [{ content: { parts: [{ text: '' }] } }] },
+    });
+
+    const result = await service.extractEntities('A long medical document.');
+
+    expect(result).toEqual([]);
+    expect(generateContentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not retry on PERMISSION_DENIED', async () => {
+    generateContentMock.mockRejectedValueOnce(new Error('PERMISSION_DENIED'));
+
+    const result = await service.extractEntities('A long medical document.');
+
+    expect(result).toEqual([]);
+    expect(generateContentMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -8,7 +8,6 @@ import {
   GeminiExtractionResponse,
 } from './gemini-entity-extractor.types';
 
-const MIN_OCR_LENGTH = 1; // skip the LLM call below this; >0 means non-empty after trim.
 const FIXED_TEMPERATURE = 0;
 
 const RESPONSE_SCHEMA = {
@@ -80,7 +79,6 @@ Return JSON matching the provided schema.`;
 export class GeminiEntityExtractorService {
   private readonly logger = new Logger(GeminiEntityExtractorService.name);
   private readonly model: GenerativeModel;
-  private readonly modelName: string;
 
   constructor(private readonly configService: ConfigService<AllConfigType>) {
     const projectId = this.configService.getOrThrow(
@@ -91,14 +89,15 @@ export class GeminiEntityExtractorService {
       'documentProcessing.gcp.vertexAi.location',
       { infer: true },
     );
-    this.modelName = this.configService.getOrThrow(
+    const modelName = this.configService.getOrThrow(
       'documentProcessing.gcp.vertexAi.modelName',
       { infer: true },
     );
 
     const vertexAi = new VertexAI({ project: projectId, location });
     this.model = vertexAi.getGenerativeModel({
-      model: this.modelName,
+      model: modelName,
+      systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: RESPONSE_SCHEMA,
@@ -107,13 +106,13 @@ export class GeminiEntityExtractorService {
     });
 
     this.logger.log(
-      `Gemini entity extractor initialized (model=${this.modelName}, location=${location})`,
+      `Gemini entity extractor initialized (model=${modelName}, location=${location})`,
     );
   }
 
   async extractEntities(ocrText: string): Promise<ExtractedEntity[]> {
     const trimmed = ocrText?.trim() ?? '';
-    if (trimmed.length < MIN_OCR_LENGTH) {
+    if (trimmed.length === 0) {
       this.logger.debug(
         '[GEMINI EXTRACTOR] OCR text is empty; skipping Gemini call',
       );
@@ -136,6 +135,12 @@ export class GeminiEntityExtractorService {
     try {
       return await this.callGemini(ocrText);
     } catch (firstError) {
+      if (!this.isTransient(firstError)) {
+        this.logger.error(
+          `[GEMINI EXTRACTOR] Non-retryable error: ${this.sanitize(firstError)}`,
+        );
+        return null;
+      }
       this.logger.warn(
         `[GEMINI EXTRACTOR] First attempt failed (${this.sanitize(firstError)}); retrying once`,
       );
@@ -150,6 +155,17 @@ export class GeminiEntityExtractorService {
     }
   }
 
+  private isTransient(error: unknown): boolean {
+    const msg = ((error as Error)?.message ?? '').toUpperCase();
+    // Retry on transient/unknown errors. Skip retry for clear permanent failures.
+    return (
+      !msg.includes('PERMISSION_DENIED') &&
+      !msg.includes('INVALID_ARGUMENT') &&
+      !msg.includes('NOT_FOUND') &&
+      !msg.includes('UNAUTHENTICATED')
+    );
+  }
+
   private async callGemini(
     ocrText: string,
   ): Promise<GeminiExtractionResponse | null> {
@@ -157,10 +173,7 @@ export class GeminiEntityExtractorService {
       contents: [
         {
           role: 'user',
-          parts: [
-            { text: SYSTEM_PROMPT },
-            { text: `Document text:\n\n${ocrText}` },
-          ],
+          parts: [{ text: `Document text:\n\n${ocrText}` }],
         },
       ],
     });
