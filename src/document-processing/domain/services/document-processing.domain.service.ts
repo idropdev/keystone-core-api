@@ -733,9 +733,6 @@ export class DocumentProcessingDomainService {
                 mimeType,
                 document.pageCount,
               );
-              this.logger.log(
-                `[PDF PROCESSING] OCR fallback completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
-              );
             }
           } else {
             // Not an XRef error - go directly to parallel OCR
@@ -872,10 +869,6 @@ export class DocumentProcessingDomainService {
                   ? ProcessingMethod.OCR_SYNC
                   : ProcessingMethod.OCR_BATCH;
             }
-
-            this.logger.log(
-              `[PDF PROCESSING] OCR fallback completed. Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
-            );
           }
         }
       } else {
@@ -1034,10 +1027,6 @@ export class DocumentProcessingDomainService {
             document.pageCount && document.pageCount <= 15
               ? ProcessingMethod.OCR_SYNC
               : ProcessingMethod.OCR_BATCH;
-
-          this.logger.log(
-            `[PDF PROCESSING] Document AI OCR completed (merge disabled). Result has entities: ${!!ocrResult.entities}, count: ${ocrResult.entities?.length || 0}`,
-          );
         }
       }
 
@@ -1063,7 +1052,10 @@ export class DocumentProcessingDomainService {
       );
 
       // Extract and save structured fields
-      await this.extractAndSaveFields(documentId, ocrResult);
+      const entitiesCount = await this.extractAndSaveFields(
+        documentId,
+        ocrResult,
+      );
 
       // Update document with results
       // Validate state transition before updating
@@ -1140,7 +1132,7 @@ export class DocumentProcessingDomainService {
         metadata: {
           documentId,
           confidence: ocrResult.confidence,
-          entitiesCount: ocrResult.entities?.length || 0,
+          entitiesCount,
         },
       });
 
@@ -1156,7 +1148,7 @@ export class DocumentProcessingDomainService {
   private async extractAndSaveFields(
     documentId: string,
     ocrResult: any,
-  ): Promise<void> {
+  ): Promise<number> {
     this.logger.log(
       `[FIELD EXTRACTION] Starting field extraction for document ${documentId}`,
     );
@@ -1171,7 +1163,7 @@ export class DocumentProcessingDomainService {
       this.logger.warn(
         `[FIELD EXTRACTION] Gemini extractor returned no entities for document ${documentId}`,
       );
-      return;
+      return 0;
     }
 
     const fields: ExtractedField[] = [];
@@ -1229,6 +1221,8 @@ export class DocumentProcessingDomainService {
         `[FIELD EXTRACTION] No fields to save for document ${documentId} (all filtered out or none extracted)`,
       );
     }
+
+    return fields.length;
   }
 
   /**
@@ -2082,7 +2076,6 @@ export class DocumentProcessingDomainService {
         text: ocrResult.text,
         confidence: ocrResult.confidence,
         pageCount: ocrResult.pageCount,
-        entities: ocrResult.entities ? [...ocrResult.entities] : undefined,
         outputRef: ocrResult.outputRef,
       };
 
@@ -2104,7 +2097,6 @@ export class DocumentProcessingDomainService {
         text: ocrResult.text,
         confidence: ocrResult.confidence,
         pageCount: ocrResult.pageCount,
-        entities: ocrResult.entities,
         fullResponse: '[Serialization Error]',
       };
     }
