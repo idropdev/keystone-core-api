@@ -18,6 +18,7 @@ import { DocumentRepositoryAdapter } from './infrastructure/persistence/relation
 import { GcpStorageAdapter } from './infrastructure/storage/gcp-storage.adapter';
 import { GcpDocumentAiAdapter } from './infrastructure/ocr/gcp-document-ai.adapter';
 import { GcpVisionAiAdapter } from './infrastructure/ocr/gcp-vision-ai.adapter';
+import { GeminiEntityExtractorService } from './infrastructure/extraction/gemini-entity-extractor.service';
 import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.service';
 import { OcrMergeService } from './utils/ocr-merge.service';
 import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
@@ -98,6 +99,7 @@ import { UsersModule } from '../users/users.module';
     GcpStorageAdapter,
     GcpDocumentAiAdapter,
     GcpVisionAiAdapter,
+    GeminiEntityExtractorService,
 
     // Merge and post-processing services
     OcrMergeService,
