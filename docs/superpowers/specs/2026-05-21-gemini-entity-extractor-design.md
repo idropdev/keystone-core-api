@@ -64,10 +64,9 @@ One public method:
 extractEntities(ocrText: string): Promise<ExtractedEntity[]>
 ```
 
-It is a drop-in replacement for the current `extractEntitiesFromText(text)`. Same return
-type (`ExtractedEntity[]`), so the call sites change from a sync call to
-`await this.geminiEntityExtractor.extractEntities(text)`. All call sites are already
-inside `async` functions.
+It returns the same `ExtractedEntity[]` type the old regex extractor returned, so the
+data shape flowing into `extracted_fields` is unchanged. It is wired in at a single
+chokepoint rather than swapped at scattered call sites — see Pipeline integration below.
 
 ### `ExtractedEntity` shape
 
@@ -99,7 +98,13 @@ Behavior differences vs. the regex extractor:
 ### The regex extractor is removed
 
 `src/document-processing/utils/text-entity-extractor.ts` is deleted, along with its
-tests. Keeping a known-garbage fallback is worse than returning empty: if Gemini fails,
+tests. It is currently imported in three files (5 call sites total):
+`document-processing.domain.service.ts` (lines ~351, ~490), `gcp-document-ai.adapter.ts`
+(~187), and `gcp-vision-ai.adapter.ts` (~221, ~533). All of these populate an
+`OcrResult.entities` field that, after this change, nothing reads — so the calls are
+removed as dead code and `entities` is no longer set by the OCR paths.
+
+Keeping a known-garbage fallback is worse than returning empty: if Gemini fails,
 `extractEntities` returns `[]`, which the pipeline already handles gracefully (the
 document still reaches `PROCESSED`).
 
@@ -171,13 +176,23 @@ Anti-hallucination is the priority:
 
 ## Pipeline integration
 
-### Call sites
+### Single chokepoint
 
-Three places in `src/document-processing/domain/services/document-processing.domain.service.ts`
-call `extractEntitiesFromText(text)` (around lines 351, 490, and the related branch).
-Each becomes `await this.geminiEntityExtractor.extractEntities(text)`. The service is
-constructor-injected like the existing OCR adapters (`documentAiOcrService`,
-`visionOcrService`).
+Every document-processing path converges on one method:
+`extractAndSaveFields(documentId, ocrResult)` in
+`src/document-processing/domain/services/document-processing.domain.service.ts`
+(definition ~line 1165, called once ~line 1075). It is the only place that reads
+`ocrResult.entities` and writes `extracted_fields` rows.
+
+Gemini is wired in here: `extractAndSaveFields` calls
+`await this.geminiEntityExtractor.extractEntities(ocrResult.text)` and uses the result,
+instead of reading the upstream-populated `ocrResult.entities`. This is one integration
+point rather than five. The service is constructor-injected like the existing OCR
+adapters (`documentAiOcrService`, `visionOcrService`).
+
+The 5 now-dead `extractEntitiesFromText` calls (2 in the domain service, 3 in the OCR
+adapters) are removed along with the `text-entity-extractor.ts` file. The OCR paths
+stop populating `OcrResult.entities` — nothing reads it anymore.
 
 ### Module wiring
 
