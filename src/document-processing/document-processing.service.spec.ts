@@ -18,6 +18,7 @@ describe('DocumentProcessingDomainService', () => {
   let mockStorage: jest.Mocked<StorageServicePort>;
   let mockOcr: jest.Mocked<OcrServicePort>;
   let mockAudit: jest.Mocked<AuditService>;
+  let mockGeminiExtractor: jest.Mocked<GeminiEntityExtractorService>;
 
   beforeEach(async () => {
     // Create mocks
@@ -47,6 +48,10 @@ describe('DocumentProcessingDomainService', () => {
 
     mockAudit = {
       logAuthEvent: jest.fn(),
+    } as any;
+
+    mockGeminiExtractor = {
+      extractEntities: jest.fn().mockResolvedValue([]),
     } as any;
 
     const mockConfig = {
@@ -91,7 +96,7 @@ describe('DocumentProcessingDomainService', () => {
         },
         {
           provide: GeminiEntityExtractorService,
-          useValue: { extractEntities: jest.fn().mockResolvedValue([]) },
+          useValue: mockGeminiExtractor,
         },
       ],
     }).compile();

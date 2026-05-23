@@ -1157,6 +1157,13 @@ export class DocumentProcessingDomainService {
       `[FIELD EXTRACTION] OCR text length: ${ocrText.length} chars`,
     );
 
+    if (ocrText.length === 0) {
+      this.logger.warn(
+        `[FIELD EXTRACTION] No OCR text available for document ${documentId}; skipping entity extraction`,
+      );
+      return 0;
+    }
+
     const entities = await this.geminiEntityExtractor.extractEntities(ocrText);
 
     if (entities.length === 0) {
@@ -1171,11 +1178,7 @@ export class DocumentProcessingDomainService {
 
     for (const entity of entities) {
       this.logger.debug(
-        `[FIELD EXTRACTION] Processing entity: ${JSON.stringify({
-          type: entity.type,
-          mentionText: entity.mentionText?.substring(0, 50),
-          confidence: entity.confidence,
-        })}`,
+        `[FIELD EXTRACTION] Processing entity: type=${entity.type}, confidence=${entity.confidence}`,
       );
 
       // CHANGED: Save ALL entities, including low-confidence ones
@@ -1198,29 +1201,19 @@ export class DocumentProcessingDomainService {
       if (entity.confidence < 0.7) {
         lowConfidenceCount++;
       }
-
-      this.logger.debug(
-        `[FIELD EXTRACTION] Added field: ${field.fieldKey} = ${field.fieldValue?.substring(0, 50)} (confidence: ${field.confidence})`,
-      );
     }
 
     this.logger.log(
       `[FIELD EXTRACTION] Extraction complete: ${fields.length} fields to save (${lowConfidenceCount} low-confidence included)`,
     );
 
-    if (fields.length > 0) {
-      this.logger.log(
-        `[FIELD EXTRACTION] Saving ${fields.length} fields to database...`,
-      );
-      await this.documentRepository.saveExtractedFields(fields);
-      this.logger.log(
-        `[FIELD EXTRACTION] Successfully saved ${fields.length} extracted fields for document ${documentId}`,
-      );
-    } else {
-      this.logger.warn(
-        `[FIELD EXTRACTION] No fields to save for document ${documentId} (all filtered out or none extracted)`,
-      );
-    }
+    this.logger.log(
+      `[FIELD EXTRACTION] Saving ${fields.length} fields to database...`,
+    );
+    await this.documentRepository.saveExtractedFields(fields);
+    this.logger.log(
+      `[FIELD EXTRACTION] Successfully saved ${fields.length} extracted fields for document ${documentId}`,
+    );
 
     return fields.length;
   }
