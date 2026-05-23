@@ -4,7 +4,6 @@ import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 import { Storage } from '@google-cloud/storage';
 import { OcrServicePort, OcrResult } from '../../domain/ports/ocr.service.port';
 import { AllConfigType } from '../../../config/config.type';
-import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
 
 /**
  * GCP Document AI Adapter
@@ -174,23 +173,14 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         })}`,
       );
 
+      // Entities are no longer populated here. The domain service runs
+      // GeminiEntityExtractorService on the OCR text inside extractAndSaveFields.
       let entities: any[] = [];
 
-      if (!doc.entities || doc.entities.length === 0) {
-        // Entity extraction is not implemented yet - this is expected
-        // For now, just extract text and use regex-based entity extraction as fallback
-        this.logger.debug(
-          `[GCP DOCUMENT AI] No entities in response (expected - entity extraction to be implemented later). Using regex-based extraction from text.`,
-        );
-
-        // Fallback: Extract entities from text using regex patterns
-        const textEntities = extractEntitiesFromText(fullText);
-        this.logger.debug(
-          `[GCP DOCUMENT AI] Regex extraction found ${textEntities.length} entities from text`,
-        );
-        entities = textEntities;
-      } else {
-        // Extract entities with high confidence from Document AI
+      if (doc.entities && doc.entities.length > 0) {
+        // Document AI returned native entities (uncommon with OCR_PROCESSOR).
+        // Keep them for downstream visibility, though extractAndSaveFields
+        // ignores this field today.
         entities = (doc.entities || [])
           .filter((entity) => (entity.confidence || 0) >= 0.5)
           .map((entity) => ({
@@ -218,7 +208,7 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
             : 0.0; // Default confidence if text extracted, 0 if no text
 
       this.logger.log(
-        `[GCP DOCUMENT AI] Sync processing complete: ${fullText.length} chars of text extracted, ${entities.length} entities (via regex), confidence: ${confidence.toFixed(2)}`,
+        `[GCP DOCUMENT AI] Sync processing complete: ${fullText.length} chars of text extracted, ${entities.length} entities, confidence: ${confidence.toFixed(2)}`,
       );
 
       return {
@@ -498,23 +488,14 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
         })}`,
       );
 
+      // Entities are no longer populated here. The domain service runs
+      // GeminiEntityExtractorService on the OCR text inside extractAndSaveFields.
       let entities: any[] = [];
 
-      if (!doc.entities || doc.entities.length === 0) {
-        // Entity extraction is not implemented yet - this is expected
-        // For now, just extract text and use regex-based entity extraction as fallback
-        this.logger.debug(
-          `[GCP DOCUMENT AI] No entities in response (expected - entity extraction to be implemented later). Using regex-based extraction from text.`,
-        );
-
-        // Fallback: Extract entities from text using regex patterns
-        const textEntities = extractEntitiesFromText(fullText);
-        this.logger.debug(
-          `[GCP DOCUMENT AI] Regex extraction found ${textEntities.length} entities from text`,
-        );
-        entities = textEntities;
-      } else {
-        // Extract entities with high confidence from Document AI
+      if (doc.entities && doc.entities.length > 0) {
+        // Document AI returned native entities (uncommon with OCR_PROCESSOR).
+        // Keep them for downstream visibility, though extractAndSaveFields
+        // ignores this field today.
         entities = (doc.entities || [])
           .filter((entity: any) => (entity.confidence || 0) >= 0.5)
           .map((entity: any) => ({
@@ -535,7 +516,7 @@ export class GcpDocumentAiAdapter implements OcrServicePort {
             : 0.0; // Default confidence if text extracted, 0 if no text
 
       this.logger.log(
-        `[GCP DOCUMENT AI] Batch results parsed: ${fullText.length} chars of text extracted, ${entities.length} entities (via regex), confidence: ${confidence.toFixed(2)}`,
+        `[GCP DOCUMENT AI] Batch results parsed: ${fullText.length} chars of text extracted, ${entities.length} entities, confidence: ${confidence.toFixed(2)}`,
       );
 
       return {
