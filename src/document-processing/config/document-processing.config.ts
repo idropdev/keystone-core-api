@@ -67,6 +67,12 @@ class EnvironmentVariablesValidator {
   @IsString()
   DOC_PROCESSING_VISION_ASYNC_OUTPUT_PREFIX: string = 'vision-ocr-output/';
 
+  @IsString()
+  DOC_PROCESSING_VERTEX_AI_LOCATION: string = 'us-central1';
+
+  @IsString()
+  DOC_PROCESSING_GEMINI_MODEL: string = 'gemini-2.5-flash';
+
   // Post-processing configuration
   @IsBoolean()
   DOC_PROCESSING_OCR_POST_PROCESSING_ENABLED: boolean = false;
@@ -132,6 +138,10 @@ export default registerAs<DocumentProcessingConfig>(
         DOC_PROCESSING_VISION_ASYNC_OUTPUT_PREFIX:
           process.env.DOC_PROCESSING_VISION_ASYNC_OUTPUT_PREFIX ||
           'vision-ocr-output/',
+        DOC_PROCESSING_VERTEX_AI_LOCATION:
+          process.env.DOC_PROCESSING_VERTEX_AI_LOCATION || 'us-central1',
+        DOC_PROCESSING_GEMINI_MODEL:
+          process.env.DOC_PROCESSING_GEMINI_MODEL || 'gemini-2.5-flash',
         DOC_PROCESSING_OCR_POST_PROCESSING_ENABLED:
           process.env.DOC_PROCESSING_OCR_POST_PROCESSING_ENABLED === 'true',
         DOC_PROCESSING_OCR_POST_PROCESSING_USE_LM:
@@ -197,6 +207,10 @@ export default registerAs<DocumentProcessingConfig>(
           asyncOutputPrefix:
             validatedConfig.DOC_PROCESSING_VISION_ASYNC_OUTPUT_PREFIX ||
             'vision-ocr-output/',
+        },
+        vertexAi: {
+          location: validatedConfig.DOC_PROCESSING_VERTEX_AI_LOCATION,
+          modelName: validatedConfig.DOC_PROCESSING_GEMINI_MODEL,
         },
         storage: {
           bucket: validatedConfig.DOC_PROCESSING_STORAGE_BUCKET,

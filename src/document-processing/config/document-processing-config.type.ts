@@ -24,6 +24,10 @@ export type DocumentProcessingConfig = {
     visionAi: {
       asyncOutputPrefix: string; // Uses storage bucket, no separate bucket needed
     };
+    vertexAi: {
+      location: string;
+      modelName: string;
+    };
     storage: {
       bucket: string;
       rawPrefix: string;

@@ -147,7 +147,7 @@ FACEBOOK_APP_SECRET=  # <SECRET_MANAGER>
 # Get credentials: https://console.cloud.google.com/apis/credentials
 GOOGLE_CLIENT_ID=1026642493663-j8r55mehd9mp6fcgkjl4hj8lsr4hl64g.apps.googleusercontent.com
   # Public, can be in code
-GOOGLE_CLIENT_SECRET=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  # <SECRET_MANAGER> MUST be in Secret Manager
+GOOGLE_CLIENT_SECRET=your-google-client-secret  # <SECRET_MANAGER> MUST be in Secret Manager
 
 # Apple Sign In (Required for Sign in with Apple)
 # Format: JSON array of allowed bundle IDs
@@ -251,6 +251,12 @@ DOC_PROCESSING_STORAGE_BUCKET=healthatlas-documents-prod
 
 DOC_PROCESSING_RAW_PREFIX=raw/
 DOC_PROCESSING_PROCESSED_PREFIX=processed/
+
+# Vertex AI (entity extraction over OCR text)
+DOC_PROCESSING_VERTEX_AI_LOCATION=us-central1
+# ^ Region for Vertex AI Gemini calls. Common: us-central1, us-east4, europe-west4.
+DOC_PROCESSING_GEMINI_MODEL=gemini-2.5-flash
+# ^ Vertex AI model. gemini-2.5-flash is the default — fast, cheap, sufficient for entity extraction.
 
 # Processing Configuration
 DOC_PROCESSING_MAX_FILE_SIZE_MB=10  # Maximum upload size
