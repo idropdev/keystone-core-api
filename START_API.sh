@@ -59,9 +59,9 @@ echo "   ✅ Migrations completed"
 echo ""
 
 # Optional: Run seeds (uncomment if needed)
-# echo "🌱 Running database seeds..."
-# npm run seed:run:relational
-# echo "   ✅ Seeds completed"
+echo "🌱 Running database seeds..."
+npm run seed:run:relational
+echo "   ✅ Seeds completed"
 # echo ""
 
 # Start the server
