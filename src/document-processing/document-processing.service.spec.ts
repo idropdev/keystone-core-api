@@ -10,6 +10,7 @@ import { DocumentStatus } from './domain/enums/document-status.enum';
 import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.service';
 import { OcrMergeService } from './utils/ocr-merge.service';
 import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
+import { GeminiEntityExtractorService } from './infrastructure/extraction/gemini-entity-extractor.service';
 
 describe('DocumentProcessingDomainService', () => {
   let service: DocumentProcessingDomainService;
@@ -87,6 +88,10 @@ describe('DocumentProcessingDomainService', () => {
               .fn()
               .mockResolvedValue({ id: 999, verificationStatus: 'verified' }),
           },
+        },
+        {
+          provide: GeminiEntityExtractorService,
+          useValue: { extractEntities: jest.fn().mockResolvedValue([]) },
         },
       ],
     }).compile();

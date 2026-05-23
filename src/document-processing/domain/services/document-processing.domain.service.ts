@@ -18,7 +18,7 @@ import { DocumentType } from '../enums/document-type.enum';
 import { ProcessingMethod } from '../enums/processing-method.enum';
 import { AllConfigType } from '../../../config/config.type';
 import { AuditService } from '../../../audit/audit.service';
-import { extractEntitiesFromText } from '../../utils/text-entity-extractor';
+import { GeminiEntityExtractorService } from '../../infrastructure/extraction/gemini-entity-extractor.service';
 import {
   Pdf2JsonService,
   PdfParseError,
@@ -75,6 +75,7 @@ export class DocumentProcessingDomainService {
     private readonly ocrPostProcessorService: OcrPostProcessorService,
     @Inject('ManagerRepositoryPort')
     private readonly managerRepository: ManagerRepositoryPort,
+    private readonly geminiEntityExtractor: GeminiEntityExtractorService,
   ) {
     this.retentionYears = this.configService.getOrThrow(
       'documentProcessing.retentionYears',
@@ -347,17 +348,12 @@ export class DocumentProcessingDomainService {
             );
           }
 
-          // Extract entities from combined text using regex patterns
-          const entities = extractEntitiesFromText(fullText);
-          this.logger.log(
-            `[PDF2JSON] Extracted ${entities.length} entities from text`,
-          );
-
+          // Entities are extracted later by GeminiEntityExtractorService inside
+          // extractAndSaveFields. The OCR paths no longer populate entities.
           ocrResult = {
             text: fullText,
             confidence: 1.0, // Native text = 100% confidence
             pageCount: meta.Pages?.length || chunks.length,
-            entities, // Use regex-based entity extraction
             fullResponse: {
               method: 'pdf2json_extraction',
               chunks, // Include structured chunks
@@ -486,17 +482,12 @@ export class DocumentProcessingDomainService {
 
               // Check if we got meaningful text
               if (extractedText.trim().length >= 50) {
-                // Success with pdf-parse!
-                const entities = extractEntitiesFromText(extractedText);
-                this.logger.log(
-                  `[PDF-PARSE] Extracted ${entities.length} entities from text`,
-                );
-
+                // Success with pdf-parse! Entities will be extracted later by
+                // GeminiEntityExtractorService inside extractAndSaveFields.
                 ocrResult = {
                   text: extractedText,
                   confidence: 1.0, // Native text = 100% confidence
                   pageCount: pdfData.numpages || 1,
-                  entities,
                   fullResponse: {
                     method: 'pdf_parse_extraction',
                     metadata: {
@@ -1169,18 +1160,16 @@ export class DocumentProcessingDomainService {
     this.logger.log(
       `[FIELD EXTRACTION] Starting field extraction for document ${documentId}`,
     );
+    const ocrText: string = ocrResult?.text ?? '';
     this.logger.log(
-      `[FIELD EXTRACTION] OCR result structure: ${JSON.stringify({
-        hasEntities: !!ocrResult.entities,
-        entitiesCount: ocrResult.entities?.length || 0,
-        hasFullResponse: !!ocrResult.fullResponse,
-        keys: Object.keys(ocrResult),
-      })}`,
+      `[FIELD EXTRACTION] OCR text length: ${ocrText.length} chars`,
     );
 
-    if (!ocrResult.entities || ocrResult.entities.length === 0) {
+    const entities = await this.geminiEntityExtractor.extractEntities(ocrText);
+
+    if (entities.length === 0) {
       this.logger.warn(
-        `[FIELD EXTRACTION] No entities found in OCR result for document ${documentId}`,
+        `[FIELD EXTRACTION] Gemini extractor returned no entities for document ${documentId}`,
       );
       return;
     }
@@ -1188,7 +1177,7 @@ export class DocumentProcessingDomainService {
     const fields: ExtractedField[] = [];
     let lowConfidenceCount = 0;
 
-    for (const entity of ocrResult.entities) {
+    for (const entity of entities) {
       this.logger.debug(
         `[FIELD EXTRACTION] Processing entity: ${JSON.stringify({
           type: entity.type,
