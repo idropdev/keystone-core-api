@@ -257,12 +257,18 @@ export class DocumentProcessingDomainService {
         `Document uploaded: ${savedDocument.id} (actor: ${actor.type}:${actor.id}, originManager: ${originManagerId || 'none'}, temporaryManager: ${temporaryManagerId || 'none'})`,
       );
 
-      // 6. Document is now in STORED state, ready for OCR processing
-      // OCR must be manually triggered via POST /v1/documents/:documentId/ocr/trigger
-      // This avoids overhead of automatic processing and maintains domain architecture
-      this.logger.log(
-        `Document ${savedDocument.id} uploaded and stored. OCR processing must be manually triggered by origin manager or temporary manager.`,
-      );
+      // 6. Kick off OCR processing (sync part awaited; async pipeline fire-and-forget)
+      try {
+        const processingArgs = await this.kickoffProcessing(savedDocument.id);
+        this.runProcessing(processingArgs, fileBuffer).catch((err: any) => {
+          this.logger.error(
+            `[DOCUMENT UPLOAD] Async OCR failed for ${savedDocument.id}: ${err?.message ?? err}`,
+          );
+        });
+      } catch (kickoffError: any) {
+        await this.rollbackUpload(savedDocument.id, gcsUri, kickoffError);
+        throw kickoffError;
+      }
 
       return savedDocument;
     } catch (error) {

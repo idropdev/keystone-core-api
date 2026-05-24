@@ -127,6 +127,18 @@ describe('DocumentProcessingDomainService', () => {
         'gs://bucket/raw/user-123/doc-123_test.pdf',
       );
 
+      // After upload, kickoffProcessing will look up the doc again with STORED status
+      mockRepository.findById.mockResolvedValue({
+        id: 'doc-123',
+        userId,
+        status: DocumentStatus.STORED,
+        rawFileUri: 'gs://bucket/raw/user-123/doc-123_test.pdf',
+        mimeType,
+      } as any);
+
+      // Don't let runProcessing actually run — spy it into a noop
+      jest.spyOn(service as any, 'runProcessing').mockResolvedValue(undefined);
+
       await service.uploadDocument(
         actor,
         fileBuffer,
@@ -144,12 +156,19 @@ describe('DocumentProcessingDomainService', () => {
           mimeType,
         }),
       );
+      // First updateStatus: STORED (after GCS upload)
       expect(mockRepository.updateStatus).toHaveBeenCalledWith(
         'doc-123',
         DocumentStatus.STORED,
         expect.objectContaining({
           rawFileUri: expect.stringContaining('gs://'),
         }),
+      );
+      // Second updateStatus: PROCESSING (from kickoffProcessing)
+      expect(mockRepository.updateStatus).toHaveBeenCalledWith(
+        'doc-123',
+        DocumentStatus.PROCESSING,
+        expect.objectContaining({ processingStartedAt: expect.any(Date) }),
       );
       expect(mockAudit.logAuthEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -174,6 +193,15 @@ describe('DocumentProcessingDomainService', () => {
 
       mockStorage.storeRaw.mockResolvedValue('gs://bucket/raw/file.pdf');
 
+      mockRepository.findById.mockResolvedValue({
+        id: 'doc-123',
+        userId,
+        status: DocumentStatus.STORED,
+        rawFileUri: 'gs://bucket/raw/file.pdf',
+        mimeType: 'application/pdf',
+      } as any);
+      jest.spyOn(service as any, 'runProcessing').mockResolvedValue(undefined);
+
       await service.uploadDocument(
         actor,
         fileBuffer,
@@ -187,6 +215,52 @@ describe('DocumentProcessingDomainService', () => {
       expect(JSON.stringify(auditCall)).not.toContain('SENSITIVE');
       expect(JSON.stringify(auditCall)).not.toContain('gs://');
       expect(JSON.stringify(auditCall)).not.toContain('patient_john_doe');
+    });
+
+    it('should roll back upload when kickoffProcessing fails', async () => {
+      const userId = 'user-123';
+      const actor = { sub: userId, id: userId, type: 'user' } as any;
+      const fileBuffer = Buffer.from('test file content');
+      const fileName = 'test.pdf';
+      const mimeType = 'application/pdf';
+      const documentType = DocumentType.LAB_RESULT;
+      const gcsUri = 'gs://bucket/raw/user-123/doc-123_test.pdf';
+
+      mockRepository.save.mockResolvedValue({
+        id: 'doc-123',
+        userId,
+        status: DocumentStatus.UPLOADED,
+        rawFileUri: '',
+      } as any);
+      mockStorage.storeRaw.mockResolvedValue(gcsUri);
+
+      jest
+        .spyOn(service as any, 'kickoffProcessing')
+        .mockRejectedValue(new Error('Cloud SQL connection refused'));
+      mockStorage.delete.mockResolvedValue(undefined);
+      mockRepository.hardDelete.mockResolvedValue(undefined);
+
+      await expect(
+        service.uploadDocument(
+          actor,
+          fileBuffer,
+          fileName,
+          mimeType,
+          documentType,
+        ),
+      ).rejects.toThrow(/Cloud SQL connection refused/);
+
+      expect(mockStorage.delete).toHaveBeenCalledWith(gcsUri);
+      expect(mockRepository.hardDelete).toHaveBeenCalledWith('doc-123');
+      expect(mockAudit.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'DOCUMENT_DELETED',
+          metadata: expect.objectContaining({
+            documentId: 'doc-123',
+            reason: 'auto-rollback-after-failed-ocr-kickoff',
+          }),
+        }),
+      );
     });
   });
 
