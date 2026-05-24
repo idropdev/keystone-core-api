@@ -1470,11 +1470,11 @@ export class DocumentProcessingDomainService {
   }
 
   /**
-   * Manually trigger OCR processing for a document
+   * Re-trigger OCR processing for a document.
    *
-   * OCR processing is always manual - it must be explicitly triggered by the origin manager
-   * or temporary manager via this endpoint. This avoids overhead of automatic processing
-   * and maintains domain architecture with role-based access control.
+   * Uploads auto-trigger OCR via uploadDocument. This endpoint exists for
+   * re-processing FAILED or PROCESSED docs (e.g. after an extractor upgrade),
+   * and as a manual override for the origin manager or temporary manager.
    *
    * HIPAA Requirement: Only verified origin managers or temporary managers can trigger OCR
    */
