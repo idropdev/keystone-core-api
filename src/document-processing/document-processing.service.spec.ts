@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
 import { DocumentRepositoryPort } from './domain/ports/document.repository.port';
@@ -438,7 +439,7 @@ describe('DocumentProcessingDomainService', () => {
       mockRepository.findById.mockResolvedValue(null);
 
       await expect((service as any).kickoffProcessing(docId)).rejects.toThrow(
-        /not found/i,
+        NotFoundException,
       );
       expect(mockRepository.updateStatus).not.toHaveBeenCalled();
     });
@@ -505,7 +506,7 @@ describe('DocumentProcessingDomainService', () => {
         .mockResolvedValueOnce(null);
 
       await expect(service.triggerOcr(docId, actor)).rejects.toThrow(
-        /not found/i,
+        NotFoundException,
       );
     });
 

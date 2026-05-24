@@ -320,6 +320,9 @@ export class DocumentProcessingDomainService {
     try {
       // Get document (still needed for pageCount, userId, etc.)
       const document = await this.documentRepository.findById(documentId);
+      // Plain Error (not NotFoundException) because runProcessing is fire-and-forget;
+      // this branch only fires if the doc is deleted between kickoff and run (race).
+      // The error is caught by the outer try/catch and routed to handleProcessingError.
       if (!document) throw new Error('Document not found');
 
       // Audit log
@@ -1460,19 +1463,6 @@ export class DocumentProcessingDomainService {
     );
   }
 
-  /**
-   * Trigger OCR processing (origin manager only)
-   *
-   * Authority Rules (from Phase 2):
-   * - Only origin manager can trigger OCR
-   * - Document must be in STORED, PROCESSED, or FAILED state
-   * - Re-processing allowed (PROCESSED → PROCESSING)
-   *
-   * @param documentId - Document UUID
-   * @param actor - Actor requesting OCR trigger (must be origin manager)
-   * @throws ForbiddenException if actor is not origin manager
-   * @throws BadRequestException if document state doesn't allow processing
-   */
   /**
    * Manually trigger OCR processing for a document
    *
