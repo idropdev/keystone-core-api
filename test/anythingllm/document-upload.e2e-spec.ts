@@ -355,7 +355,7 @@ describe('AnythingLLM Document Upload (E2E)', () => {
               openAiHistory: 20,
               openAiPrompt: 'Custom prompt for responses',
               queryRefusalResponse: 'Custom refusal message',
-              chatMode: 'chat',
+              chatMode: 'query',
               topN: 4,
             });
 

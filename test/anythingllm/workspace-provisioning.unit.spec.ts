@@ -131,7 +131,7 @@ describe('Workspace Provisioning Unit Tests', () => {
         expect.objectContaining({
           name: `Workspace for user ${keystoneUserId}`,
           slug: workspaceSlug,
-          chatMode: 'chat',
+          chatMode: 'query',
           topN: 8,
           similarityThreshold: 0.68,
           openAiTemp: 0.2,
