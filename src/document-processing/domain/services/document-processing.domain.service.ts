@@ -2015,6 +2015,54 @@ export class DocumentProcessingDomainService {
     return 'string';
   }
 
+  /**
+   * Undo the side-effects of a partially-completed upload when the
+   * post-upload OCR kickoff fails synchronously.
+   *
+   * Best-effort: each cleanup step is independently guarded so a partial
+   * failure (e.g. GCS network blip) does not prevent the next attempt.
+   * The caller has already captured the original kickoff error and will
+   * surface it to the client; rollback failures are logged but do not
+   * propagate.
+   */
+  private async rollbackUpload(
+    documentId: string,
+    gcsUri: string,
+    reason: Error,
+  ): Promise<void> {
+    this.logger.warn(
+      `[DOCUMENT UPLOAD] Rolling back upload for ${documentId}: ${reason.message}`,
+    );
+
+    try {
+      await this.storageService.delete(gcsUri);
+    } catch (gcsErr: any) {
+      this.logger.error(
+        `[ROLLBACK] Failed to delete GCS file ${gcsUri}: ${gcsErr?.message ?? gcsErr}`,
+      );
+    }
+
+    try {
+      await this.documentRepository.hardDelete(documentId);
+    } catch (dbErr: any) {
+      this.logger.error(
+        `[ROLLBACK] Failed to hard-delete document ${documentId}: ${dbErr?.message ?? dbErr}`,
+      );
+    }
+
+    this.auditService.logAuthEvent({
+      userId: '',
+      provider: 'document-processing',
+      event: DocumentEventType.DOCUMENT_DELETED as any,
+      success: true,
+      metadata: {
+        documentId,
+        reason: 'auto-rollback-after-failed-ocr-kickoff',
+        kickoffError: this.sanitizeError(reason),
+      },
+    });
+  }
+
   private sanitizeError(error: any): string {
     const message = error?.message || String(error);
     return message

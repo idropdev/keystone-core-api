@@ -532,4 +532,49 @@ describe('DocumentProcessingDomainService', () => {
       });
     });
   });
+
+  describe('rollbackUpload', () => {
+    const docId = 'doc-rollback-1';
+    const gcsUri = 'gs://bucket/raw/foo.pdf';
+    const reason = new Error('kickoff failed');
+
+    it('should delete the GCS file, hard-delete the doc, and fire an audit event', async () => {
+      mockStorage.delete.mockResolvedValue(undefined);
+      mockRepository.hardDelete.mockResolvedValue(undefined);
+
+      await (service as any).rollbackUpload(docId, gcsUri, reason);
+
+      expect(mockStorage.delete).toHaveBeenCalledWith(gcsUri);
+      expect(mockRepository.hardDelete).toHaveBeenCalledWith(docId);
+      expect(mockAudit.logAuthEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'document-processing',
+          success: true,
+          metadata: expect.objectContaining({
+            documentId: docId,
+            reason: 'auto-rollback-after-failed-ocr-kickoff',
+          }),
+        }),
+      );
+    });
+
+    it('should still hard-delete the doc when GCS delete fails', async () => {
+      mockStorage.delete.mockRejectedValue(new Error('GCS network error'));
+      mockRepository.hardDelete.mockResolvedValue(undefined);
+
+      await (service as any).rollbackUpload(docId, gcsUri, reason);
+
+      expect(mockStorage.delete).toHaveBeenCalled();
+      expect(mockRepository.hardDelete).toHaveBeenCalledWith(docId);
+    });
+
+    it('should not throw even when both cleanup steps fail', async () => {
+      mockStorage.delete.mockRejectedValue(new Error('GCS error'));
+      mockRepository.hardDelete.mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        (service as any).rollbackUpload(docId, gcsUri, reason),
+      ).resolves.toBeUndefined();
+    });
+  });
 });
