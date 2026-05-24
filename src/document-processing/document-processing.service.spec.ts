@@ -406,4 +406,129 @@ describe('DocumentProcessingDomainService', () => {
       );
     });
   });
+
+  describe('kickoffProcessing', () => {
+    const docId = 'doc-kick-1';
+
+    it('should validate state, set PROCESSING, and return the processing args', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: docId,
+        status: DocumentStatus.STORED,
+        rawFileUri: 'gs://bucket/raw/foo.pdf',
+        mimeType: 'application/pdf',
+      } as any);
+
+      // Access the private method via bracket notation — TDD pragmatism
+      const args = await (service as any).kickoffProcessing(docId);
+
+      expect(mockRepository.findById).toHaveBeenCalledWith(docId);
+      expect(mockRepository.updateStatus).toHaveBeenCalledWith(
+        docId,
+        DocumentStatus.PROCESSING,
+        expect.objectContaining({ processingStartedAt: expect.any(Date) }),
+      );
+      expect(args).toEqual({
+        documentId: docId,
+        gcsUri: 'gs://bucket/raw/foo.pdf',
+        mimeType: 'application/pdf',
+      });
+    });
+
+    it('should throw NotFoundException when the document does not exist', async () => {
+      mockRepository.findById.mockResolvedValue(null);
+
+      await expect((service as any).kickoffProcessing(docId)).rejects.toThrow(
+        /not found/i,
+      );
+      expect(mockRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should propagate state-machine rejection without touching the DB', async () => {
+      // ARCHIVED is a terminal state — ARCHIVED → PROCESSING is rejected by
+      // validateTransition (no valid transitions from ARCHIVED). This confirms
+      // kickoffProcessing propagates state-machine errors before updateStatus runs.
+      mockRepository.findById.mockResolvedValue({
+        id: docId,
+        status: DocumentStatus.ARCHIVED,
+        rawFileUri: 'gs://bucket/raw/foo.pdf',
+        mimeType: 'application/pdf',
+      } as any);
+
+      await expect((service as any).kickoffProcessing(docId)).rejects.toThrow();
+      expect(mockRepository.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should propagate DB updateStatus failures', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: docId,
+        status: DocumentStatus.STORED,
+        rawFileUri: 'gs://bucket/raw/foo.pdf',
+        mimeType: 'application/pdf',
+      } as any);
+      mockRepository.updateStatus.mockRejectedValue(
+        new Error('Cloud SQL connection refused'),
+      );
+
+      await expect((service as any).kickoffProcessing(docId)).rejects.toThrow(
+        /Cloud SQL connection refused/,
+      );
+    });
+  });
+
+  describe('triggerOcr', () => {
+    const docId = 'doc-trigger-1';
+    const userId = 7;
+    const actor = { id: userId, type: 'user' } as any;
+
+    beforeEach(() => {
+      mockRepository.findById.mockResolvedValue({
+        id: docId,
+        userId: String(userId),
+        status: DocumentStatus.STORED,
+        rawFileUri: 'gs://bucket/raw/x.pdf',
+        mimeType: 'application/pdf',
+        temporaryManagerId: userId,
+      } as any);
+    });
+
+    it('should propagate sync kickoff failures instead of swallowing them', async () => {
+      // Make the second findById (inside kickoffProcessing) fail
+      mockRepository.findById
+        .mockResolvedValueOnce({
+          id: docId,
+          userId: String(userId),
+          status: DocumentStatus.STORED,
+          rawFileUri: 'gs://bucket/raw/x.pdf',
+          mimeType: 'application/pdf',
+          temporaryManagerId: userId,
+        } as any)
+        .mockResolvedValueOnce(null);
+
+      await expect(service.triggerOcr(docId, actor)).rejects.toThrow(
+        /not found/i,
+      );
+    });
+
+    it('should call kickoffProcessing then runProcessing on success', async () => {
+      const kickoffSpy = jest
+        .spyOn(service as any, 'kickoffProcessing')
+        .mockResolvedValue({
+          documentId: docId,
+          gcsUri: 'gs://bucket/raw/x.pdf',
+          mimeType: 'application/pdf',
+        });
+      const runSpy = jest
+        .spyOn(service as any, 'runProcessing')
+        .mockResolvedValue(undefined);
+
+      await service.triggerOcr(docId, actor);
+
+      expect(kickoffSpy).toHaveBeenCalledWith(docId);
+      expect(runSpy).toHaveBeenCalledWith({
+        documentId: docId,
+        gcsUri: 'gs://bucket/raw/x.pdf',
+        mimeType: 'application/pdf',
+      });
+    });
+  });
 });

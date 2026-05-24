@@ -46,6 +46,16 @@ export enum DocumentEventType {
 }
 
 /**
+ * Args returned by kickoffProcessing and consumed by runProcessing.
+ * Internal to the domain service; not exported.
+ */
+interface DocumentForProcessing {
+  documentId: string;
+  gcsUri: string;
+  mimeType: string;
+}
+
+/**
  * Domain Service for Document Processing
  *
  * Business logic for document upload, OCR processing, and lifecycle management.
@@ -262,33 +272,55 @@ export class DocumentProcessingDomainService {
   }
 
   /**
-   * Start OCR processing (async) - now with intelligent PDF routing
+   * Phase 1 of OCR processing: synchronous setup.
+   *
+   * Looks up the document, validates the state transition to PROCESSING,
+   * and persists the new status. Returns the args needed by runProcessing.
+   * Throws on missing doc, invalid transition, or DB write failure — the
+   * caller is responsible for any compensating action (rollback for upload,
+   * 4xx response for triggerOcr).
    */
-  private async startProcessing(
+  private async kickoffProcessing(
     documentId: string,
-    gcsUri: string,
-    mimeType: string,
+  ): Promise<DocumentForProcessing> {
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException(`Document ${documentId} not found`);
+    }
+    DocumentStateMachine.validateTransition(
+      document.status,
+      DocumentStatus.PROCESSING,
+    );
+    await this.documentRepository.updateStatus(
+      documentId,
+      DocumentStatus.PROCESSING,
+      { processingStartedAt: new Date() },
+    );
+    return {
+      documentId,
+      gcsUri: document.rawFileUri,
+      mimeType: document.mimeType,
+    };
+  }
+
+  /**
+   * Phase 2 of OCR processing: the async OCR pipeline.
+   *
+   * Called fire-and-forget by both uploadDocument (after kickoff succeeds)
+   * and triggerOcr. Status is already PROCESSING when this runs — kickoff
+   * is responsible for that transition. Failures inside this method move
+   * the document to FAILED via the existing retry/error path.
+   */
+  private async runProcessing(
+    args: DocumentForProcessing,
     fileBuffer?: Buffer,
   ): Promise<void> {
+    const { documentId, gcsUri, mimeType } = args;
+
     try {
-      // Get document to check current status
+      // Get document (still needed for pageCount, userId, etc.)
       const document = await this.documentRepository.findById(documentId);
       if (!document) throw new Error('Document not found');
-
-      // Validate state transition before updating
-      DocumentStateMachine.validateTransition(
-        document.status,
-        DocumentStatus.PROCESSING,
-      );
-
-      // Update status to PROCESSING
-      await this.documentRepository.updateStatus(
-        documentId,
-        DocumentStatus.PROCESSING,
-        {
-          processingStartedAt: new Date(),
-        },
-      );
 
       // Audit log
       this.auditService.logAuthEvent({
@@ -1261,11 +1293,11 @@ export class DocumentProcessingDomainService {
 
       // Retry after delay (note: no buffer available on retry, will use OCR)
       setTimeout(() => {
-        this.startProcessing(
+        this.runProcessing({
           documentId,
-          document.rawFileUri,
-          document.mimeType,
-        ).catch((retryError: any) => {
+          gcsUri: document.rawFileUri,
+          mimeType: document.mimeType,
+        }).catch((retryError: any) => {
           // Log retry failure but don't throw - error will be handled in handleProcessingError
           this.logger.error(
             `Retry ${retryCount} failed for document ${documentId}: ${this.sanitizeError(retryError)}`,
@@ -1519,20 +1551,13 @@ export class DocumentProcessingDomainService {
       );
     }
 
-    // 4. Validate state transition
-    DocumentStateMachine.validateTransition(
-      document.status,
-      DocumentStatus.PROCESSING,
-    );
+    // 4. Kickoff processing (sync; throws → propagates as 4xx/5xx)
+    const processingArgs = await this.kickoffProcessing(documentId);
 
-    // 5. Trigger processing (async, don't await)
-    this.startProcessing(
-      documentId,
-      document.rawFileUri,
-      document.mimeType,
-    ).catch((error) => {
+    // 5. Run the async OCR pipeline (fire-and-forget)
+    this.runProcessing(processingArgs).catch((error) => {
       this.logger.error(
-        `Failed to trigger OCR for document ${documentId}: ${error.message}`,
+        `Failed to run OCR for document ${documentId}: ${error.message}`,
       );
     });
 
