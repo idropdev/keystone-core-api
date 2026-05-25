@@ -22,6 +22,8 @@ describe('DocumentProcessingDomainService', () => {
   let mockOcr: jest.Mocked<OcrServicePort>;
   let mockAudit: jest.Mocked<AuditService>;
   let mockGeminiExtractor: jest.Mocked<GeminiEntityExtractorService>;
+  let mockAnythingLLMDocumentService: { uploadDocument: jest.Mock };
+  let mockWorkspaceProvisioning: { getWorkspaceSlug: jest.Mock };
 
   beforeEach(async () => {
     // Create mocks
@@ -43,6 +45,7 @@ describe('DocumentProcessingDomainService', () => {
       storeProcessed: jest.fn(),
       delete: jest.fn(),
       getSignedUrl: jest.fn(),
+      readRaw: jest.fn(),
     } as any;
 
     mockOcr = {
@@ -56,6 +59,14 @@ describe('DocumentProcessingDomainService', () => {
     mockGeminiExtractor = {
       extractEntities: jest.fn().mockResolvedValue([]),
     } as any;
+
+    mockAnythingLLMDocumentService = {
+      uploadDocument: jest.fn().mockResolvedValue({}),
+    };
+
+    mockWorkspaceProvisioning = {
+      getWorkspaceSlug: jest.fn().mockResolvedValue(null),
+    };
 
     const mockConfig = {
       getOrThrow: jest.fn((key) => {
@@ -103,15 +114,11 @@ describe('DocumentProcessingDomainService', () => {
         },
         {
           provide: AnythingLLMDocumentService,
-          useValue: {
-            uploadDocument: jest.fn().mockResolvedValue({}),
-          },
+          useValue: mockAnythingLLMDocumentService,
         },
         {
           provide: AnythingLLMWorkspaceProvisioningService,
-          useValue: {
-            getWorkspaceSlug: jest.fn().mockResolvedValue(null),
-          },
+          useValue: mockWorkspaceProvisioning,
         },
       ],
     }).compile();
@@ -618,6 +625,131 @@ describe('DocumentProcessingDomainService', () => {
         gcsUri: 'gs://bucket/raw/x.pdf',
         mimeType: 'application/pdf',
       });
+    });
+  });
+
+  describe('pushToAnythingLLMWorkspace', () => {
+    it('should push file + Document AI fields to user workspace on happy path', async () => {
+      const doc = {
+        id: 'doc-1',
+        fileName: 'lab.pdf',
+        rawFileUri: 'gs://bucket/raw/7/doc-1.pdf',
+        temporaryManagerId: 7,
+        originUserContextId: null,
+        ocrJsonOutput: { entities: [{ type: 'PERSON', mentionText: 'John' }] },
+      } as any;
+
+      mockRepository.findById.mockResolvedValue(doc);
+      mockWorkspaceProvisioning.getWorkspaceSlug.mockResolvedValue(
+        'workspace-for-user-7',
+      );
+      mockStorage.readRaw.mockResolvedValue(Buffer.from('pdf-bytes'));
+      mockAnythingLLMDocumentService.uploadDocument.mockResolvedValue({});
+
+      await (service as any).pushToAnythingLLMWorkspace('doc-1');
+
+      expect(mockWorkspaceProvisioning.getWorkspaceSlug).toHaveBeenCalledWith(
+        '7',
+      );
+      expect(mockStorage.readRaw).toHaveBeenCalledWith(
+        'gs://bucket/raw/7/doc-1.pdf',
+      );
+      expect(
+        mockAnythingLLMDocumentService.uploadDocument,
+      ).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'lab.pdf',
+        'workspace-for-user-7',
+        expect.stringContaining('entities'),
+      );
+    });
+
+    it('should skip when document has no user context (manager upload without intake user)', async () => {
+      const doc = {
+        id: 'doc-2',
+        fileName: 'mgr.pdf',
+        temporaryManagerId: null,
+        originUserContextId: null,
+      } as any;
+
+      mockRepository.findById.mockResolvedValue(doc);
+
+      await (service as any).pushToAnythingLLMWorkspace('doc-2');
+
+      expect(mockWorkspaceProvisioning.getWorkspaceSlug).not.toHaveBeenCalled();
+      expect(
+        mockAnythingLLMDocumentService.uploadDocument,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should skip when no workspace mapped for user', async () => {
+      const doc = {
+        id: 'doc-3',
+        fileName: 'foo.pdf',
+        rawFileUri: 'gs://bucket/raw/5/doc-3.pdf',
+        temporaryManagerId: 5,
+      } as any;
+
+      mockRepository.findById.mockResolvedValue(doc);
+      mockWorkspaceProvisioning.getWorkspaceSlug.mockResolvedValue(null);
+
+      await (service as any).pushToAnythingLLMWorkspace('doc-3');
+
+      expect(
+        mockAnythingLLMDocumentService.uploadDocument,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should use originUserContextId when temporaryManagerId is null (manager upload with intake user)', async () => {
+      const doc = {
+        id: 'doc-4',
+        fileName: 'intake.pdf',
+        rawFileUri: 'gs://bucket/raw/9/doc-4.pdf',
+        temporaryManagerId: null,
+        originUserContextId: 9,
+        ocrJsonOutput: null,
+      } as any;
+
+      mockRepository.findById.mockResolvedValue(doc);
+      mockWorkspaceProvisioning.getWorkspaceSlug.mockResolvedValue(
+        'workspace-for-user-9',
+      );
+      mockStorage.readRaw.mockResolvedValue(Buffer.from('pdf'));
+      mockAnythingLLMDocumentService.uploadDocument.mockResolvedValue({});
+
+      await (service as any).pushToAnythingLLMWorkspace('doc-4');
+
+      expect(mockWorkspaceProvisioning.getWorkspaceSlug).toHaveBeenCalledWith(
+        '9',
+      );
+    });
+
+    it('should omit documentFields when ocrJsonOutput is null', async () => {
+      const doc = {
+        id: 'doc-5',
+        fileName: 'no-ocr.pdf',
+        rawFileUri: 'gs://bucket/raw/3/doc-5.pdf',
+        temporaryManagerId: 3,
+        ocrJsonOutput: null,
+      } as any;
+
+      mockRepository.findById.mockResolvedValue(doc);
+      mockWorkspaceProvisioning.getWorkspaceSlug.mockResolvedValue(
+        'workspace-for-user-3',
+      );
+      mockStorage.readRaw.mockResolvedValue(Buffer.from('pdf'));
+      mockAnythingLLMDocumentService.uploadDocument.mockResolvedValue({});
+
+      await (service as any).pushToAnythingLLMWorkspace('doc-5');
+
+      expect(
+        mockAnythingLLMDocumentService.uploadDocument,
+      ).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        'no-ocr.pdf',
+        'workspace-for-user-3',
+        undefined,
+      );
     });
   });
 

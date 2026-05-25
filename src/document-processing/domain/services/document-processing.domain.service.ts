@@ -2073,6 +2073,80 @@ export class DocumentProcessingDomainService {
     });
   }
 
+  /**
+   * Fire-and-forget push of a processed document into the user's
+   * AnythingLLM workspace so the chat assistant can answer questions
+   * about it. Called at the tail of `runProcessing` after OCR completes.
+   *
+   * Resolves the uploader's user ID from `temporaryManagerId` (user
+   * self-upload) or `originUserContextId` (manager upload with intake
+   * user). Skips silently if neither is set.
+   *
+   * Errors are logged via this.logger.error and not rethrown — the OCR
+   * pipeline already completed successfully when this is called.
+   */
+  private async pushToAnythingLLMWorkspace(documentId: string): Promise<void> {
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      this.logger.warn(
+        `[CHAT EMBED] Document ${documentId} not found at push time`,
+      );
+      return;
+    }
+
+    const actorUserId =
+      document.temporaryManagerId ?? document.originUserContextId ?? null;
+    if (!actorUserId) {
+      this.logger.log(
+        `[CHAT EMBED] Skipping doc ${documentId} — no user context for workspace`,
+      );
+      return;
+    }
+
+    const workspaceSlug = await this.workspaceProvisioning.getWorkspaceSlug(
+      String(actorUserId),
+    );
+    if (!workspaceSlug) {
+      this.logger.warn(
+        `[CHAT EMBED] No workspace mapped for user ${actorUserId} (doc ${documentId})`,
+      );
+      return;
+    }
+
+    const fileBuffer = await this.storageService.readRaw(document.rawFileUri);
+    const documentFieldsJson = this.buildDocumentFieldsJson(document);
+
+    await this.anythingLLMDocumentService.uploadDocument(
+      fileBuffer,
+      document.fileName,
+      workspaceSlug,
+      documentFieldsJson,
+    );
+
+    this.logger.log(
+      `[CHAT EMBED] Pushed doc ${documentId} to workspace ${workspaceSlug}`,
+    );
+  }
+
+  /**
+   * Build the documentFields JSON string AnythingLLM expects from the
+   * persisted Document AI output. Returns undefined if no OCR output
+   * available (raw upload still works, just lower-quality RAG).
+   */
+  private buildDocumentFieldsJson(document: Document): string | undefined {
+    const ocr = document.ocrJsonOutput;
+    if (!ocr) {
+      return undefined;
+    }
+    // AnythingLLM expects: { entities: [...], fullResponse: {...} }
+    // ocrJsonOutput shape varies — be defensive.
+    const entities = Array.isArray(ocr.entities) ? ocr.entities : [];
+    return JSON.stringify({
+      entities,
+      fullResponse: ocr,
+    });
+  }
+
   private sanitizeError(error: any): string {
     const message = error?.message || String(error);
     return message
