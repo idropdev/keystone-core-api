@@ -677,6 +677,15 @@ export class AnythingLLMWorkspaceController {
     response.setHeader('X-Request-Id', requestId);
 
     try {
+      // Force query mode regardless of what the client sent. HealthAtlas is a
+      // medical-records-grounded assistant; users must never receive answers
+      // the LLM invented from training when their records don't cover the
+      // question. AnythingLLM's apiChatHandler honors the request body's
+      // `mode` field over the workspace's stored chatMode setting, so the
+      // override has to happen at this API boundary. See PHASE2A_NOTES
+      // Known Issue #12.
+      body.mode = 'query';
+
       // Extract requester context if user JWT is present
       const requesterContext = request.user
         ? this.mapUserToRequesterContext(request.user)
