@@ -30,4 +30,11 @@ export interface StorageServicePort {
    * @returns Signed URL
    */
   getSignedUrl(gcsUri: string, expiresIn?: number): Promise<string>;
+
+  /**
+   * Download raw document file from GCS by its gs:// URI.
+   * @returns File bytes
+   * @throws if the URI is invalid or the file does not exist
+   */
+  readRaw(gcsUri: string): Promise<Buffer>;
 }

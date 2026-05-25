@@ -371,6 +371,27 @@ export class GcpStorageAdapter implements StorageServicePort {
     }
   }
 
+  async readRaw(gcsUri: string): Promise<Buffer> {
+    if (!gcsUri.startsWith('gs://')) {
+      throw new Error(`Invalid GCS URI: ${gcsUri}`);
+    }
+    const withoutScheme = gcsUri.slice(5); // remove 'gs://'
+    const firstSlash = withoutScheme.indexOf('/');
+    if (firstSlash === -1) {
+      throw new Error(`Invalid GCS URI: ${gcsUri}`);
+    }
+    const bucketName = withoutScheme.slice(0, firstSlash);
+    const objectPath = withoutScheme.slice(firstSlash + 1);
+
+    const file = this.storage.bucket(bucketName).file(objectPath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new Error(`GCS object not found: ${gcsUri}`);
+    }
+    const [buf] = await file.download();
+    return buf;
+  }
+
   async storeProcessed(jsonData: any, metadata: FileMetadata): Promise<string> {
     try {
       const objectKey = `${this.processedPrefix}${metadata.userId}/${metadata.documentId}.json`;
