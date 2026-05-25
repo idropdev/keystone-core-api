@@ -2074,16 +2074,20 @@ export class DocumentProcessingDomainService {
   }
 
   /**
-   * Fire-and-forget push of a processed document into the user's
-   * AnythingLLM workspace so the chat assistant can answer questions
-   * about it. Called at the tail of `runProcessing` after OCR completes.
+   * Push a processed document into the user's AnythingLLM workspace so
+   * the chat assistant can answer questions about it. Called at the tail
+   * of `runProcessing` after OCR completes.
    *
    * Resolves the uploader's user ID from `temporaryManagerId` (user
    * self-upload) or `originUserContextId` (manager upload with intake
-   * user). Skips silently if neither is set.
+   * user). Skips silently if neither is set or if no workspace is mapped
+   * for the user.
    *
-   * Errors are logged via this.logger.error and not rethrown — the OCR
-   * pipeline already completed successfully when this is called.
+   * **Error contract:** Errors from storage read or AnythingLLM upload
+   * are PROPAGATED to the caller. The expected caller (`runProcessing`)
+   * invokes this fire-and-forget with `void ... .catch(err => logger.error(...))`
+   * so that OCR success is never blocked by a downstream chat-embed
+   * failure. Do not change this contract without updating the caller.
    */
   private async pushToAnythingLLMWorkspace(documentId: string): Promise<void> {
     const document = await this.documentRepository.findById(documentId);
