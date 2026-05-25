@@ -165,9 +165,7 @@ export class DocumentAccessDomainService {
       // canPerformOperation already treats temporaryManagerId === actor.id
       // as full ownership; the list query needs to surface them too.
       const temporaryManagerDocuments =
-        await this.documentRepository.findByTemporaryManagerId(
-          Number(actor.id),
-        );
+        await this.documentRepository.findByTemporaryManagerId(actor.id);
       const temporaryManagerDocIds = temporaryManagerDocuments.map(
         (doc) => doc.id,
       );

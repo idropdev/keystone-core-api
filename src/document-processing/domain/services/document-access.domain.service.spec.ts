@@ -230,32 +230,6 @@ describe('DocumentAccessDomainService', () => {
       expect(result.data.map((d) => d.id)).toContain('doc-granted');
       expect(result.data.map((d) => d.id)).toContain('doc-self');
     });
-
-    it('should handle string user IDs by coercing to number', async () => {
-      const userActor: Actor = { type: 'user', id: '7' as any };
-      const tempManagerDoc: Document = {
-        id: 'doc-temp-1',
-        fileName: 'self-upload.pdf',
-        temporaryManagerId: 7,
-        status: DocumentStatus.PROCESSED,
-      } as Document;
-
-      mockAccessGrantService.getActiveGrantsForSubject.mockResolvedValue([]);
-      mockDocumentRepository.findByTemporaryManagerId.mockResolvedValue([
-        tempManagerDoc,
-      ]);
-      mockDocumentRepository.findById.mockResolvedValue(tempManagerDoc);
-
-      const result = await service.listDocuments(userActor, {
-        skip: 0,
-        limit: 10,
-      });
-
-      expect(
-        mockDocumentRepository.findByTemporaryManagerId,
-      ).toHaveBeenCalledWith(7);
-      expect(result.data).toHaveLength(1);
-    });
   });
 
   describe('getDocument', () => {
