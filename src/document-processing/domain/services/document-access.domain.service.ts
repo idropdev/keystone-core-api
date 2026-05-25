@@ -159,6 +159,23 @@ export class DocumentAccessDomainService {
       }
     }
 
+    if (actor.type === 'user') {
+      // User-uploaded docs are owned by the user as the temporary manager
+      // (set in document-processing.domain.service.ts at upload time).
+      // canPerformOperation already treats temporaryManagerId === actor.id
+      // as full ownership; the list query needs to surface them too.
+      const temporaryManagerDocuments =
+        await this.documentRepository.findByTemporaryManagerId(
+          Number(actor.id),
+        );
+      const temporaryManagerDocIds = temporaryManagerDocuments.map(
+        (doc) => doc.id,
+      );
+      allDocumentIds = [
+        ...new Set([...allDocumentIds, ...temporaryManagerDocIds]),
+      ];
+    }
+
     // 5. If no documents, return empty
     if (allDocumentIds.length === 0) {
       return {
