@@ -25,6 +25,8 @@ import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
 import { AuditModule } from '../audit/audit.module';
 import { AccessControlModule } from '../access-control/access-control.module';
 import { UsersModule } from '../users/users.module';
+import { AnythingLLMDocumentModule } from '../anythingllm/document/anythingllm-document.module';
+import { AnythingLLMWorkspaceProvisioningModule } from '../anythingllm/workspace/anythingllm-workspace-provisioning.module';
 
 @Module({
   imports: [
@@ -58,6 +60,10 @@ import { UsersModule } from '../users/users.module';
 
     // Managers module (for ManagerInstance lookup)
     RelationalManagerPersistenceModule,
+
+    // AnythingLLM modules (for document and workspace provisioning services)
+    AnythingLLMDocumentModule,
+    AnythingLLMWorkspaceProvisioningModule,
   ],
   controllers: [DocumentProcessingController],
   providers: [
