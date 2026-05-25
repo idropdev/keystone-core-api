@@ -12,6 +12,8 @@ import { Pdf2JsonService } from './infrastructure/pdf-extraction/pdf2json.servic
 import { OcrMergeService } from './utils/ocr-merge.service';
 import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
 import { GeminiEntityExtractorService } from './infrastructure/extraction/gemini-entity-extractor.service';
+import { AnythingLLMDocumentService } from '../anythingllm/document/anythingllm-document.service';
+import { AnythingLLMWorkspaceProvisioningService } from '../anythingllm/workspace/anythingllm-workspace-provisioning.service';
 
 describe('DocumentProcessingDomainService', () => {
   let service: DocumentProcessingDomainService;
@@ -98,6 +100,18 @@ describe('DocumentProcessingDomainService', () => {
         {
           provide: GeminiEntityExtractorService,
           useValue: mockGeminiExtractor,
+        },
+        {
+          provide: AnythingLLMDocumentService,
+          useValue: {
+            uploadDocument: jest.fn().mockResolvedValue({}),
+          },
+        },
+        {
+          provide: AnythingLLMWorkspaceProvisioningService,
+          useValue: {
+            getWorkspaceSlug: jest.fn().mockResolvedValue(null),
+          },
         },
       ],
     }).compile();

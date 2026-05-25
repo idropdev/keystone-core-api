@@ -28,6 +28,8 @@ import { Actor } from '../../../access-control/domain/services/access-grant.doma
 import { ManagerRepositoryPort } from '../../../managers/domain/repositories/manager.repository.port';
 import { OcrMergeService } from '../../utils/ocr-merge.service';
 import { OcrPostProcessorService } from '../../utils/ocr-post-processor.service';
+import { AnythingLLMDocumentService } from '../../../anythingllm/document/anythingllm-document.service';
+import { AnythingLLMWorkspaceProvisioningService } from '../../../anythingllm/workspace/anythingllm-workspace-provisioning.service';
 
 // Use require for pdf-parse (CommonJS module)
 // pdf-parse exports { PDFParse } as a named export
@@ -86,6 +88,8 @@ export class DocumentProcessingDomainService {
     @Inject('ManagerRepositoryPort')
     private readonly managerRepository: ManagerRepositoryPort,
     private readonly geminiEntityExtractor: GeminiEntityExtractorService,
+    private readonly anythingLLMDocumentService: AnythingLLMDocumentService,
+    private readonly workspaceProvisioning: AnythingLLMWorkspaceProvisioningService,
   ) {
     this.retentionYears = this.configService.getOrThrow(
       'documentProcessing.retentionYears',
