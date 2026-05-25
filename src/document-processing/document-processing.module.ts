@@ -61,9 +61,9 @@ import { AnythingLLMWorkspaceProvisioningModule } from '../anythingllm/workspace
     // Managers module (for ManagerInstance lookup)
     RelationalManagerPersistenceModule,
 
-    // AnythingLLM modules (for document and workspace provisioning services)
-    AnythingLLMDocumentModule,
-    AnythingLLMWorkspaceProvisioningModule,
+    // AnythingLLM modules (forwardRef to break circular dependency with AnythingLLMOrchestratorModule)
+    forwardRef(() => AnythingLLMDocumentModule),
+    forwardRef(() => AnythingLLMWorkspaceProvisioningModule),
   ],
   controllers: [DocumentProcessingController],
   providers: [

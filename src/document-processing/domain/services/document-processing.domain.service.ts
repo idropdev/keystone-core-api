@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
   Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -88,7 +89,9 @@ export class DocumentProcessingDomainService {
     @Inject('ManagerRepositoryPort')
     private readonly managerRepository: ManagerRepositoryPort,
     private readonly geminiEntityExtractor: GeminiEntityExtractorService,
+    @Inject(forwardRef(() => AnythingLLMDocumentService))
     private readonly anythingLLMDocumentService: AnythingLLMDocumentService,
+    @Inject(forwardRef(() => AnythingLLMWorkspaceProvisioningService))
     private readonly workspaceProvisioning: AnythingLLMWorkspaceProvisioningService,
   ) {
     this.retentionYears = this.configService.getOrThrow(
