@@ -753,6 +753,73 @@ describe('DocumentProcessingDomainService', () => {
     });
   });
 
+  describe('runProcessing — AnythingLLM chat embed hook', () => {
+    const processingArgs = {
+      documentId: 'doc-99',
+      gcsUri: 'gs://bucket/raw/doc-99.jpg',
+      mimeType: 'image/jpeg', // non-PDF → skips pdf2json path
+    };
+
+    beforeEach(() => {
+      // Both VisionOcrServicePort and DocumentAiOcrServicePort resolve to mockOcr;
+      // return a minimal OCR result so the merge path has two successes to merge.
+      mockOcr.processDocument.mockResolvedValue({
+        text: 'lab results',
+        confidence: 0.95,
+        pageCount: 1,
+        fullResponse: {},
+      } as any);
+
+      // mergeOcrResults already defaults to mockResolvedValue({}) from beforeEach;
+      // storeProcessed needs an explicit URI.
+      mockStorage.storeProcessed.mockResolvedValue(
+        'gs://bucket/processed/doc-99.json',
+      );
+
+      // findById is called twice inside runProcessing:
+      //   1. to load the document (needs userId, pageCount, status)
+      //   2. for state-machine validation before PROCESSED transition
+      mockRepository.findById.mockResolvedValue({
+        id: 'doc-99',
+        userId: 'user-99',
+        status: DocumentStatus.PROCESSING,
+        pageCount: 1,
+      } as any);
+
+      mockRepository.updateStatus.mockResolvedValue(undefined);
+
+      // The outer beforeEach mockConfig only defines getOrThrow; runProcessing also
+      // calls configService.get (no-throw variant) for feature flags. Patch it
+      // directly on the service's injected configService instance so the non-PDF
+      // OCR path can read ocrMerge.enabled and ocrPostProcessing.enabled.
+      (service as any).configService.get = jest.fn().mockReturnValue(undefined);
+    });
+
+    it('should fire pushToAnythingLLMWorkspace once after successful OCR', async () => {
+      const pushSpy = jest
+        .spyOn(service as any, 'pushToAnythingLLMWorkspace')
+        .mockResolvedValue(undefined);
+
+      await (service as any).runProcessing(processingArgs);
+
+      // Give the fire-and-forget microtask a turn to execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(pushSpy).toHaveBeenCalledTimes(1);
+      expect(pushSpy).toHaveBeenCalledWith('doc-99');
+    });
+
+    it('should not fail runProcessing if pushToAnythingLLMWorkspace throws', async () => {
+      jest
+        .spyOn(service as any, 'pushToAnythingLLMWorkspace')
+        .mockRejectedValue(new Error('AnythingLLM down'));
+
+      await expect(
+        (service as any).runProcessing(processingArgs),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   describe('rollbackUpload', () => {
     const docId = 'doc-rollback-1';
     const gcsUri = 'gs://bucket/raw/foo.pdf';

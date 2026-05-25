@@ -1181,6 +1181,15 @@ export class DocumentProcessingDomainService {
         },
       });
 
+      // Fire-and-forget push to user's AnythingLLM workspace so chat can see
+      // the doc. Failures are logged but do not affect the OCR pipeline,
+      // which already completed successfully.
+      void this.pushToAnythingLLMWorkspace(documentId).catch((err: any) => {
+        this.logger.error(
+          `[CHAT EMBED] Failed for doc ${documentId}: ${err?.message ?? err}`,
+        );
+      });
+
       this.logger.log(`Processing complete for document ${documentId}`);
     } catch (error) {
       await this.handleProcessingError(documentId, error);
