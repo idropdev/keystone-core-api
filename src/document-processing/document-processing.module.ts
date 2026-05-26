@@ -25,8 +25,6 @@ import { OcrPostProcessorService } from './utils/ocr-post-processor.service';
 import { AuditModule } from '../audit/audit.module';
 import { AccessControlModule } from '../access-control/access-control.module';
 import { UsersModule } from '../users/users.module';
-import { AnythingLLMDocumentModule } from '../anythingllm/document/anythingllm-document.module';
-import { AnythingLLMWorkspaceProvisioningModule } from '../anythingllm/workspace/anythingllm-workspace-provisioning.module';
 
 @Module({
   imports: [
@@ -61,9 +59,8 @@ import { AnythingLLMWorkspaceProvisioningModule } from '../anythingllm/workspace
     // Managers module (for ManagerInstance lookup)
     RelationalManagerPersistenceModule,
 
-    // AnythingLLM modules (forwardRef to break circular dependency with AnythingLLMOrchestratorModule)
-    forwardRef(() => AnythingLLMDocumentModule),
-    forwardRef(() => AnythingLLMWorkspaceProvisioningModule),
+    // AnythingLLM services are resolved lazily in DocumentProcessingDomainService
+    // via ModuleRef.get(..., { strict: false }) to avoid the module-load cycle.
   ],
   controllers: [DocumentProcessingController],
   providers: [

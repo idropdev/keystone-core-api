@@ -5,8 +5,8 @@ import {
   ForbiddenException,
   BadRequestException,
   Inject,
-  forwardRef,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DocumentRepositoryPort } from '../ports/document.repository.port';
@@ -89,10 +89,7 @@ export class DocumentProcessingDomainService {
     @Inject('ManagerRepositoryPort')
     private readonly managerRepository: ManagerRepositoryPort,
     private readonly geminiEntityExtractor: GeminiEntityExtractorService,
-    @Inject(forwardRef(() => AnythingLLMDocumentService))
-    private readonly anythingLLMDocumentService: AnythingLLMDocumentService,
-    @Inject(forwardRef(() => AnythingLLMWorkspaceProvisioningService))
-    private readonly workspaceProvisioning: AnythingLLMWorkspaceProvisioningService,
+    private readonly moduleRef: ModuleRef,
   ) {
     this.retentionYears = this.configService.getOrThrow(
       'documentProcessing.retentionYears',
@@ -2119,7 +2116,19 @@ export class DocumentProcessingDomainService {
       return;
     }
 
-    const workspaceSlug = await this.workspaceProvisioning.getWorkspaceSlug(
+    // Resolve AnythingLLM services lazily via ModuleRef to avoid the module-load
+    // cycle that DocumentProcessingModule would have with AnythingLLMDocumentModule.
+    // strict: false searches the entire app graph rather than this module's imports.
+    const workspaceProvisioning = this.moduleRef.get(
+      AnythingLLMWorkspaceProvisioningService,
+      { strict: false },
+    );
+    const anythingLLMDocumentService = this.moduleRef.get(
+      AnythingLLMDocumentService,
+      { strict: false },
+    );
+
+    const workspaceSlug = await workspaceProvisioning.getWorkspaceSlug(
       String(actorUserId),
     );
     if (!workspaceSlug) {
@@ -2132,7 +2141,7 @@ export class DocumentProcessingDomainService {
     const fileBuffer = await this.storageService.readRaw(document.rawFileUri);
     const documentFieldsJson = this.buildDocumentFieldsJson(document);
 
-    await this.anythingLLMDocumentService.uploadDocument(
+    await anythingLLMDocumentService.uploadDocument(
       fileBuffer,
       document.fileName,
       workspaceSlug,

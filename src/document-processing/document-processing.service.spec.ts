@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentProcessingDomainService } from './domain/services/document-processing.domain.service';
 import { DocumentRepositoryPort } from './domain/ports/document.repository.port';
@@ -113,12 +114,16 @@ describe('DocumentProcessingDomainService', () => {
           useValue: mockGeminiExtractor,
         },
         {
-          provide: AnythingLLMDocumentService,
-          useValue: mockAnythingLLMDocumentService,
-        },
-        {
-          provide: AnythingLLMWorkspaceProvisioningService,
-          useValue: mockWorkspaceProvisioning,
+          provide: ModuleRef,
+          useValue: {
+            get: jest.fn((token: any) => {
+              if (token === AnythingLLMDocumentService)
+                return mockAnythingLLMDocumentService;
+              if (token === AnythingLLMWorkspaceProvisioningService)
+                return mockWorkspaceProvisioning;
+              return undefined;
+            }),
+          },
         },
       ],
     }).compile();
